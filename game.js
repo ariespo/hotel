@@ -844,7 +844,7 @@ class Game                    {
     this.buildBp = null; this.buildFurn = null; this.moveFurnId = null;
     this.moveRoomId = id;
     this.buildRot = 0;
-    this.sim.toast('移动房间：点击新位置整体放下（R 旋转，家具与房内角色会一起转向；右键或 Esc 取消）');
+    this.sim.toast('移动房间：点击新位置整体放下（R 旋转；放下后按新共享墙居中开门，不沿用旧门）');
     this.ui.render(true);
   }
 

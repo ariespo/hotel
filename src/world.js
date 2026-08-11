@@ -174,39 +174,40 @@ export class Tavern {
 
   computeDoors()       {
     this.doors = []; this.doorSet.clear();
-    // 门 = 两个相邻房间共享边上的一格通道（走廊瓶颈由此产生）
+    // 门只根据当前房间几何与空闲格重新生成；旧门位置不参与判断。
+    const occupied = new Set(this.furnIdx.keys());
     for (let i = 0; i < this.rooms.length; i++) {
       for (let j = i + 1; j < this.rooms.length; j++) {
         const a = this.rooms[i], b = this.rooms[j];
-        // 水平相邻
-        if (a.x + a.w === b.x || b.x + b.w === a.x) {
-          const left = a.x + a.w === b.x ? a : b, right = left === a ? b : a;
-          const y0 = Math.max(a.y, b.y), y1 = Math.min(a.y + a.h, b.y + b.h) - 1;
-          if (y1 >= y0) {
-            const y = this.pickDoorLine(y0, y1, (yy) => this.walkable(left.x + left.w - 1, yy) && this.walkable(right.x, yy));
-            this.addDoor(left.x + left.w - 1, y, right.x, y, left.id, right.id);
-          }
-        }
-        // 垂直相邻
-        if (a.y + a.h === b.y || b.y + b.h === a.y) {
-          const top = a.y + a.h === b.y ? a : b, bot = top === a ? b : a;
-          const x0 = Math.max(a.x, b.x), x1 = Math.min(a.x + a.w, b.x + b.w) - 1;
-          if (x1 >= x0) {
-            const x = this.pickDoorLine(x0, x1, (xx) => this.walkable(xx, top.y + top.h - 1) && this.walkable(xx, bot.y));
-            this.addDoor(x, top.y + top.h - 1, x, bot.y, top.id, bot.id);
-          }
-        }
+        const door = this.doorBetween(a, b, occupied);
+        if (door) this.addDoor(door.ax, door.ay, door.bx, door.by, a.id, b.id);
       }
     }
   }
 
-          pickDoorLine(a        , b        , ok                        )         {
-    const mid = Math.floor((a + b) / 2);
-    for (let d = 0; d <= b - a; d++) {
-      if (mid - d >= a && ok(mid - d)) return mid - d;
-      if (mid + d <= b && ok(mid + d)) return mid + d;
+  /** 两房共享墙上所有可开门格中，取离共享边几何中心最近的一格。 */
+  doorBetween(a      , b      , occupied = new Set        ())                                                     {
+    const candidates                                                                        = [];
+    let center = 0;
+    if (a.x + a.w === b.x || b.x + b.w === a.x) {
+      const left = a.x + a.w === b.x ? a : b, right = left === a ? b : a;
+      const y0 = Math.max(a.y, b.y), y1 = Math.min(a.y + a.h, b.y + b.h) - 1;
+      center = (y0 + y1) / 2;
+      for (let y = y0; y <= y1; y++) {
+        const ax = left.x + left.w - 1, bx = right.x;
+        if (!occupied.has(tkey(ax, y)) && !occupied.has(tkey(bx, y))) candidates.push({ ax, ay: y, bx, by: y, line: y });
+      }
+    } else if (a.y + a.h === b.y || b.y + b.h === a.y) {
+      const top = a.y + a.h === b.y ? a : b, bottom = top === a ? b : a;
+      const x0 = Math.max(a.x, b.x), x1 = Math.min(a.x + a.w, b.x + b.w) - 1;
+      center = (x0 + x1) / 2;
+      for (let x = x0; x <= x1; x++) {
+        const ay = top.y + top.h - 1, by = bottom.y;
+        if (!occupied.has(tkey(x, ay)) && !occupied.has(tkey(x, by))) candidates.push({ ax: x, ay, bx: x, by, line: x });
+      }
     }
-    return mid;
+    candidates.sort((x, y) => Math.abs(x.line - center) - Math.abs(y.line - center) || x.line - y.line);
+    return candidates[0] || null;
   }
 
           addDoor(ax        , ay        , bx        , by        , a        , b        )       {
@@ -310,11 +311,7 @@ export class Tavern {
         && target.y < other.y + other.h && target.y + target.h > other.y;
       if (overlap) return { ok: false, reason: '与已有房间重叠' };
     }
-    if (moved.length > 1 && !this.roomsConnected(moved)) {
-      return { ok: false, reason: '移动后会有房间与门厅断开' };
-    }
-
-    // 预演家具的整体位移；新共享墙的每一扇门都至少要有一对空格可用。
+    // 预演家具的整体位移与旋转；旧门位置完全不参与新布局判断。
     const occupied = new Set        ();
     for (const f of this.furns) {
       const owner = this.roomOfFurn(f);
@@ -325,29 +322,24 @@ export class Tavern {
         } else occupied.add(tkey(tile.x, tile.y));
       }
     }
-    for (const other of moved) {
-      if (other.id === id) continue;
-      let adjacent = false, hasDoorTile = false;
-      if (target.x + target.w === other.x || other.x + other.w === target.x) {
-        adjacent = true;
-        const left = target.x + target.w === other.x ? target : other;
-        const right = left === target ? other : target;
-        const y0 = Math.max(target.y, other.y), y1 = Math.min(target.y + target.h, other.y + other.h);
-        for (let yy = y0; yy < y1; yy++) {
-          if (!occupied.has(tkey(left.x + left.w - 1, yy)) && !occupied.has(tkey(right.x, yy))) { hasDoorTile = true; break; }
-        }
-      } else if (target.y + target.h === other.y || other.y + other.h === target.y) {
-        adjacent = true;
-        const top = target.y + target.h === other.y ? target : other;
-        const bottom = top === target ? other : target;
-        const x0 = Math.max(target.x, other.x), x1 = Math.min(target.x + target.w, other.x + other.w);
-        for (let xx = x0; xx < x1; xx++) {
-          if (!occupied.has(tkey(xx, top.y + top.h - 1)) && !occupied.has(tkey(xx, bottom.y))) { hasDoorTile = true; break; }
-        }
-      }
-      if (adjacent && !hasDoorTile) return { ok: false, reason: '共享墙边没有可用门位，请先挪开家具' };
-    }
+    if (moved.length > 1 && !this.roomsConnectedByOpenings(moved, occupied)) return { ok: false, reason: '新位置没有足够的共享空墙形成门洞，全店会断开' };
     return { ok: true, reason: '' };
+  }
+
+  roomsConnectedByOpenings(rooms        , occupied        )          {
+    if (!rooms.length) return true;
+    const foyer = rooms.find((room) => room.kind === 'foyer');
+    if (!foyer) return false;
+    const seen = new Set        ([foyer.id]);
+    const stack = [foyer];
+    while (stack.length) {
+      const current = stack.pop()          ;
+      for (const other of rooms) {
+        if (seen.has(other.id)) continue;
+        if (this.doorBetween(current, other, occupied)) { seen.add(other.id); stack.push(other); }
+      }
+    }
+    return seen.size === rooms.length;
   }
 
   roomsConnected(rooms        )          {

@@ -735,7 +735,7 @@ export class UI {
     if (g.moveRoomId !== null) {
       const room = g.tavern.roomById(g.moveRoomId);
       this.setPanelHTML(this.bottom, `<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
-        <div class="dim">R 旋转 ${g.buildRot * 90}°；房间、家具、污渍与房内角色会整体转向；绿色=可放，红色=重叠、断开或没有门位。</div>
+        <div class="dim">R 旋转 ${g.buildRot * 90}°；房间、家具、污渍与房内角色会整体转向。放下后按新共享墙的可用空间居中开门，不沿用旧门；绿色=可放，红色=重叠或无法形成连通门洞。</div>
         <div class="row"><button data-act="rotate">R 旋转</button><button data-act="moveroom" data-v="${g.moveRoomId}" class="warn">取消移动</button></div>`);
       return;
     }
