@@ -13,6 +13,7 @@ import { canPersistSim } from './src/save-policy.js';
 import { bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern } from './src/world.js';
 import {               UI } from './src/ui.js';
 import { TitleScreen, validGameSave } from './src/title.js';
+import { createSkyPlan } from './src/sky.js';
 
 const SAVE_KEY = 'wjbdy.save.v1';
 const MORNING_KEY = 'wjbdy.morning.v1';
@@ -236,6 +237,8 @@ class Game                    {
   overlay = new PIXI.Graphics();
   labelLayer = new PIXI.Container();
   stars = new PIXI.Graphics();
+  starGlintsA = new PIXI.Graphics();
+  starGlintsB = new PIXI.Graphics();
 
   tavern = new Tavern();
   sim      ;
@@ -303,7 +306,7 @@ class Game                    {
         if (res) this.floorBase.set(name, res                     );
       } catch (e) { /* 缺失贴图用纯色兜底 */ }
     }
-    this.app.stage.addChild(this.stars, this.world, this.labelLayer);
+    this.app.stage.addChild(this.stars, this.starGlintsA, this.starGlintsB, this.world, this.labelLayer);
     this.world.addChild(this.floorLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.overlay);
     this.actorLayer.sortableChildren = true;
     for (let i = 0; i < 14; i++) {
@@ -1251,13 +1254,34 @@ class Game                    {
   drawStars()       {
     const g = this.stars;
     g.clear();
+    this.starGlintsA.clear();
+    this.starGlintsB.clear();
     const w = this.app.renderer.width, h = this.app.renderer.height;
-    g.rect(0, 0, w, h).fill(hexToNum(PAL.voidBg));
-    const rng = new Rng(4242);
-    for (let i = 0; i < 150; i++) {
-      const x = rng.next() * w, y = rng.next() * h;
-      const s = rng.chance(0.15) ? 2 : 1;
-      g.rect(Math.round(x), Math.round(y), s, s).fill(rng.chance(0.2) ? hexToNum(PAL.cyan) : hexToNum(PAL.star));
+    const sky = createSkyPlan(w, h);
+    for (const band of sky.bands) g.rect(0, band.y, w, band.height).fill(hexToNum(band.color));
+    for (const cloud of sky.nebula) {
+      g.ellipse(cloud.x, cloud.y, cloud.rx, cloud.ry).fill({ color: cloud.color, alpha: cloud.alpha });
+    }
+    const galaxy = sky.galaxy;
+    g.ellipse(galaxy.x - galaxy.rx * 0.22, galaxy.y + galaxy.ry * 0.1, galaxy.rx * 0.72, galaxy.ry * 0.56).fill({ color: 0x5a4bae, alpha: 0.045 });
+    g.ellipse(galaxy.x + galaxy.rx * 0.25, galaxy.y - galaxy.ry * 0.12, galaxy.rx * 0.64, galaxy.ry * 0.48).fill({ color: 0x8e56bf, alpha: 0.05 });
+    g.ellipse(galaxy.x - galaxy.rx * 0.02, galaxy.y, galaxy.rx * 0.45, galaxy.ry * 0.38).fill({ color: 0xb06bc9, alpha: 0.065 });
+    for (const dust of sky.galaxyDust) {
+      g.rect(dust.x, dust.y, dust.size, dust.size).fill({ color: dust.color, alpha: dust.alpha });
+    }
+    g.ellipse(galaxy.x, galaxy.y, galaxy.rx * 0.22, galaxy.ry * 0.2).fill({ color: 0xffca70, alpha: 0.42 });
+    g.rect(galaxy.x - 2, galaxy.y - 2, 5, 5).fill({ color: 0xffefb0, alpha: 0.86 });
+    for (const star of sky.stars) {
+      g.rect(star.x, star.y, star.size, star.size).fill({ color: star.color, alpha: star.alpha });
+      if (star.size >= 3) g.rect(star.x - 1, star.y + 1, star.size + 2, 1).fill({ color: star.color, alpha: star.alpha * 0.45 });
+    }
+    for (const star of sky.glints) {
+      const layer = star.phase ? this.starGlintsB : this.starGlintsA;
+      const r = star.radius;
+      layer.rect(star.x - r, star.y, r * 2 + 1, 1).fill({ color: star.color, alpha: 0.9 });
+      layer.rect(star.x, star.y - r, 1, r * 2 + 1).fill({ color: star.color, alpha: 0.9 });
+      layer.rect(star.x, star.y, 1, 1).fill(0xffffff);
+      if (r >= 5) layer.circle(star.x, star.y, 4).fill({ color: star.color, alpha: 0.08 });
     }
   }
 
@@ -1270,6 +1294,9 @@ class Game                    {
     this.world.scale.set(zoom);
     this.world.x = Math.round(this.app.renderer.width / 2 - this.cam.x * T * zoom);
     this.world.y = Math.round(this.app.renderer.height / 2 - this.cam.y * T * zoom);
+    const skyTime = performance.now() * 0.001;
+    this.starGlintsA.alpha = 0.48 + Math.sin(skyTime * 1.35) * 0.22;
+    this.starGlintsB.alpha = 0.52 + Math.sin(skyTime * 1.07 + 2.1) * 0.2;
 
     if (this.staticVersion !== this.tavern.version) { this.rebuildStatic(); this.staticVersion = this.tavern.version; }
     this.rebuildDirt();
