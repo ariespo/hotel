@@ -192,7 +192,58 @@ const TITLE_CSS = `
 @media(max-width:650px){#game-title-screen:before{inset:0;background-position:30% center;transform:none;animation:none}.title-fx-inn{width:100%;height:52%;opacity:.42;background:radial-gradient(ellipse 30% 17% at 75% 59%,#ffd36f82 0 9%,#e9903430 38%,transparent 72%),radial-gradient(ellipse 55% 20% at 63% 72%,#f29b3f2b 0 15%,transparent 72%)}.title-fx-horizon,.title-fx-galaxy{display:none}.title-fx-stars{opacity:.48}.title-content{padding-top:7vh}.title-logo{width:92vw;padding:15px 22px 13px}.title-logo h1{font-size:clamp(35px,10.5vw,46px);letter-spacing:.045em}.title-logo .en{font-size:8px;letter-spacing:.3em}.title-tagline{margin:17px 0 14px;padding:7px 11px;font-size:12px;letter-spacing:.08em}.title-menu{width:86vw;margin-top:52px}.slot-mode .title-menu{margin-top:20px}.title-button{min-height:48px}.title-author{bottom:10px}}
 @media(max-height:620px){.title-content{padding-top:28px}.title-logo{padding-top:12px;padding-bottom:10px}.title-logo h1{font-size:clamp(32px,7.5vh,52px)}.title-tagline{margin:12px 0 10px}.title-button{min-height:43px}.title-author{bottom:7px}}
 @media(prefers-reduced-motion:reduce){#game-title-screen *{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}.title-button{transition:none}}
+/* Pointer/touch driven 2.5D parallax. The scale is fixed and only prevents exposed edges. */
+#game-title-screen{--title-bg-x:0px;--title-bg-y:0px;--title-mid-x:0px;--title-mid-y:0px;--title-front-x:0px;--title-front-y:0px;--title-ui-x:0px;--title-ui-y:0px;touch-action:none}
+#game-title-screen:before{inset:-18px;transform:translate3d(var(--title-bg-x),var(--title-bg-y),0) scale(1.035);transition:transform .16s cubic-bezier(.2,.7,.2,1);will-change:transform}
+.title-image-fx{inset:-14px;transform:translate3d(var(--title-mid-x),var(--title-mid-y),0);transition:transform .14s cubic-bezier(.2,.7,.2,1);will-change:transform}
+.title-fx-stars{transform:translate3d(var(--title-front-x),var(--title-front-y),0);transition:transform .12s cubic-bezier(.2,.7,.2,1);will-change:transform}
+.title-content{transform:translate3d(var(--title-ui-x),var(--title-ui-y),0);transition:transform .18s cubic-bezier(.2,.7,.2,1);will-change:transform}
+.title-slots{touch-action:pan-y}
+
+/* Local light emitters aligned to the illustrated portal, inn, windows and galaxy. */
+.title-fx-inn{display:none}
+.title-local-glow{position:absolute;display:block;pointer-events:none;mix-blend-mode:screen;transform-origin:center}
+.title-fx-portal{left:5.3%;top:68.2%;width:9.7%;height:20%;border-radius:48%;opacity:.75;background:
+  radial-gradient(ellipse at 51% 52%,transparent 0 22%,#6af5ff5c 29%,#b777ffb8 41%,#7f4cff82 50%,transparent 67%);
+  filter:blur(3px) saturate(1.35);animation:titlePortalBeacon 3.25s steps(8,end) infinite}
+.title-fx-interior{left:26.7%;top:69.1%;width:20.7%;height:14.8%;border-radius:45%;opacity:.68;background:
+  radial-gradient(ellipse at 55% 56%,#fff4ad7d 0 8%,#ffc04a72 28%,#ff8b2634 56%,transparent 76%);
+  filter:blur(7px) saturate(1.32);animation:titleFirelight 4.15s steps(9,end) infinite}
+.title-fx-window{width:5.2%;height:9.2%;border-radius:45%;opacity:.58;background:radial-gradient(ellipse,#fff7b98f 0 10%,#ffc44f6b 28%,#ff8b2928 55%,transparent 76%);filter:blur(4px);animation:titleWindowFlicker var(--glow-speed,3.7s) steps(7,end) infinite;animation-delay:var(--glow-delay,0s)}
+.title-fx-window.wl1{left:1.8%;top:63.7%;--glow-speed:3.1s;--glow-delay:-1.8s}
+.title-fx-window.wl2{left:14.4%;top:61.6%;--glow-speed:4.6s;--glow-delay:-.7s}
+.title-fx-window.wl3{left:23.1%;top:59.4%;--glow-speed:3.8s;--glow-delay:-2.4s}
+.title-fx-window.wl4{left:28.5%;top:57.7%;width:6.2%;height:9.8%;--glow-speed:4.2s;--glow-delay:-1.2s}
+.title-fx-window.wl5{left:14.2%;top:72.1%;--glow-speed:3.45s;--glow-delay:-2.8s}
+.title-fx-window.wl6{left:22.3%;top:71.5%;--glow-speed:4.85s;--glow-delay:-1.5s}
+.title-fx-lamp{width:3.6%;height:8.5%;border-radius:50%;opacity:.72;background:radial-gradient(circle,#fff9c9b5 0 5%,#ffd2617a 17%,#ff9c2f30 45%,transparent 72%);filter:blur(3px);animation:titleLampSpark var(--glow-speed,3.2s) steps(6,end) infinite;animation-delay:var(--glow-delay,0s)}
+.title-fx-lamp.lp1{left:46.2%;top:69.4%;--glow-speed:2.9s;--glow-delay:-1.1s}
+.title-fx-lamp.lp2{left:58%;top:75.5%;--glow-speed:3.7s;--glow-delay:-2.25s}
+.title-fx-lamp.lp3{left:88.6%;top:50.7%;--glow-speed:4.1s;--glow-delay:-.4s}
+.title-fx-galaxy{right:5.1%;top:-1%;width:22%;height:26%;opacity:.5;background:
+  radial-gradient(ellipse at 55% 42%,#fffbd5d6 0 2%,#ffd1668f 5%,#cb83ff73 15%,#7f53ff42 34%,transparent 67%),
+  conic-gradient(from 18deg at 55% 42%,transparent,#b56dff32,transparent 24%,#ffd77a38 38%,transparent 54%,#7b5cff31 72%,transparent);
+  filter:blur(5px) saturate(1.25);animation:titleGalaxySpark 5.6s steps(10,end) infinite}
+.title-fx-horizon{right:-3%;bottom:12%;width:63%;height:19%;opacity:.42;animation:titleHorizonShimmer 6.4s steps(6,end) infinite}
+@keyframes titlePortalBeacon{0%,100%{opacity:.52;filter:blur(4px) saturate(1.18)}19%{opacity:.82;filter:blur(2px) saturate(1.5)}42%{opacity:.64}64%{opacity:.9;filter:blur(3px) saturate(1.42)}82%{opacity:.6}}
+@keyframes titleFirelight{0%,100%{opacity:.46;filter:blur(8px) brightness(.92) saturate(1.15)}12%{opacity:.72}31%{opacity:.56;filter:blur(6px) brightness(1.18) saturate(1.4)}47%{opacity:.76}69%{opacity:.53}84%{opacity:.69;filter:blur(7px) brightness(1.1) saturate(1.32)}}
+@keyframes titleWindowFlicker{0%,100%{opacity:.38;filter:blur(4px) brightness(.9)}17%{opacity:.69}39%{opacity:.48}58%{opacity:.78;filter:blur(3px) brightness(1.22)}76%{opacity:.54}88%{opacity:.72}}
+@keyframes titleLampSpark{0%,100%{opacity:.45;filter:blur(3px) brightness(.92)}22%{opacity:.83;filter:blur(2px) brightness(1.25)}49%{opacity:.57}66%{opacity:.9}84%{opacity:.61}}
+@keyframes titleGalaxySpark{0%,100%{opacity:.32;filter:blur(6px) brightness(.92) saturate(1.1)}21%{opacity:.57}44%{opacity:.41}63%{opacity:.65;filter:blur(4px) brightness(1.22) saturate(1.35)}81%{opacity:.46}}
+@media(max-width:650px){#game-title-screen:before{inset:-18px;background-position:30% center;transform:translate3d(var(--title-bg-x),var(--title-bg-y),0) scale(1.04)}.title-fx-portal,.title-fx-galaxy,.title-fx-horizon,.title-fx-window.wl1,.title-fx-window.wl2,.title-fx-lamp.lp2,.title-fx-lamp.lp3{display:none}.title-fx-interior{left:20%;top:68%;width:70%;height:17%;opacity:.54}.title-fx-window.wl3{left:3%;top:61%;width:14%;height:10%}.title-fx-window.wl4{left:27%;top:59%;width:18%;height:11%}.title-fx-window.wl5{left:0;top:72%;width:14%;height:10%}.title-fx-window.wl6{left:25%;top:71%;width:15%;height:10%}.title-fx-lamp.lp1{left:91%;top:69%;width:9%;height:8%}}
+@media(prefers-reduced-motion:reduce){#game-title-screen:before,.title-image-fx,.title-fx-stars,.title-content{transform:none!important;transition:none!important}}
 `;
+
+export function titleParallaxOffsets(normalizedX, normalizedY) {
+  const x = Math.max(-1, Math.min(1, Number.isFinite(normalizedX) ? normalizedX : 0));
+  const y = Math.max(-1, Math.min(1, Number.isFinite(normalizedY) ? normalizedY : 0));
+  return {
+    bgX: x ? -x * 4 : 0, bgY: y ? -y * 3 : 0,
+    midX: x ? -x * 9 : 0, midY: y ? -y * 6 : 0,
+    frontX: x ? -x * 14 : 0, frontY: y ? -y * 9 : 0,
+    uiX: x * 2.5, uiY: y * 1.5,
+  };
+}
 
 export function validGameSave(raw) {
   if (typeof raw !== 'string' || !raw.trim()) return false;
@@ -212,6 +263,8 @@ export class TitleScreen {
   onChoose = null;
   onInteract = null;
   confirmTimer = 0;
+  parallaxFrame = 0;
+  parallaxPointerId = null;
 
   constructor(host = document.body) {
     if (!document.getElementById('game-title-style')) {
@@ -228,22 +281,55 @@ export class TitleScreen {
       <div class="title-lamp l1"></div><div class="title-lamp l2"></div>
       <div class="title-building"><div class="title-sign">旅店</div><div class="title-window w1"></div><div class="title-window w2"></div><div class="title-door"></div></div>
       <div class="title-counter"></div>${embers}
-      <div class="title-image-fx" aria-hidden="true"><i class="title-fx-inn"></i><i class="title-fx-horizon"></i><i class="title-fx-galaxy"></i><i class="title-fx-stars"></i></div>
+      <div class="title-image-fx" aria-hidden="true"><i class="title-fx-inn"></i><i class="title-local-glow title-fx-portal"></i><i class="title-local-glow title-fx-interior"></i><i class="title-local-glow title-fx-window wl1"></i><i class="title-local-glow title-fx-window wl2"></i><i class="title-local-glow title-fx-window wl3"></i><i class="title-local-glow title-fx-window wl4"></i><i class="title-local-glow title-fx-window wl5"></i><i class="title-local-glow title-fx-window wl6"></i><i class="title-local-glow title-fx-lamp lp1"></i><i class="title-local-glow title-fx-lamp lp2"></i><i class="title-local-glow title-fx-lamp lp3"></i><i class="title-fx-horizon"></i><i class="title-local-glow title-fx-galaxy"></i><i class="title-fx-stars"></i></div>
       <main class="title-content"><div class="title-logo"><h1>多元便携旅店</h1><div class="en">MULTIVERSE PORTABLE INN</div></div>
         <div class="title-tagline">让每一次营业，都成为独一无二的故事</div>
         <div class="title-menu"><button class="title-button" data-title-action="newmenu" disabled>开始新游戏</button><button class="title-button" data-title-action="continuemenu" disabled>继续游戏</button><div class="title-slots" data-title-slots></div><div class="title-status" role="status">正在点亮旅店灯火…</div></div>
         <div class="title-author">作者：<b>Poaries</b></div></main>`;
     root.addEventListener('click', (event) => this.handleClick(event));
-    root.addEventListener('pointermove', (event) => {
-      if (!this.ready || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-      const x = (event.clientX / innerWidth - .5) * 8;
-      const y = (event.clientY / innerHeight - .5) * 5;
-      const logo = root.querySelector('.title-logo');
-      if (logo) logo.style.marginLeft = `${x}px`;
-      const building = root.querySelector('.title-building');
-      if (building) building.style.marginLeft = `${-x * .45}px`;
-      root.style.setProperty('--pointer-y', `${y}px`);
+    const motionDisabled = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const applyParallax = (clientX, clientY) => {
+      if (motionDisabled()) return;
+      const rect = root.getBoundingClientRect();
+      const nx = ((clientX - rect.left) / Math.max(1, rect.width) - .5) * 2;
+      const ny = ((clientY - rect.top) / Math.max(1, rect.height) - .5) * 2;
+      const values = titleParallaxOffsets(nx, ny);
+      cancelAnimationFrame(this.parallaxFrame);
+      this.parallaxFrame = requestAnimationFrame(() => {
+        if (!this.root) return;
+        for (const [name, value] of Object.entries({
+          '--title-bg-x': values.bgX, '--title-bg-y': values.bgY,
+          '--title-mid-x': values.midX, '--title-mid-y': values.midY,
+          '--title-front-x': values.frontX, '--title-front-y': values.frontY,
+          '--title-ui-x': values.uiX, '--title-ui-y': values.uiY,
+        })) root.style.setProperty(name, `${value.toFixed(2)}px`);
+      });
+    };
+    const resetParallax = () => {
+      cancelAnimationFrame(this.parallaxFrame);
+      this.parallaxFrame = requestAnimationFrame(() => {
+        if (!this.root) return;
+        for (const axis of ['bg-x', 'bg-y', 'mid-x', 'mid-y', 'front-x', 'front-y', 'ui-x', 'ui-y']) root.style.setProperty(`--title-${axis}`, '0px');
+      });
+    };
+    root.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' || event.target.closest('button,.title-slots')) return;
+      this.parallaxPointerId = event.pointerId;
+      root.setPointerCapture?.(event.pointerId);
+      applyParallax(event.clientX, event.clientY);
     });
+    root.addEventListener('pointermove', (event) => {
+      if (event.pointerType !== 'mouse' && this.parallaxPointerId !== event.pointerId) return;
+      applyParallax(event.clientX, event.clientY);
+    });
+    root.addEventListener('pointerup', (event) => {
+      if (this.parallaxPointerId !== event.pointerId) return;
+      this.parallaxPointerId = null;
+      root.releasePointerCapture?.(event.pointerId);
+      resetParallax();
+    });
+    root.addEventListener('pointercancel', () => { this.parallaxPointerId = null; resetParallax(); });
+    root.addEventListener('pointerleave', (event) => { if (event.pointerType === 'mouse') resetParallax(); });
     host.appendChild(root);
     this.root = root;
   }
@@ -349,6 +435,7 @@ export class TitleScreen {
 
   destroy() {
     clearTimeout(this.confirmTimer);
+    cancelAnimationFrame(this.parallaxFrame);
     this.root?.remove();
     this.root = null;
   }
