@@ -140,6 +140,37 @@ const TITLE_CSS = `
 @keyframes titleSkyDrift{to{background-position:96px 23px,-84px 71px,269px 11px}}@keyframes titleAurora{to{transform:translate3d(3%,-2%,0) scale(1.08);opacity:.72}}@keyframes titleMoonBreathe{50%{box-shadow:inset 4px 0 4px #fff6c3,0 0 0 1px #9c643b,0 0 34px #f4c86cbb,0 0 90px #d8a85c4c}}@keyframes titleSparkle{50%{opacity:.38;transform:scale(.75)}}@keyframes titleSignGlow{50%{filter:brightness(1.055)}}
 @media(max-width:650px){.title-content{padding-top:8vh}.title-building{bottom:14%;width:94vw;height:48vh}.title-building:before{top:-54px;height:62px}.title-window{top:72px;width:58px;height:76px}.title-window.w1{left:7%}.title-window.w2{right:7%}.title-door{width:112px;height:174px}.title-door:before{width:76px;height:137px}.title-logo{width:91vw;padding:16px 25px 14px}.title-logo h1{letter-spacing:.055em}.title-tagline{margin:15px 0 13px;padding:7px 12px;font-size:12px}.title-button{min-height:46px;font-size:16px}.title-moon{width:50px;height:50px}.title-lamp{display:none}.title-author{bottom:11px;font-size:12px}}
 @media(max-height:620px){.title-content{padding-top:34px}.title-logo{padding-top:13px;padding-bottom:11px}.title-logo h1{font-size:clamp(34px,7vh,55px)}.title-tagline{margin:12px 0 10px}.title-button{min-height:43px}.title-building{height:52vh}.title-author{bottom:8px}}
+/* Illustrated title layout: the generated pixel scene is the visual anchor. */
+#game-title-screen{background:#050711;overflow:clip}
+#game-title-screen:before{content:"";position:absolute;z-index:0;inset:-1.5%;background-image:url("assets/title-universe-inn-v1.png");background-repeat:no-repeat;background-position:center;background-size:cover;image-rendering:pixelated;transform:scale(1.015);animation:titleBackdropDrift 20s ease-in-out infinite alternate}
+#game-title-screen:after{content:"";position:absolute;z-index:1;inset:0;pointer-events:none;background:
+  radial-gradient(ellipse at 50% 32%,#05071116 0 22%,#05071152 67%,#03040add 100%),
+  linear-gradient(180deg,#03040a52 0,#06071212 44%,#03040a70 100%)}
+.title-sky,.title-moon,.title-building,.title-counter,.title-lamp,.title-ember{display:none}
+.title-content{z-index:3;justify-content:flex-start;padding:clamp(58px,8vh,92px) 20px 34px;background:none}
+.title-content:before{display:none}
+.title-logo{width:min(700px,88vw);margin:0;padding:18px 40px 16px;border:1px solid #e8b975;background:
+  linear-gradient(115deg,transparent 0 32%,#fff3c51f 45%,transparent 57%),
+  repeating-linear-gradient(0deg,#100d1bd9 0 3px,#171126dc 3px 9px);
+  box-shadow:0 0 0 4px #070711cc,0 0 0 6px #a96850,0 0 0 7px #f0c078,0 12px 30px #020308dd,inset 0 0 28px #020309aa;
+  backdrop-filter:blur(2px);animation:titleFloat 4.8s ease-in-out infinite,titleSignGlow 6s ease-in-out infinite}
+.title-logo h1{font-size:clamp(40px,5.8vw,72px);letter-spacing:.1em;background:linear-gradient(180deg,#fff9d0,#ffe59a 38%,#d89550 76%,#ffe7a0);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 3px #74364d,0 6px #190e1a,0 0 22px #ffd4775e;filter:drop-shadow(0 1px #fff8d0)}
+.title-logo .en{margin-top:8px;color:#83e5df;letter-spacing:.43em;text-shadow:0 0 10px #4ce1dc88}
+.title-tagline{margin:22px 0 18px;padding:8px 23px;border:1px solid #b37b64;background:#090812c9;color:#f0e0c7;box-shadow:0 0 0 3px #07060c77,0 7px 18px #02030899,inset 0 1px #fff4d026;backdrop-filter:blur(3px);text-shadow:0 2px #100a13,0 0 10px #ffc97733}
+.title-menu{width:min(360px,84vw);gap:12px}
+.title-button{min-height:52px;border:1px solid #f0bd73;background:
+  linear-gradient(108deg,transparent 0 34%,#fff6d12c 45%,transparent 57%),
+  linear-gradient(180deg,#744355ea,#4d2b42f2 48%,#291b31f2 52%,#5c3549ed);
+  box-shadow:0 0 0 4px #07060dcc,0 0 0 5px #9c5d50,0 6px 0 #08060d,0 13px 25px #020207b8,inset 0 1px #fff3c38c,inset 0 -8px 14px #190d1766;backdrop-filter:blur(4px)}
+.title-button.primary{background:
+  linear-gradient(108deg,transparent 0 34%,#fff6d13a 45%,transparent 57%),
+  linear-gradient(180deg,#a25c5ce8,#734050f3 48%,#40243af4 52%,#814851eb)}
+.title-status{margin-top:4px;padding:3px 9px;background:#07060aa3;color:#efcf89;text-shadow:0 2px #0a070d,0 0 8px #ffbf5455}
+.title-author{bottom:17px;padding:6px 20px;border:1px solid #7c544c99;background:#07060bbf;box-shadow:0 0 18px #020207cc;backdrop-filter:blur(3px)}
+.title-slots{background:#080711eb;backdrop-filter:blur(6px)}
+@keyframes titleBackdropDrift{0%{transform:scale(1.015) translate3d(-.35%,0,0)}100%{transform:scale(1.035) translate3d(.35%,-.25%,0)}}
+@media(max-width:650px){#game-title-screen:before{inset:-1%;background-position:30% center;transform:scale(1.01);animation:none}.title-content{padding-top:7vh}.title-logo{width:92vw;padding:15px 22px 13px}.title-logo h1{font-size:clamp(35px,10.5vw,46px);letter-spacing:.045em}.title-logo .en{font-size:8px;letter-spacing:.3em}.title-tagline{margin:17px 0 14px;padding:7px 11px;font-size:12px;letter-spacing:.08em}.title-menu{width:86vw}.title-button{min-height:48px}.title-author{bottom:10px}}
+@media(max-height:620px){.title-content{padding-top:28px}.title-logo{padding-top:12px;padding-bottom:10px}.title-logo h1{font-size:clamp(32px,7.5vh,52px)}.title-tagline{margin:12px 0 10px}.title-button{min-height:43px}.title-author{bottom:7px}}
 @media(prefers-reduced-motion:reduce){#game-title-screen *{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}.title-button{transition:none}}
 `;
 
