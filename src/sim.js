@@ -862,6 +862,8 @@ export class Sim {
     for (const f of this.fx) f.t -= dt;
     this.fx = this.fx.filter((f) => f.t > 0);
     for (const s of this.staff) if (s.bubble) { s.bubble.t -= dt; if (s.bubble.t <= 0) s.bubble = null; }
+    for (const g of this.guests) if (g.bubble) { g.bubble.t -= dt; if (g.bubble.t <= 0) g.bubble = null; }
+    for (const g of this.groups) if (g.intCd > 0) g.intCd = Math.max(0, g.intCd - dt);
     for (const c of this.chatter) c.t -= dt;
     this.chatter = this.chatter.filter((c) => c.t > 0);
   }
@@ -924,7 +926,7 @@ export class Sim {
         id: this.id(), app: randomAppearance(this.rng, race, false, this.rng.chance(0.5) ? LOOK_THEMES[this.rng.int(3)] : undefined),
         name: makeName(this.rng), race: RACE_NAMES[race],
         groupId: gid, x: e.x + (i % 2) * 0.4 - 0.2, y: e.y + 0.2 * i, dir: 0, pose: 'idle', animT: this.rng.next() * 2,
-        path: [], seatId: 0, mood: 1,
+        path: [], seatId: 0, mood: 1, aff: 0, aiChatLog: [],
       });
     }
     const pool = want.facility ? this.allDishes() : this.makeableDishes(want.drink);
@@ -1516,7 +1518,7 @@ export class Sim {
     g.praised++;
     g.greeted = true;
     g.patience = clamp(g.patience + g.maxPatience * 0.22, 0, g.maxPatience);
-    for (const m of g.members) m.mood = Math.min(1.4, m.mood + 0.2);
+    for (const m of g.members) { m.mood = Math.min(1.4, m.mood + 0.2); m.aff = clamp((m.aff || 0) + 3, -100, 100); }
     const line = ['「您这身行头，隔着三个位面都亮眼。」客人笑得合不上嘴。',
       '「稀客稀客，今天这桌算我招待。」客人心情大好。',
       '「您上次说的那个星域故事，我还念着呢。」客人乐了。'][this.rng.int(3)];
@@ -1536,11 +1538,12 @@ export class Sim {
       g.patience = clamp(g.patience + g.maxPatience * 0.15, 0, g.maxPatience);
       this.fx.push({ kind: 'heart', x: g.members[0].x, y: g.members[0].y - 0.6, t: 0.9 });
       this.sounds.push('happy');
+      for (const m of g.members) m.aff = clamp((m.aff || 0) + 2, -100, 100);
       return '「……再骂一句。」这位客人似乎很受用，加点了一份。';
     }
     g.mocked++;
     g.patience = clamp(g.patience - g.maxPatience * 0.2, 0, g.maxPatience);
-    for (const m of g.members) m.mood = Math.max(0.4, m.mood - 0.25);
+    for (const m of g.members) { m.mood = Math.max(0.4, m.mood - 0.25); m.aff = clamp((m.aff || 0) - 5, -100, 100); }
     this.fx.push({ kind: 'sad', x: g.members[0].x, y: g.members[0].y - 0.6, t: 0.9 });
     this.sounds.push('angry');
     return ['「您这吃相，够写进志怪了。」客人脸色发青。',
@@ -1558,7 +1561,7 @@ export class Sim {
     g.praised++;
     g.greeted = true;
     g.patience = clamp(g.patience + g.maxPatience * 0.4, 0, g.maxPatience);
-    for (const m of g.members) m.mood = Math.min(1.5, m.mood + 0.3);
+    for (const m of g.members) { m.mood = Math.min(1.5, m.mood + 0.3); m.aff = clamp((m.aff || 0) + 4, -100, 100); }
     this.fx.push({ kind: 'heart', x: g.members[0].x, y: g.members[0].y - 0.4, t: 0.9 });
     this.sounds.push('coin');
     return `店主请了这桌一轮（-${cost}）：客人举杯，耐心回了一大截。`;

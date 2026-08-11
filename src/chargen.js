@@ -107,23 +107,23 @@ function drawBackAccessory(p     , a            , dy        )       {
   const pal = palOf(a);
   if (id === 5) { // 背负武士刀：刀鞘从肩后斜落到腰侧
     for (let i = 0; i < 34; i++) {
-      const x = 24 - Math.floor(i / 2), y = 15 + i + dy;
+      const x = 45 - Math.floor(i / 2), y = 15 + i + dy;
       p.px(x, y, ink); p.px(x + 1, y, i < 5 ? pal.accent : '#4A3038');
     }
-    p.rect(22, 12 + dy, 5, 2, ink); p.rect(23, 11 + dy, 3, 2, pal.accent);
-    p.rect(5, 48 + dy, 6, 2, ink); p.rect(6, 49 + dy, 4, 2, '#8A8A9B');
+    p.rect(43, 12 + dy, 5, 2, ink); p.rect(44, 11 + dy, 3, 2, pal.accent);
+    p.rect(26, 48 + dy, 6, 2, ink); p.rect(27, 49 + dy, 4, 2, '#8A8A9B');
   } else if (id === 7) { // 冒险者背包
-    p.rect(7, 29 + dy, 18, 23, ink); p.rect(8, 30 + dy, 16, 21, '#6E3C27');
-    p.rect(10, 27 + dy, 12, 5, ink); p.rect(11, 28 + dy, 10, 4, '#9B5B3C');
-    p.rect(9, 35 + dy, 14, 2, pal.accent); p.rect(10, 43 + dy, 12, 6, '#4A3038');
-    p.rect(15, 42 + dy, 2, 8, pal.accent);
+    p.rect(23, 29 + dy, 18, 23, ink); p.rect(24, 30 + dy, 16, 21, '#6E3C27');
+    p.rect(26, 27 + dy, 12, 5, ink); p.rect(27, 28 + dy, 10, 4, '#9B5B3C');
+    p.rect(25, 35 + dy, 14, 2, pal.accent); p.rect(26, 43 + dy, 12, 6, '#4A3038');
+    p.rect(31, 42 + dy, 2, 8, pal.accent);
   } else if (id === 11) { // 机械羽翼
     const metal = '#8A8A9B', glow = pal.accent;
-    p.rect(5, 30 + dy, 5, 3, ink); p.rect(3, 27 + dy, 5, 3, metal); p.rect(1, 23 + dy, 5, 3, glow);
-    p.rect(4, 34 + dy, 6, 3, ink); p.rect(1, 35 + dy, 6, 3, metal); p.rect(0, 39 + dy, 5, 3, glow);
-    p.rect(22, 30 + dy, 5, 3, ink); p.rect(24, 27 + dy, 5, 3, metal); p.rect(27, 23 + dy, 5, 3, glow);
-    p.rect(22, 34 + dy, 6, 3, ink); p.rect(25, 35 + dy, 6, 3, metal); p.rect(27, 39 + dy, 5, 3, glow);
-    p.rect(14, 29 + dy, 4, 15, ink); p.rect(15, 30 + dy, 2, 13, glow);
+    p.rect(19, 30 + dy, 7, 3, ink); p.rect(14, 27 + dy, 8, 3, metal); p.rect(9, 23 + dy, 8, 3, glow);
+    p.rect(18, 34 + dy, 8, 3, ink); p.rect(12, 36 + dy, 9, 3, metal); p.rect(7, 41 + dy, 8, 3, glow);
+    p.rect(38, 30 + dy, 7, 3, ink); p.rect(42, 27 + dy, 8, 3, metal); p.rect(47, 23 + dy, 8, 3, glow);
+    p.rect(38, 34 + dy, 8, 3, ink); p.rect(43, 36 + dy, 9, 3, metal); p.rect(49, 41 + dy, 8, 3, glow);
+    p.rect(30, 29 + dy, 4, 15, ink); p.rect(31, 30 + dy, 2, 13, glow);
   }
 }
 
@@ -139,20 +139,64 @@ function drawFrontAccessory(p     , a            , carry               , dy     
   else if (id === 3) { p.rect(x + 2, y - 8, 2, 12, '#8E5A2B'); p.rect(x, y + 3, 6, 4, '#C9A87A'); p.rect(x, y + 3, 6, 1, ink); }
   else if (id === 4) { p.rect(x, y - 5, 6, 6, ink); p.rect(x + 1, y - 4, 4, 4, '#FFF3A8'); p.rect(x + 2, y - 7, 2, 2, '#8A8A9B'); }
   else if (id === 6) { // 星辉法杖
-    p.rect(25, 23 + dy, 3, 39, ink); p.rect(26, 24 + dy, 1, 37, '#8E5A2B');
-    p.rect(23, 18 + dy, 7, 7, ink); p.rect(24, 19 + dy, 5, 5, pal.accent);
-    p.rect(25, 17 + dy, 3, 9, '#F3E0A0'); p.px(22, 20 + dy, pal.accent); p.px(30, 20 + dy, pal.accent);
+    p.rect(20, 23 + dy, 3, 39, ink); p.rect(21, 24 + dy, 1, 37, '#8E5A2B');
+    p.rect(18, 18 + dy, 7, 7, ink); p.rect(19, 19 + dy, 5, 5, pal.accent);
+    p.rect(20, 17 + dy, 3, 9, '#F3E0A0'); p.px(17, 20 + dy, pal.accent); p.px(25, 20 + dy, pal.accent);
   } else if (id === 8) { // 浮空魔导书
-    p.rect(20, 38 + dy, 11, 10, ink); p.rect(21, 39 + dy, 4, 8, pal.clothB); p.rect(26, 39 + dy, 4, 8, pal.clothB);
-    p.rect(25, 39 + dy, 1, 8, pal.accent); p.px(19, 36 + dy, pal.accent); p.px(29, 35 + dy, pal.accent); p.px(31, 40 + dy, pal.accent);
+    p.rect(13, 38 + dy, 11, 10, ink); p.rect(14, 39 + dy, 4, 8, pal.clothB); p.rect(19, 39 + dy, 4, 8, pal.clothB);
+    p.rect(18, 39 + dy, 1, 8, pal.accent); p.px(12, 36 + dy, pal.accent); p.px(22, 35 + dy, pal.accent); p.px(24, 40 + dy, pal.accent);
   } else if (id === 9) { // 月影纸伞
-    p.rect(26, 22 + dy, 2, 41, ink); p.rect(27, 23 + dy, 1, 39, '#8E5A2B');
-    p.rect(10, 17 + dy, 21, 2, ink); p.rect(12, 14 + dy, 17, 3, pal.clothB);
-    p.rect(15, 12 + dy, 11, 2, pal.accent); p.rect(19, 10 + dy, 4, 2, ink);
-    p.rect(19, 16 + dy, 1, 3, ink); p.rect(25, 16 + dy, 1, 3, ink);
+    p.rect(21, 22 + dy, 2, 41, ink); p.rect(22, 23 + dy, 1, 39, '#8E5A2B');
+    p.rect(3, 17 + dy, 23, 2, ink); p.rect(5, 14 + dy, 19, 3, pal.clothB);
+    p.rect(9, 12 + dy, 11, 2, pal.accent); p.rect(13, 10 + dy, 4, 2, ink);
+    p.rect(10, 16 + dy, 1, 3, ink); p.rect(18, 16 + dy, 1, 3, ink);
   } else if (id === 10) { // 炼金腰瓶
-    p.rect(21, 42 + dy, 8, 10, ink); p.rect(23, 40 + dy, 4, 3, ink);
-    p.rect(22, 43 + dy, 6, 8, '#3A5A8C'); p.rect(23, 46 + dy, 4, 4, pal.accent); p.rect(24, 43 + dy, 2, 2, '#E7E2D2');
+    p.rect(18, 42 + dy, 8, 10, ink); p.rect(20, 40 + dy, 4, 3, ink);
+    p.rect(19, 43 + dy, 6, 8, '#3A5A8C'); p.rect(20, 46 + dy, 4, 4, pal.accent); p.rect(21, 43 + dy, 2, 2, '#E7E2D2');
+  }
+}
+
+/** 在既有衣装轮廓上增加材质高光、缝线和五金；不改旧衣装编号，也不侵入头脸区域。 */
+function drawOutfitDetails(p     , id        , pal         , dy        )       {
+  const ink = '#120C16';
+  const hi = mix(pal.clothA, '#FFFFFF', 0.38);
+  const shade = mix(pal.clothA, '#0B0810', 0.34);
+  const metal = mix(pal.accent, '#FFFFFF', 0.28);
+  const y = (n        ) => n + dy;
+  const metalwear = ['armor', 'spacer'];
+  const knitwear = ['hoodie', 'sweater', 'cardigan', 'pajama'];
+  const silk = ['kimono', 'dress', 'noble', 'maid', 'pinafore'];
+  const leather = ['coat', 'fur', 'trench', 'ranger', 'ninja'];
+  const uniform = ['apron', 'suit', 'sailor', 'chef', 'vest', 'overalls'];
+  const arcane = ['robe', 'wizard', 'cape', 'monk'];
+
+  if (metalwear.includes(id)) {
+    p.rect(11, y(31), 10, 1, hi); p.rect(12, y(39), 8, 1, shade);
+    for (const [x, yy] of [[10, 33], [21, 33], [11, 43], [20, 43]]) { p.px(x, y(yy), ink); p.px(x, y(yy - 1), metal); }
+    p.rect(15, y(30), 2, 17, metal); p.px(16, y(34), '#F3E0A0');
+  } else if (knitwear.includes(id)) {
+    for (let yy = 32; yy <= 44; yy += 3) {
+      p.px(11, y(yy), hi); p.px(13, y(yy + 1), shade); p.px(18, y(yy + 1), hi); p.px(20, y(yy), shade);
+    }
+    p.rect(12, y(46), 8, 1, shade);
+  } else if (silk.includes(id)) {
+    p.px(11, y(31), hi); p.px(12, y(32), hi); p.px(13, y(33), hi); p.px(18, y(38), hi); p.px(19, y(39), hi);
+    p.rect(10, y(41), 12, 1, pal.accent); p.px(15, y(42), metal); p.px(16, y(42), metal);
+  } else if (leather.includes(id)) {
+    p.rect(12, y(30), 1, 16, shade); p.rect(19, y(30), 1, 16, hi);
+    for (let yy = 32; yy <= 44; yy += 4) { p.px(13, y(yy), metal); p.px(18, y(yy), metal); }
+    p.rect(14, y(39), 4, 2, ink); p.rect(15, y(39), 2, 1, pal.accent);
+  } else if (uniform.includes(id)) {
+    p.rect(15, y(29), 2, 17, shade);
+    for (const yy of [32, 36, 40]) { p.px(15, y(yy), ink); p.px(16, y(yy), metal); }
+    p.rect(11, y(30), 4, 1, hi); p.rect(17, y(30), 4, 1, hi);
+  } else if (arcane.includes(id)) {
+    p.px(16, y(33), metal); p.px(15, y(34), metal); p.px(16, y(34), '#F3E0A0'); p.px(17, y(34), metal); p.px(16, y(35), metal);
+    p.px(11, y(39), pal.accent); p.px(20, y(41), pal.accent); p.px(13, y(47), hi); p.px(18, y(50), hi);
+    p.rect(10, y(43), 12, 1, shade);
+  } else {
+    p.rect(12, y(31), 1, 12, hi); p.rect(19, y(31), 1, 12, shade);
+    p.px(15, y(34), metal); p.px(16, y(38), metal); p.px(15, y(42), metal);
   }
 }
 
@@ -196,7 +240,10 @@ export function drawSprite(a            , dir        , pose      , frame        
   paintSpans(p, PANTS[(a.wear.leg || 0) % PANTS.length].spans, pal, 0);
   const outfit = BODIES[a.wear.top % BODIES.length];
   paintSpans(p, outfit.spans, pal, dy);
+  drawOutfitDetails(p, outfit.id, pal, dy);
   if (outfit.hands) paintSpans(p, HANDS, pal, dy);
+  // 手持配饰先画，随后头发与脸会覆盖相交部分，保证伞、法杖等永远不会挡住角色面部。
+  drawFrontAccessory(p, a, carry, dy);
   if (up < 0) bridgeLegs(p, 50, 2);
   drawFace(p, head, dy);
   const race = RACE_PARTS[a.race];
@@ -208,8 +255,6 @@ export function drawSprite(a            , dir        , pose      , frame        
     if (acc.sym === false) paintSpansL(p, acc.spans, pal, dy);
     else paintSpans(p, acc.spans, pal, dy);
   }
-  // 手持配饰位于身体外侧，正面与背面都应可见；背负配饰则已在角色本体之前绘制。
-  drawFrontAccessory(p, a, carry, dy);
   clothSheen(p, pal);
   hairSheen(p, pal, back);
   if (pose === 'walk') stepLegs(p, frame);   // 交替抬脚要在描边前，不然边缘留残渣

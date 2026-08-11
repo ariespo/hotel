@@ -8,6 +8,7 @@ import { Rng } from './pix.js';
 import { AI_PRESETS, loadAIConfig, presetById, refreshAIModels, saveAIConfig } from './ai.js';
 import { aiConfigured, requestGameAI } from './ai-game.js';
 import { loadPromptTasks, PROMPT_TASKS, resetPromptTasks, savePromptTasks } from './prompt-settings.js';
+import { loadPlayerProfile, savePlayerProfile } from './player-profile.js';
 import { canPersistSim } from './save-policy.js';
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
@@ -429,6 +430,9 @@ export class UI {
       if (this.settlementAIStat) { this.renderSettlement(this.settlementAIStat, { loading: true }); this.generateAISettlement(); }
     }
     else if (act === 'aichatsend') this.sendAIStaffChat(parseInt(v, 10));
+    else if (act === 'aiguestchatsend') this.sendAIGuestChat(parseInt(v, 10));
+    else if (act === 'interactback') { this.finishAIGuestChatSession(); this.openInteract('guest', parseInt(v, 10)); }
+    else if (act === 'aiprofilepolish') this.polishPlayerProfile();
     else if (act === 'aibg') this.generateAIBackground(parseInt(v, 10));
     else if (act === 'viewbg') this.openAIBackground(parseInt(v, 10));
     else if (act === 'aidishname') this.generateAIDishName();
@@ -443,7 +447,7 @@ export class UI {
     else if (act === 'help') this.openHelp();
     else if (act === 'prompts') this.openPromptSettings();
     else if (act === 'promptsave') this.savePromptSettings();
-    else if (act === 'promptreset') { resetPromptTasks(); this.openPromptSettings('已恢复四项默认任务文本。'); }
+    else if (act === 'promptreset') { resetPromptTasks(); this.openPromptSettings('已恢复默认任务文本；玩家身份与背景保持不变。'); }
     else if (act === 'settings') this.openSettings();
     else if (act === 'aipreset') {
       const current = this.syncAIForm();
@@ -880,7 +884,7 @@ export class UI {
   }
 
   closeModal(preserveAIChat = false)       {
-    if (!preserveAIChat) this.finishAIStaffChatSession();
+    if (!preserveAIChat) { this.finishAIStaffChatSession(); this.finishAIGuestChatSession(); }
     if (this.modal) { this.modal.remove(); this.modal = null; }
   }
 
@@ -889,6 +893,20 @@ export class UI {
     this.aiStaffChatSession = null;
     if (!session || session.exchanges <= 0) return;
     this.g.sim.chatWith(session.id, session.lastReply);
+    this.g.save();
+  }
+
+  finishAIGuestChatSession()       {
+    const session = this.aiGuestChatSession;
+    this.aiGuestChatSession = null;
+    if (!session || session.exchanges <= 0) return;
+    const guest = this.g.sim.guests.find((person) => person.id === session.id);
+    const group = guest ? this.g.sim.groupOfGuest(guest.id) : null;
+    if (!guest || !group) return;
+    guest.aff = Math.max(-100, Math.min(100, Math.round((guest.aff || 0) + Math.min(5, 1 + session.exchanges))));
+    group.intCd = Math.max(group.intCd || 0, 18);
+    group.greeted = true;
+    guest.bubble = { text: session.lastReply, t: 3.2 };
     this.g.save();
   }
 
@@ -1019,13 +1037,27 @@ export class UI {
     return this.g.sim.staff.find((person) => person.id === id) || this.g.sim.candById(id);
   }
 
+  playerAIFacts(playerText = '')       {
+    const owner = this.g.sim.staff.find((person) => person.isOwner);
+    const profile = loadPlayerProfile(this.g.currentSlot);
+    return {
+      identity: {
+        name: owner?.name || '店主', sex: owner?.sex || '未知', age: owner?.age || null, race: owner?.race || '未知',
+        role: profile.role,
+        relationToVenue: '多元便携旅店的店主、所有者与经营者；不是来消费、点餐或住店的客人。',
+      },
+      background: profile.background || '玩家尚未填写额外背景设定。',
+      line: String(playerText || '').trim().slice(0, 240),
+    };
+  }
+
   staffAIFacts(st       , playerText        )         {
     const sim = this.g.sim;
     const owner = sim.staff.find((person) => person.isOwner);
     return {
       world: '万界交汇处的一家奇幻酒馆，角色都是店内真实员工。',
       day: sim.econ.day,
-      player: { name: owner?.name || '店主', line: playerText },
+      player: this.playerAIFacts(playerText),
       employee: {
         name: st.name, sex: st.sex, age: st.age, race: st.race, job: JOB_LABEL[st.job],
         traits: st.traits.map((id) => { const trait = TRAITS.find((item) => item.id === id); return trait ? { name: trait.name, note: trait.note } : { name: id }; }),
@@ -1034,7 +1066,8 @@ export class UI {
         state: { task: st.task?.label || st.note || '待命', stamina: Math.round(st.needs.stamina), morale: Math.round(st.needs.morale), stress: Math.round(st.needs.stress) },
         background: st.background || null,
       },
-      recentConversation: (st.aiChatLog || []).slice(0, 5).reverse(),
+      relationship: '员工与雇主/店主之间的店内交流，不是服务员接待顾客。',
+      recentConversation: (st.aiChatLog || []).slice(0, 12).reverse(),
     };
   }
 
@@ -1079,11 +1112,91 @@ export class UI {
       const owner = this.g.sim.staff.find((person) => person.isOwner);
       st.aiChatLog = st.aiChatLog || [];
       st.aiChatLog.unshift({ day: this.g.sim.econ.day, playerName: owner?.name || '店主', player: line.slice(0, 120), reply, emotion: result.emotion });
-      if (st.aiChatLog.length > 8) st.aiChatLog.pop();
+      if (st.aiChatLog.length > 20) st.aiChatLog.pop();
       this.g.save();
       this.openAIStaffChat(id);
     } catch (err) {
       if (this.modal === startedModal) this.openAIStaffChat(id, `AI 回复失败：${err?.message || '未知错误'}`);
+    }
+  }
+
+  guestAffinityFacts(guest       , group       )       {
+    const value = Math.max(-100, Math.min(100, Math.round((guest?.aff || 0) + (group?.praised || 0) * 3 - (group?.mocked || 0) * 5)));
+    const level = value >= 60 ? '非常亲近' : value >= 25 ? '友好' : value >= 5 ? '略有好感' : value <= -35 ? '敌视' : value <= -10 ? '不满' : '初次认识';
+    return { value, level };
+  }
+
+  guestAIFacts(guest       , playerText        )       {
+    const sim = this.g.sim;
+    const group = sim.groupOfGuest(guest.id);
+    const want = group ? wantById(group.want) : null;
+    const affinity = this.guestAffinityFacts(guest, group);
+    return {
+      world: '万界交汇处的一家奇幻旅店；玩家是正在经营此处的店主，目标角色是当前住店或消费的客人。',
+      day: sim.econ.day,
+      player: this.playerAIFacts(playerText),
+      guest: {
+        name: guest.name, race: guest.race, role: '当前旅店内的客人', affinity,
+        visit: { purpose: want?.name || '到店休息与消费', partySize: group?.size || 1, state: group?.state || '店内活动中' },
+        experience: {
+          patience: group ? Math.round((group.patience / Math.max(1, group.maxPatience)) * 100) : 50,
+          praised: group?.praised || 0, mocked: group?.mocked || 0, mood: Math.round((guest.mood || 1) * 100),
+        },
+      },
+      relationship: '客人与旅店店主之间的交流；玩家负责经营和接待，不是另一位顾客。',
+      recentConversation: (guest.aiChatLog || []).slice(0, 12).reverse(),
+    };
+  }
+
+  openAIGuestChat(id        , error = '')       {
+    const guest = this.g.sim.guests.find((person) => person.id === id);
+    const group = guest ? this.g.sim.groupOfGuest(id) : null;
+    if (!guest || !group || !aiConfigured()) return;
+    if (!this.aiGuestChatSession || this.aiGuestChatSession.id !== id) {
+      this.finishAIStaffChatSession();
+      this.finishAIGuestChatSession();
+      if (group.intCd > 0) { this.openInteract('guest', id, '（客人刚聊过，想先安静一会儿）'); return; }
+      this.aiGuestChatSession = { id, exchanges: 0, lastReply: '' };
+    }
+    const history = (guest.aiChatLog || []).slice(0, 12).reverse();
+    const affinity = this.guestAffinityFacts(guest, group);
+    this.showModal(`<div class="row"><img class="av" src="${avatarURL(guest.app)}" width="64" height="64">
+        <div style="flex:1"><h3 style="margin:0">和 ${htmlText(guest.name)} 聊聊</h3><div class="dim">${htmlText(guest.race)}·住店客｜${htmlText(affinity.level)} ${affinity.value}</div></div></div>
+      <div style="max-width:680px;max-height:300px;overflow:auto;margin-top:8px">
+        ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${htmlText(guest.name)}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有对话记录。你是这里的店主，可以询问入住体验，也可以随意闲聊。</div>'}
+      </div>
+      ${error ? `<div class="bad" style="margin-top:7px">${htmlText(error)}</div>` : ''}
+      <textarea id="aiguestline" maxlength="160" rows="3" placeholder="输入店主想对客人说的话……" style="width:100%;box-sizing:border-box;margin-top:8px"></textarea>
+      <div class="row" style="margin-top:8px"><span class="dim">本次窗口内可连续交谈；退出后才结束本轮互动。</span>
+        <span><button data-act="aiguestchatsend" data-v="${guest.id}">发送</button><button data-act="interactback" data-v="${guest.id}">结束聊天</button></span></div>`, true, true);
+  }
+
+  async sendAIGuestChat(id        )       {
+    const guest = this.g.sim.guests.find((person) => person.id === id);
+    const input = this.modal?.querySelector('#aiguestline')                    ;
+    const line = input?.value.trim() || '';
+    if (!guest || !line) { if (input) input.focus(); return; }
+    const startedModal = this.modal;
+    const send = this.modal?.querySelector('[data-act="aiguestchatsend"]')                     ;
+    if (send) { send.disabled = true; send.textContent = '等待回复…'; }
+    try {
+      const result = await requestGameAI('guest_chat', this.guestAIFacts(guest, line));
+      if (this.modal !== startedModal) return;
+      const reply = String(result.reply || '').trim().slice(0, 180);
+      if (!reply) throw new Error('客人现在无法回应');
+      guest.bubble = { text: reply, t: 3.2 };
+      this.g.sim.sounds.push(result.emotion === 'serious' ? 'angry' : 'happy');
+      if (this.aiGuestChatSession?.id === guest.id) {
+        this.aiGuestChatSession.exchanges++;
+        this.aiGuestChatSession.lastReply = reply;
+      }
+      const owner = this.g.sim.staff.find((person) => person.isOwner);
+      guest.aiChatLog = guest.aiChatLog || [];
+      guest.aiChatLog.unshift({ day: this.g.sim.econ.day, playerName: owner?.name || '店主', player: line.slice(0, 160), reply, emotion: result.emotion });
+      if (guest.aiChatLog.length > 20) guest.aiChatLog.pop();
+      this.openAIGuestChat(id);
+    } catch (err) {
+      if (this.modal === startedModal) this.openAIGuestChat(id, `AI 回复失败：${err?.message || '未知错误'}`);
     }
   }
 
@@ -1251,7 +1364,7 @@ export class UI {
     const w = wantById(gr.want);
     const pct = Math.round((gr.patience / gr.maxPatience) * 100);
     const cost = 12 + gr.size * 6;
-    const acts                     = [['gpraise', '称赞'], ['treat', `请一杯 -${cost}`], ['gmock', '贬低']];
+    const acts                     = [...(aiConfigured() ? [['gchat', '聊两句']] : []), ['gpraise', '称赞'], ['treat', `请一杯 -${cost}`], ['gmock', '贬低']];
     if (sameRoom && nightInteractionAction(sim, 'guest', own, gu, gr) === 'raid') acts.push(['raid', '进行突袭']);
     this.showModal(`<div class="row"><img class="av" src="${avatarURL(gu.app)}" width="64" height="64">
         <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
@@ -1260,7 +1373,7 @@ export class UI {
       <div class="dim" style="margin-top:6px">${near ? '客人正看着你，要搭话吗？' : `太远了（${d.toFixed(1)} 格）：走到 2.8 格内才能搭话。`}${gr.intCd > 0 ? `｜刚聊过，${Math.ceil(gr.intCd)} 秒后才会再理你` : ''}</div>
       ${this.interactMsg ? `<div class="hi" style="margin-top:8px">${this.interactMsg}</div>` : ''}
       <div class="row" style="margin-top:10px;flex-wrap:wrap">
-        ${acts.map(([a, n]) => `<button data-act="iact" data-v="${a}" data-id="${gu.id}" data-k="guest" ${near ? '' : 'disabled'}>${n}</button>`).join('')}
+        ${acts.map(([a, n]) => `<button data-act="iact" data-v="${a}" data-id="${gu.id}" data-k="guest" ${near && (a !== 'gchat' || gr.intCd <= 0) ? '' : 'disabled'}>${n}</button>`).join('')}
       </div>
       <div class="row" style="margin-top:8px"><button data-act="closemodal">走开</button></div>`);
     this.watchInteract('guest', id, near);
@@ -1299,6 +1412,7 @@ export class UI {
     const gr = sim.groupOfGuest(id);
     if (!gr) { this.closeModal(); return; }
     if (action === 'raid') { window.clearInterval(this.interactTimer); this.openNightPrompt('raid', 'guest', id); return; }
+    if (action === 'gchat') { window.clearInterval(this.interactTimer); this.openAIGuestChat(id); return; }
     if (action === 'gpraise') msg = sim.praiseGuest(gr.id);
     else if (action === 'gmock') msg = sim.mockGuest(gr.id);
     else if (action === 'treat') msg = sim.treatGuest(gr.id);
@@ -1355,16 +1469,17 @@ export class UI {
     const owner = sim.staff.find((person) => person.isOwner);
     const target = this.nightTarget(ctx);
     const group = ctx.kind === 'guest' ? sim.groupOfGuest(ctx.id) : null;
+    const player = this.playerAIFacts(action);
     const traits = (person       ) => (person?.traits || []).map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name);
     return {
       scene: ctx.scene,
       sceneMeaning: ctx.scene === 'raid' ? '夜间突然拜访或查房；不是性行为，也不是暴力袭击' : '成年人之间可拒绝的私密邀请；亲密内容淡出处理',
       location: ctx.kind === 'guest' ? '住店客正在休息的客房' : `${target?.name || '员工'}的员工休息室附近`,
       day: sim.econ.day,
-      owner: { name: owner?.name || '店主', adult: (owner?.age || 0) >= 18, age: owner?.age, race: owner?.race, traits: traits(owner) },
+      owner: { ...player.identity, background: player.background, adult: (owner?.age || 0) >= 18, traits: traits(owner) },
       target: ctx.kind === 'staff'
-        ? { type: '员工', name: target?.name, adult: (target?.age || 0) >= 18, age: target?.age, sex: target?.sex, race: target?.race, affinity: target?.aff, affinityLevel: sim.affLevel(target?.aff || 0).name, traits: traits(target), background: target?.background || null }
-        : { type: '住店客', name: target?.name, adult: true, race: target?.race, sleeping: !!group?.overnight, partySize: group?.size || 1 },
+        ? { type: '员工', name: target?.name, adult: (target?.age || 0) >= 18, age: target?.age, sex: target?.sex, race: target?.race, affinity: target?.aff, affinityLevel: sim.affLevel(target?.aff || 0).name, traits: traits(target), background: target?.background || null, recentConversation: (target?.aiChatLog || []).slice(0, 12).reverse() }
+        : { type: '住店客', name: target?.name, adult: true, race: target?.race, sleeping: !!group?.overnight, partySize: group?.size || 1, affinity: this.guestAffinityFacts(target, group), recentConversation: (target?.aiChatLog || []).slice(0, 12).reverse() },
       history: ctx.turns.slice(-8).map((turn) => ({ playerAction: turn.player, summary: turn.summary })),
       playerAction: String(action).slice(0, 240),
       immutable: '本剧情不改变任何经营数值、角色属性或既有事实。',
@@ -1597,18 +1712,57 @@ export class UI {
       <div class="row" style="margin-top:10px"><button data-act="loadslotgo" data-v="${slot}">确认读取</button><button data-act="savemenu">取消</button></div>`);
   }
 
-  openPromptSettings(status = '') {
+  openPromptSettings(status = '', isError = false) {
     const tasks = loadPromptTasks();
+    const profile = loadPlayerProfile(this.g.currentSlot);
+    const owner = this.g.sim.staff.find((person) => person.isOwner);
     const cards = Object.entries(PROMPT_TASKS).map(([key, meta]) => `<section class="prompt-card">
       <div class="row"><b>${htmlText(meta.label)}</b><span class="dim">最多 2000 字</span></div>
       <div class="dim">${htmlText(meta.description)}</div>
       <textarea class="prompt-editor" data-prompt-key="${key}" maxlength="2000" spellcheck="false">${htmlText(tasks[key])}</textarea>
     </section>`).join('');
     this.showModal(`<h3>提示词</h3>
-      <div class="dim">这里只修改 AI 的任务重点和叙事风格。角色事实、数值边界、内容安全规则和 JSON 返回格式由游戏固定附加，不能在这里覆盖。</div>
-      ${status ? `<div class="good" style="margin-top:7px">${htmlText(status)}</div>` : ''}
+      <div class="dim">这里可以设定玩家身份背景，并修改 AI 的任务重点与叙事风格。角色数值、内容安全规则和 JSON 返回格式仍由游戏固定附加。</div>
+      ${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
+      <section class="prompt-card" style="border-left-color:#7A4BE0">
+        <div class="row"><b>玩家身份与背景</b><span class="dim">档位 ${this.g.currentSlot} 独立保存</span></div>
+        <div class="dim">固定角色：${htmlText(owner?.name || '店主')}｜${htmlText(owner?.sex || '未知')}｜${htmlText(owner?.race || '未知')}｜旅店所有者与经营者。AI 不得把你当成来消费的客人。</div>
+        <label style="display:block;margin-top:8px"><span class="dim">身份定位</span><input data-player-role maxlength="100" value="${htmlText(profile.role)}" style="width:100%;box-sizing:border-box;margin-top:4px"></label>
+        <label style="display:block;margin-top:8px"><span class="dim">背景设定</span><textarea class="prompt-editor" data-player-background maxlength="2400" placeholder="可以直接写完整设定，也可以只写出身、经历、经营动机和待人方式的大概，再让 AI 完善。">${htmlText(profile.background)}</textarea></label>
+        <div class="row"><span class="dim">该设定会进入员工、客人和夜间互动上下文，不会修改经营数值。</span>${aiConfigured() ? '<button data-act="aiprofilepolish">AI 完善背景</button>' : '<button data-act="settings">设置 AI 后完善</button>'}</div>
+      </section>
       ${cards}
       <div class="row" style="margin-top:12px"><button data-act="promptreset" class="warn">恢复默认</button><span style="flex:1"></span><button data-act="promptsave">保存任务文本</button><button data-act="closemodal">关闭</button></div>`);
+  }
+
+  syncPlayerProfileForm()       {
+    const current = loadPlayerProfile(this.g.currentSlot);
+    if (!this.modal) return current;
+    return savePlayerProfile({
+      role: this.modal.querySelector('[data-player-role]')?.value || current.role,
+      background: this.modal.querySelector('[data-player-background]')?.value || '',
+    }, this.g.currentSlot);
+  }
+
+  async polishPlayerProfile()       {
+    if (!aiConfigured()) { this.openPromptSettings('请先在设置中接入 AI 并选择模型。', true); return; }
+    const tasks = loadPromptTasks();
+    if (this.modal) for (const input of this.modal.querySelectorAll('[data-prompt-key]')) tasks[input.dataset.promptKey] = input.value;
+    savePromptTasks(tasks);
+    const draft = this.syncPlayerProfileForm();
+    const owner = this.g.sim.staff.find((person) => person.isOwner);
+    const button = this.modal?.querySelector('[data-act="aiprofilepolish"]')                     ;
+    if (button) { button.disabled = true; button.textContent = 'AI 正在完善…'; }
+    try {
+      const result = await requestGameAI('player_profile', {
+        fixedIdentity: { name: owner?.name || '店主', sex: owner?.sex, age: owner?.age, race: owner?.race, venueRole: '多元便携旅店的店主、所有者与经营者' },
+        draft,
+      });
+      savePlayerProfile(result, this.g.currentSlot);
+      this.openPromptSettings('玩家背景已由 AI 完善并保存。');
+    } catch (err) {
+      this.openPromptSettings(`AI 完善失败：${err?.message || '未知错误'}`, true);
+    }
   }
 
   savePromptSettings() {
@@ -1617,7 +1771,8 @@ export class UI {
       for (const input of this.modal.querySelectorAll('[data-prompt-key]')) current[input.dataset.promptKey] = input.value;
     }
     savePromptTasks(current);
-    this.openPromptSettings('四项任务文本已保存，仅存放在当前浏览器。');
+    this.syncPlayerProfileForm();
+    this.openPromptSettings('玩家身份背景与任务文本已保存。');
   }
 
   openSettings()       {
@@ -1737,6 +1892,7 @@ export class UI {
       world: '《多元便携旅店》是一家接待不同位面来客的奇幻酒馆。所有数值和工作统计都是不可改写的事实。',
       tavern: { rooms: this.g.tavern.rooms.length, furniture: this.g.tavern.furns.length, stars: sim.stars() },
       day: stat.day,
+      player: this.playerAIFacts(''),
       finance: report.finance || { revenue: stat.revenue, wages: stat.wages, maintenance: stat.maintenance, restock: stat.restock, net: stat.revenue - stat.wages - stat.maintenance - stat.restock, coinsAfter: stat.coinsAfter },
       guests: report.guests || { served: stat.served, lost: stat.lost, averageScore: stat.avgScore, scoreBreakdown: stat.scoreBreakdown },
       reputation: report.reputation || { delta: stat.repDelta, after: sim.econ.rep },

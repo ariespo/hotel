@@ -14,6 +14,8 @@ import { bedDisplayPlacement, bpById, dirDelta,            furnFootprint, rotate
 import {               UI } from './src/ui.js';
 import { TitleScreen, validGameSave } from './src/title.js';
 import { createSkyPlan } from './src/sky.js';
+import { resetPlayerProfile } from './src/player-profile.js';
+import { clampZoom } from './src/camera.js';
 
 const SAVE_KEY = 'wjbdy.save.v1';
 const MORNING_KEY = 'wjbdy.morning.v1';
@@ -586,6 +588,7 @@ class Game                    {
     this.rememberActiveSlot();
     localStorage.removeItem(saveKeyFor(this.currentSlot));
     localStorage.removeItem(morningKeyFor(this.currentSlot));
+    resetPlayerProfile(this.currentSlot);
     this.ui.closeModal();
     this.tavern = new Tavern();
     this.sim = new Sim(this.tavern, newEcon(Math.floor(Math.random() * 1e9)));
@@ -701,7 +704,7 @@ class Game                    {
     };
   }
 
-  setZoom(z        )       { this.zoom = Math.max(0.5, Math.min(3, Math.round(z * 20) / 20)); }
+  setZoom(z        )       { this.zoom = clampZoom(z); }
 
   /** 小屏竖屏：把整个酒馆收进视野 */
   fitView()       {

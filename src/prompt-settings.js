@@ -21,6 +21,11 @@ export const PROMPT_TASKS = Object.freeze({
     description: '玩家主动打开员工聊天窗口并连续交谈。',
     defaultText: '以员工本人的身份直接回应玩家。语气应符合该员工的性格、岗位、状态、经历和对店主的好感；回应玩家刚刚说的话，保持自然对话，不替玩家说话或决定行动。',
   },
+  guest_chat: {
+    label: '客人对话',
+    description: '玩家以店主身份主动与正在旅店内的客人连续交谈。',
+    defaultText: '以客人本人的身份直接回应店主。结合客人的来意、当前体验、对店主的观感和此前交谈作答；不要把店主误认为来消费的客人，也不要替玩家说话或决定行动。',
+  },
 });
 
 const taskKeys = Object.keys(PROMPT_TASKS);
@@ -67,6 +72,6 @@ export function resetPromptTasks(storage) {
 
 export function promptTaskFor(kind, facts, tasks = loadPromptTasks()) {
   if (kind === 'night_story') return facts?.scene === 'raid' ? tasks.night_raid : tasks.night_romance;
-  if (kind === 'day_story' || kind === 'staff_chat') return tasks[kind];
+  if (kind === 'day_story' || kind === 'staff_chat' || kind === 'guest_chat') return tasks[kind];
   return '';
 }
