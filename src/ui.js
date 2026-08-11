@@ -10,6 +10,7 @@ import { aiConfigured, requestGameAI } from './ai-game.js';
 import { loadPromptTasks, PROMPT_TASKS, resetPromptTasks, savePromptTasks } from './prompt-settings.js';
 import { loadPlayerProfile, savePlayerProfile } from './player-profile.js';
 import { canPersistSim } from './save-policy.js';
+import { advanceTutorialState, loadTutorialState, resetTutorialState, saveTutorialState, TUTORIAL_STEPS, tutorialActionMatches } from './tutorial.js';
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
@@ -159,9 +160,10 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui.compact.scrimOn #scrim{display:block}
 .prompt-editor{display:block;margin:5px 0 12px;width:100%;min-height:88px;box-sizing:border-box;resize:vertical;line-height:1.55}
 .prompt-card{padding:8px 10px;border:2px solid #E3C9A4;border-left:5px solid #8A74B8;border-radius:10px;background:#FFF8E9;margin-top:8px}
+#tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper2.png');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
-@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}}
+@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
 `;
 
 function el(html        )              {
@@ -210,6 +212,10 @@ export class UI {
           railR             ;
           chatterBox             ;
           scrim             ;
+          tutorialLayer             ;
+          tutorialState = null;
+          tutorialActive = false;
+          tutorialSlot = 0;
           acc = 0;
           interactionLock = false;
           interactionRelease = 0;
@@ -232,7 +238,8 @@ export class UI {
     this.railL = el('<div id="railL" class="rail"></div>');
     this.railR = el('<div id="railR" class="rail"></div>');
     this.scrim = el('<div id="scrim"></div>');
-    this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim);
+    this.tutorialLayer = el('<div id="tutorial-layer"></div>');
+    this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim, this.tutorialLayer);
     this.scrim.addEventListener('click', () => { this.collapsed.left = this.collapsed.right = true; this.render(true); });
     // 小屏/竖屏：抽屉式侧栏，进入时双栏折起、视野适配整店
     const mm = window.matchMedia('(max-width: 1040px)');
@@ -353,7 +360,12 @@ export class UI {
     if (this.needsPurchaseConfirmation(act, t)) {
       if (!this.confirmPurchase(t, act)) return;
     } else this.clearPurchaseConfirmation(false);
-    if (act === 'pause') g.setPaused(!g.paused);
+    if (act === 'tutorialnext') this.advanceTutorial();
+    else if (act === 'tutorialresume') this.resumeTutorial(true);
+    else if (act === 'tutorialstart' || act === 'tutorialrestart') this.startTutorial(true);
+    else if (act === 'tutorialmin') this.minimizeTutorial();
+    else if (act === 'tutorialskip') this.skipTutorial();
+    else if (act === 'pause') g.setPaused(!g.paused);
     else if (act === 'speed') g.setSpeed(parseInt(v, 10));
     else if (act === 'ltab') { this.leftTab = v; this.render(true); }
     else if (act === 'collapse') { this.collapsed[v                    ] = true; this.render(true); }
@@ -496,6 +508,7 @@ export class UI {
     else if (act === 'firego') { if (g.fire(parseInt(v, 10))) this.closeModal(); }
     else if (act === 'manual') { g.setManualOwner(v === '1'); this.openSettings(); }
     else if (act === 'confirmnew') this.openConfirmRestart();
+    this.handleTutorialAction(act, v);
     this.render(true);
   }
 
@@ -525,9 +538,117 @@ export class UI {
 
           lastChatter = '';
 
-          renderToasts()       {
+  renderToasts()       {
     const list = this.g.sim.toasts;
     this.toastBox.innerHTML = list.slice(-3).map((t) => `<div class="toast">${t.text}</div>`).join('');
+  }
+
+  currentTutorialState()       {
+    const slot = this.g.currentSlot || 1;
+    if (!this.tutorialState || this.tutorialSlot !== slot) {
+      this.tutorialSlot = slot;
+      this.tutorialState = loadTutorialState(slot);
+      this.tutorialActive = false;
+    }
+    return this.tutorialState;
+  }
+
+  persistTutorial()       {
+    this.tutorialState = saveTutorialState(this.tutorialState, this.g.currentSlot || 1);
+    return this.tutorialState;
+  }
+
+  startTutorial(restart = false)       {
+    this.closeModal();
+    this.tutorialSlot = this.g.currentSlot || 1;
+    const current = loadTutorialState(this.tutorialSlot);
+    this.tutorialState = restart || !current.started || current.completed || current.skipped
+      ? resetTutorialState(this.tutorialSlot) : current;
+    this.tutorialActive = true;
+    if (this.tutorialState.index === 0) {
+      this.collapsed = { left: true, right: true };
+      this.g.selection = null;
+    }
+    this.render(true);
+  }
+
+  resumeTutorial(closeOpenModal = false)          {
+    const state = this.currentTutorialState();
+    if (!state.started || state.completed || state.skipped) return false;
+    if (closeOpenModal) this.closeModal();
+    this.tutorialActive = true;
+    this.render(true);
+    return true;
+  }
+
+  minimizeTutorial()       {
+    this.tutorialActive = false;
+    this.render(true);
+    this.g.sim.toast('引导已最小化，可从顶栏“继续引导”恢复');
+  }
+
+  skipTutorial()       {
+    const state = this.currentTutorialState();
+    this.tutorialState = { ...state, started: true, skipped: true, completed: false };
+    this.persistTutorial();
+    this.tutorialActive = false;
+    this.render(true);
+    this.g.sim.toast('已跳过引导，可在“帮助”中重新开始');
+  }
+
+  advanceTutorial()       {
+    const state = this.currentTutorialState();
+    const step = TUTORIAL_STEPS[state.index];
+    if (step?.action && !state.satisfied) {
+      this.g.sim.toast('请先点击引导中高亮的按钮');
+      return false;
+    }
+    this.tutorialState = advanceTutorialState(state);
+    this.persistTutorial();
+    if (this.tutorialState.completed) {
+      this.tutorialActive = false;
+      this.g.sim.toast('新手引导完成；祝你经营顺利！');
+    }
+    return true;
+  }
+
+  handleTutorialAction(act        , value        )       {
+    if (!this.tutorialActive) return;
+    const state = this.currentTutorialState();
+    const step = TUTORIAL_STEPS[state.index];
+    if (!tutorialActionMatches(step, act, value)) return;
+    if (step.id === 'opening' && !this.g.sim.dayActive) return;
+    this.tutorialState = { ...state, satisfied: true };
+    this.persistTutorial();
+  }
+
+  renderTutorial()       {
+    for (const node of document.querySelectorAll('.tutorial-target')) node.classList.remove('tutorial-target', 'tutorial-satisfied');
+    const state = this.currentTutorialState();
+    if (!this.tutorialActive || !state.started || state.completed || state.skipped) {
+      this.tutorialLayer.style.display = 'none';
+      this.tutorialLayer.innerHTML = '';
+      return;
+    }
+    const step = TUTORIAL_STEPS[state.index];
+    const selector = state.satisfied && step.afterTarget ? step.afterTarget : step.target;
+    if (selector) {
+      const target = [...document.querySelectorAll(selector)].find((node) => {
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0 && getComputedStyle(node).visibility !== 'hidden';
+      });
+      if (target) target.classList.add('tutorial-target', ...(state.satisfied ? ['tutorial-satisfied'] : []));
+    }
+    const waiting = !!step.action && !state.satisfied;
+    const points = step.points?.length ? `<ul>${step.points.map((point) => `<li>${htmlText(point)}</li>`).join('')}</ul>` : '';
+    const primary = state.index === TUTORIAL_STEPS.length - 1 ? '完成引导' : state.satisfied ? '看完了，下一步' : '下一步';
+    this.tutorialLayer.innerHTML = `<section class="tutorial-card" role="dialog" aria-label="新手引导">
+      <div class="tutorial-head"><span class="tutorial-step">${state.index + 1}/${TUTORIAL_STEPS.length} · ${htmlText(step.chapter)}</span><h2>${htmlText(step.title)}</h2></div>
+      <p>${htmlText(step.body)}</p>${points}
+      ${waiting ? '<div class="tutorial-hint">请点击画面中金色高亮的入口；打开后可以先阅读实际面板。</div>' : state.satisfied ? '<div class="tutorial-hint good">已打开目标面板。确认看懂后再进入下一步。</div>' : ''}
+      <div class="tutorial-actions" style="margin-top:9px"><button data-act="tutorialmin">暂时收起</button><button data-act="tutorialskip" class="warn">跳过引导</button><span class="spacer"></span><button data-act="tutorialnext" ${waiting ? 'disabled' : ''}>${primary}</button></div>
+    </section>`;
+    this.tutorialLayer.style.display = 'block';
   }
 
   render(force         )       {
@@ -537,11 +658,13 @@ export class UI {
     this.renderRight();
     this.renderBottom();
     this.applyCollapse();
+    this.renderTutorial();
     if (force) this.renderToasts();
   }
 
-          renderTop()       {
+  renderTop()       {
     const g = this.g; const s = g.sim; const e = s.econ;
+    const tutorial = this.currentTutorialState();
     const stars = s.stars();
     const nextTh = STAR_THRESHOLDS[Math.min(5, stars + 1)];
     const timePct = s.dayActive ? (s.dayT / 300) * 100 : 0;
@@ -562,6 +685,7 @@ export class UI {
       <span style="flex:1"></span>
       <button data-act="home">回店</button>
       ${s.dayActive ? '' : '<button data-act="open">开门营业</button>'}
+      ${tutorial.started && !tutorial.completed && !tutorial.skipped && !this.tutorialActive ? `<button data-act="tutorialresume" class="hi">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>` : ''}
       <button data-act="savemenu">💾 档位 ${this.g.currentSlot}</button>
       <button data-act="help">帮助</button>
       <button data-act="prompts">提示词</button>
@@ -877,6 +1001,11 @@ export class UI {
 
   // ---------- 模态 ----------
           showModal(inner        , closable = true, preserveAIChat = false)              {
+    if (this.tutorialActive) {
+      this.tutorialActive = false;
+      this.tutorialLayer.style.display = 'none';
+      for (const node of document.querySelectorAll('.tutorial-target')) node.classList.remove('tutorial-target', 'tutorial-satisfied');
+    }
     this.closeModal(preserveAIChat);
     // 必经流程（捏脸）不给 ✕：关了就永远进不了店
     const x = closable ? '<button class="x" data-act="closemodal" title="关闭">✕</button>' : '';
@@ -914,19 +1043,20 @@ export class UI {
   }
 
   openHelp()       {
-    this.showModal(`<h3>怎么玩</h3>
-      <div>1. 收盘规划：招人、指派岗位、买料、建造房间与家具。</div>
-      <div>2. 点“开门营业”，客人从位面门进来；员工按岗位自动跑迎宾→点单→取料→备餐→烹饪→出餐→上菜→收台→洗盘。</div>
-      <div>3. 设备只有<b>使用面可达</b>时才能工作（黄色箭头），椅子必须朝向餐桌。</div>
-      <div>4. 一天 5 分钟，可 1×/2×/4× 或暂停。结算支付工资、维护与补货；连续 3 次低于信用线会被位面房东封印。</div>
-      <div>5. 声望升星解锁酒吧、休息室与更大房型。</div>
-      <div>6. 顶栏“💾 档位”提供 3 个独立档位与主动保存；营业现场不会写入常规档，完成营业后再保存。</div>
-      <div>7. 收盘规划时靠近睡着的住店客可进行夜间突袭；员工好感达到至交且双方成年后可发出共度春宵邀请。接入 AI 后可连续推演选项剧情。</div>
-      <div>6. 「菜单」页签管理上下架：菜品消耗储备室食材，越贵的菜对厨师的厨艺/调酒要求越高，厨艺不足或缺料时做不出来。</div>
-      <div>7. 收盘规划时点击厨房的灶台可以研发新菜：自定配方用量、指派厨师、复合口味与趣味选项，成功后自动上架。</div>
-      <div>8. 住宿客入夜后会留在客房过夜（不占用收盘），次日开门统一按住宿价结账离店。</div>
-      <div>9. 员工上限＝休息室数量＋店主：1 人 1 间卧室，分房后休息室挂名「XX的卧室」；搬家具时点「转个方向」或按 R 可在放下前转向。</div>
-      <div class="row" style="margin-top:8px"><button data-act="closemodal">知道了</button></div>`);
+    const tutorial = this.currentTutorialState();
+    const guideAction = tutorial.started && !tutorial.completed && !tutorial.skipped
+      ? `<button data-act="tutorialresume">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>`
+      : `<button data-act="tutorialstart">开始新手引导</button>`;
+    this.showModal(`<h3>引导与帮助</h3>
+      <div class="card" style="border-left-color:#8A74B8"><div class="row"><div><b>分步新手引导</b><div class="dim">逐步高亮地图、顶栏、房间、家具、菜单、经营、员工、营业、客人、工作与日志。</div></div><span>${tutorial.completed ? '<span class="good">已完成</span>' : tutorial.skipped ? '<span class="dim">已跳过</span>' : ''}</span></div>
+        <div class="row" style="margin-top:7px">${guideAction}<button data-act="tutorialrestart">从头重新引导</button></div></div>
+      <h3 style="margin-top:10px">快速参考</h3>
+      <div class="card"><b>规划期</b><div class="dim">建房与布置家具 → 检查菜单和库存 → 调整员工岗位/负责区域 → 保存 → 开门。</div></div>
+      <div class="card"><b>营业期</b><div class="dim">客人从位面门进入；员工自动执行迎宾、点单、取料、制作、上菜、收台和清洁。用客人页看耐心，用工作页查积压，用日志找离店原因。</div></div>
+      <div class="card"><b>常见故障</b><div class="dim">设备黄色使用面必须可达，椅子必须朝向桌子；菜品还需要对应设施、足够食材和技能。卫生/拥堵热图可定位环境问题。</div></div>
+      <div class="card"><b>日结与成长</b><div class="dim">营业收入实时入账；日结扣工资、维护和补货。声望升星解锁房型与家具品质，连续 3 次低于信用线会被封印。</div></div>
+      <div class="card"><b>角色与 AI</b><div class="dim">点击角色看详情，靠近按 E 互动。AI 设置、模型选择和玩家背景在“设置/提示词”中管理；AI 不会替代真实经营数值结算。</div></div>
+      <div class="row" style="margin-top:8px"><button data-act="closemodal">关闭</button></div>`);
   }
 
   openEvent()       {

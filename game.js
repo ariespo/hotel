@@ -381,6 +381,7 @@ class Game                    {
       this.audio.playTrack(this.sim.dayActive ? 'bgm' : 'bgm-plan');
       this.audio.playAmb(this.sim.dayActive ? 'amb' : 'amb-night');
       this.ui.render(true);
+      this.ui.resumeTutorial();
       return true;
     }
     this.titleActive = false;
@@ -470,6 +471,7 @@ class Game                    {
     this.selection = null;
     this.saveMorning();
     this.save();
+    this.ui.startTutorial(true);
   }
 
   // ---------- 存档 ----------
@@ -538,6 +540,7 @@ class Game                    {
       this.audio.playAmb(this.sim.dayActive ? 'amb' : 'amb-night');
       this.sim.toast(`已读取档位 ${slot}`);
       this.ui.render(true);
+      this.ui.resumeTutorial();
       return true;
     } catch (e) { this.sim.toast(`档位 ${slot} 读取失败`); this.audio.play('error'); return false; }
   }
@@ -606,6 +609,7 @@ class Game                    {
     this.creatorPending = false;
     this.sim.toast('已读取晨间存档');
     this.save();
+    this.ui.resumeTutorial();
   }
 
   // ---------- 输入 ----------
