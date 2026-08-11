@@ -5,6 +5,7 @@ import {
   HT_NAMES, PANTS_NAMES, PRESETS, RACE_NAMES, randomAppearance, SKINS, SOCK_NAMES, THEMES,
 } from './chargen.js';
 import { Rng } from './pix.js';
+import { AI_PRESETS, loadAIConfig, presetById, refreshAIModels, saveAIConfig } from './ai.js';
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
@@ -128,7 +129,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;margin-top:-9px;border:none;background:url('assets/ui-knob.png') center/contain no-repeat;filter:drop-shadow(0 2px 2px rgba(90,64,51,.4))}
 #ui input[type=range]::-moz-range-track{height:10px;border-radius:6px;background:#E7D2B2;border:1px solid #C9A176;box-shadow:inset 0 1px 3px rgba(90,64,51,.35)}
 #ui input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;background:url('assets/ui-knob.png') center/contain no-repeat}
-#ui input[type=text],#ui input:not([type]),#ui select,#ui textarea{font-family:inherit;font-size:13px;color:#5A4033;background:#FFFDF6;border:2px solid #D8BC94;border-radius:8px;padding:3px 7px;box-shadow:inset 0 2px 4px rgba(120,85,45,.18)}
+#ui input[type=text],#ui input[type=url],#ui input[type=password],#ui input:not([type]),#ui select,#ui textarea{font-family:inherit;font-size:13px;color:#5A4033;background:#FFFDF6;border:2px solid #D8BC94;border-radius:8px;padding:3px 7px;box-shadow:inset 0 2px 4px rgba(120,85,45,.18)}
 #ui input:focus,#ui select:focus{outline:none;border-color:#C97F2B}
 .rail{position:absolute;top:46px;display:flex;flex-direction:column;gap:6px;z-index:6}
 #railL{left:8px}
@@ -165,6 +166,10 @@ const ORDER_STAGE                         = {
 function bar(v        , max        , color        )         {
   const pct = Math.max(0, Math.min(100, (v / max) * 100));
   return `<span class="bar" style="display:inline-block;width:64px"><i style="width:${pct}%;background:${color}"></i></span>`;
+}
+
+function htmlText(value        )         {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
 export class UI {
@@ -322,6 +327,18 @@ export class UI {
     else if (act === 'loadmorning') g.loadMorning();
     else if (act === 'help') this.openHelp();
     else if (act === 'settings') this.openSettings();
+    else if (act === 'aipreset') {
+      const current = this.syncAIForm();
+      const preset = presetById(v);
+      saveAIConfig({ ...current, preset: preset.id, baseUrl: preset.baseUrl || current.baseUrl, model: '', models: [], refreshedAt: 0 });
+      this.openSettings();
+    }
+    else if (act === 'airefresh') this.refreshAISettings();
+    else if (act === 'aiclear') {
+      const current = this.syncAIForm();
+      saveAIConfig({ ...current, apiKey: '', model: '', models: [], refreshedAt: 0 });
+      this.openSettings();
+    }
     else if (act === 'detail') this.openStaffDetail(parseInt(v, 10));
     else if (act === 'traitinfo') this.openTraitInfo(v, parseInt(t.dataset.id || '0', 10));
     else if (act === 'manage') { g.select('staff', parseInt(v, 10)); this.closeModal(); }
@@ -352,6 +369,7 @@ export class UI {
     }
     if (t.dataset.act === 'volm') this.g.audio.setMusicVol(parseFloat(t.value));
     if (t.dataset.act === 'vols') { this.g.audio.setSfxLevel(parseFloat(t.value)); this.g.audio.play('coin', 0.8); }
+    if (['aiurl', 'aikey', 'aimodel'].includes(t.dataset.act)) this.syncAIForm();
     if (t.dataset.act === 'rdchef') { this.syncRdName(); this.rd.chefId = parseInt(t.value, 10); this.openResearch(); }
   }
 
@@ -1062,6 +1080,11 @@ export class UI {
   openSettings()       {
     const manual = this.g.sim.manualOwner;
     const vols = this.g.audio.curVolumes();
+    const ai = loadAIConfig();
+    const lastRefresh = ai.refreshedAt ? new Date(ai.refreshedAt).toLocaleString() : '';
+    const modelOptions = ai.models.length
+      ? ai.models.map((model) => `<option value="${htmlText(model)}" ${model === ai.model ? 'selected' : ''}>${htmlText(model)}</option>`).join('')
+      : '<option value="">请先刷新模型</option>';
     this.showModal(`<h3>⚙ 设置</h3>
       <div class="row"><span>店主操控</span><span class="${manual ? 'hi' : 'dim'}">${manual ? '玩家直控' : '自动干活'}</span></div>
       <div class="row">
@@ -1072,12 +1095,67 @@ export class UI {
       <div class="row" style="margin-top:10px"><span style="width:56px">音乐</span><input data-act="volm" type="range" min="0" max="1" step="0.05" value="${vols.m}" style="flex:1"></div>
       <div class="row"><span style="width:56px">音效</span><input data-act="vols" type="range" min="0" max="1" step="0.05" value="${vols.s}" style="flex:1"></div>
       <div class="row" style="margin-top:10px"><span>操作</span><span class="dim">空格暂停 · 1/2/3 变速 · R 旋转 · F 聚焦 · E 与身边的伙计/客人搭话 · 点角色开互动菜单 · 双击伙计看详情 · 鼠标拖拽平移 · 滚轮缩放</span></div>
+      <h3 style="margin:14px 0 6px">AI 接入</h3>
+      <div class="dim">支持 OpenAI Chat Completions 兼容接口。选择预设或填写自定义 API 根地址，再输入 Key 并刷新模型。</div>
+      <div class="row" style="margin-top:7px;justify-content:flex-start;flex-wrap:wrap">
+        ${AI_PRESETS.map((preset) => `<button data-act="aipreset" data-v="${preset.id}" class="${ai.preset === preset.id ? 'on' : ''}">${preset.name}</button>`).join('')}
+      </div>
+      <label class="row" style="margin-top:7px"><span style="width:72px">接口地址</span><input data-act="aiurl" type="url" value="${htmlText(ai.baseUrl)}" placeholder="https://example.com/v1" autocomplete="off" spellcheck="false" style="flex:1;min-width:240px"></label>
+      <label class="row" style="margin-top:5px"><span style="width:72px">API Key</span><input data-act="aikey" type="password" value="${htmlText(ai.apiKey)}" placeholder="sk-..." autocomplete="off" spellcheck="false" style="flex:1;min-width:240px"></label>
+      <div class="row" style="margin-top:6px">
+        <span style="width:72px">游戏模型</span>
+        <select data-act="aimodel" style="flex:1;min-width:220px" ${ai.models.length ? '' : 'disabled'}>${modelOptions}</select>
+        <button data-act="airefresh">刷新模型</button>
+      </div>
+      <div data-ai-status class="${lastRefresh ? 'good' : 'dim'}" style="margin-top:5px">${lastRefresh ? `已加载 ${ai.models.length} 个模型 · ${lastRefresh}` : '尚未刷新模型'}</div>
+      <div class="dim" style="margin-top:4px">Key 仅保存在当前浏览器，不进入游戏存档或仓库；正式部署通过同源代理转发。共享设备请在离开前清除。</div>
+      ${['localhost', '127.0.0.1'].includes(location.hostname) ? '<div class="dim">本地静态服务器会尝试直连供应商，可能受浏览器 CORS 限制；部署版不受此限制。</div>' : ''}
+      <div class="row" style="margin-top:5px;justify-content:flex-end"><button data-act="aiclear" class="warn">清除 AI 配置</button></div>
       <h3 style="margin:12px 0 4px">沙盒选项</h3>
       <div class="row"><span class="dim" style="flex:1">用于自由建造和测试，不属于正常经营流程。</span><button data-act="cheat" title="一键满星 + 20 万界币">满星 + 200000 界币</button></div>
       <div class="row" style="margin-top:12px">
         <button data-act="confirmnew" style="border-color:#B33C4E">↺ 重新游戏</button>
         <button data-act="closemodal">关闭</button>
       </div>`);
+  }
+
+  syncAIForm()       {
+    const current = loadAIConfig();
+    if (!this.modal) return current;
+    const urlInput = this.modal.querySelector('[data-act="aiurl"]')                    ;
+    const keyInput = this.modal.querySelector('[data-act="aikey"]')                    ;
+    const modelInput = this.modal.querySelector('[data-act="aimodel"]')                    ;
+    if (!urlInput && !keyInput && !modelInput) return current;
+    const nextUrl = urlInput ? urlInput.value.trim() : current.baseUrl;
+    const addressChanged = nextUrl !== current.baseUrl;
+    return saveAIConfig({
+      ...current,
+      preset: addressChanged ? 'custom' : current.preset,
+      baseUrl: nextUrl,
+      apiKey: keyInput ? keyInput.value : current.apiKey,
+      model: addressChanged ? '' : (modelInput ? modelInput.value : current.model),
+      models: addressChanged ? [] : current.models,
+      refreshedAt: addressChanged ? 0 : current.refreshedAt,
+    });
+  }
+
+  async refreshAISettings()       {
+    const status = this.modal?.querySelector('[data-ai-status]')                    ;
+    const button = this.modal?.querySelector('[data-act="airefresh"]')                     ;
+    const startedModal = this.modal;
+    if (button) button.disabled = true;
+    if (status) { status.className = 'hi'; status.textContent = '正在连接并读取模型列表…'; }
+    try {
+      const updated = await refreshAIModels(this.syncAIForm());
+      saveAIConfig(updated);
+      if (this.modal === startedModal) this.openSettings();
+    } catch (err) {
+      if (this.modal === startedModal && status) {
+        status.className = 'bad';
+        status.textContent = `${err?.message || '刷新失败'}${['localhost', '127.0.0.1'].includes(location.hostname) ? '（本地直连还可能被 CORS 拦截）' : ''}`;
+      }
+      if (button) button.disabled = false;
+    }
   }
 
   openConfirmRestart()       {
