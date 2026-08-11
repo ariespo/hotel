@@ -1,0 +1,2234 @@
+// 模拟：员工任务调度 / 客人流程 / 厨房产线 / 经济结算 / 事件
+import {                  randomAppearance,           } from './chargen.js';
+import { RACE_NAMES } from './chargen.js';
+import { Rng } from './pix.js';
+import {
+  AD_REQ_MULT, AD_TIERS,              BED_KINDS, BED_PRICE_MULT, DISHES,            EVENTS,                               
+  FLAVORS, FURN_DEFS, furnDef,                
+  GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName,                               SKILL_KEYS, SKILL_LABEL,
+  ROOM_CHARM, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
+} from './data.js';
+import {            Tavern, dirDelta, furnFootprint } from './world.js';
+
+                                                                                        
+
+                     
+                                                                                                            
+                                                                                              
+                                                                                   
+                                                                                                 
+                                                                                                      
+                                             
+                                  
+                                                                                
+                             
+                  
+                              
+                                                                                      
+  
+
+                     
+                                                                           
+                                                                                                 
+                               
+  
+
+                     
+                                                                             
+                                            
+                                                 
+                                         
+                                            
+                                                                                              
+                                                                                                        
+                                   
+                      
+                                           
+                     
+                                
+                    
+                   
+                       
+                                  
+                                                 
+  
+
+                     
+                                                                                                                          
+  
+
+                                                                                                                    
+                                                                                   
+
+                    
+                                                                                                 
+                                                    
+                                
+               
+                       
+                                                                                                              
+  
+
+                       
+                                                                                                                  
+                                                                                              
+  
+
+export const DAY_LEN = 300;
+
+/** 种族寿命上限：人族硬封顶 100；长生种上限高但年龄分布压向年轻段，过百岁少见 */
+const AGE_MAX = [100, 600, 150, 90, 600, 600, 600, 900, 400, 900, 80, 90, 300, 300, 900, 500, 150, 300];
+
+/** 打烊自由活动的心里话（按活动分池） */
+const FREE_THOUGHTS                           = {
+  rest: ['这沙发是真软……', '腿都不是自己的了', '眯十分钟，就十分钟', '明天应该能轻松点吧', '被窝在召唤我', '今天走了得有三万步', '腰……我的老腰', '安安静静坐会儿真好'],
+  cook: ['这锅汤再加一撮以太试试', '火候……就是现在！', '我好像悟到新菜了', '先替客人尝尝，嗯——', '刀工还得再练练', '这次少放盐', '香气出来了！', '明天的招牌菜有了'],
+  mix: ['这杯就叫「位面晚霞」', '摇匀一点……嗯，香', '这配方得记下来', '加片星檬会不会更好', '杯沿要擦到能照人', '三分醉意刚刚好', '这颜色，绝了', '明天就推这款特调'],
+  wander: ['店里真亮堂', '今晚吃点什么呢', '地板擦得能照见人影', '窗外的星星真多', '这面墙该挂点画了', '走廊尽头的灯有点闪', '明天想把桌子挪一挪', '咱店越来越像样了'],
+  piano: ['哆来咪……这琴音色真暖', '练会这首，明天弹给客人听', '指尖还记着谱子', '琴声一响，星星都凑过来了', '这一段老是卡壳', '轻一点……对，就这样'],
+  tend: ['多喝点水，快快长', '这片黄叶子摘掉摘掉', '店里有点绿才舒服', '你也要好好长大呀', '土有点干了，浇一浇', '长得比上周精神多了'],
+  snack: ['就尝一口……嗯！', '这块肉干应该没人看见吧', '偷吃的最香了', '明天得多进点蜜饯', '嗯？谁来了……没人，继续', '这个果脯配红茶绝了'],
+  read: ['这本《位面图鉴》真有意思', '看到精彩处了，别吵我', '原来以太是这么回事', '这页折个角，明天接着看', '书里说的那个地方，真想去看看', '前台的账本写得真工整'],
+  tea: ['这茶泡得刚刚好', '热气腾腾的，暖胃', '抿一口……啊，活过来了', '这茶叶是客人送的吧', '一个人喝茶也挺舒服', '明天试试冷泡'],
+  groom: ['头发乱了，梳一梳', '嗯，精神状态不错', '领子翻好，明天继续', '镜子里这位今天也辛苦了', '这根呆毛怎么压不下去', '擦点香膏，香喷喷'],
+  stargaze: ['那颗星星昨天还不在那儿', '流星！许愿许愿', '银河今天格外亮', '这片星域我从来没见过', '腰不行，但眼睛还尖'],
+  game: ['就差一点通关！', '这局手感来了', '破纪录了没有？', '再来一把，最后一把', '这关我闭着眼都能过'],
+  brew: ['这锅会不会炸……', '加点星尘试试', '颜色变得真好看', '这瓶卖给矮人准火', '闻着就有点上头'],
+  watch: ['这段我看哭了', '结局怎么是这样！', '放映机该上油了', '这片子真敢拍', '下一场什么时候'],
+  stroll: ['花儿今天开得真好', '喷泉声真解压', '这庭院修得值', '空气都是甜的', '在这儿站一会儿就不想走'],
+};
+/** 闲聊对白：投缘的 / 呛起来的 */
+const CHAT_GOOD                     = [
+  ['今天那桌矮人真能喝', '可不是，结账也爽快'],
+  ['你上次那锅炖菜绝了', '想吃下次给你留一碗'],
+  ['打烊后的星星最好看了', '是啊，就适合聊天'],
+  ['老板又研发新菜了', '闻着就香'],
+  ['你这发型哪弄的', '回头带你去那家次元理发店'],
+  ['今天小费比昨天多', '客人的笑脸也越来越多了'],
+  ['你那间卧室朝北吧', '嗯，晚上凉快得很'],
+  ['下周发工资想吃顿好的', '算上我，我知道一家好馆子'],
+];
+const CHAT_BAD                     = [
+  ['你上菜又踩我脚', '明明是你挡道'],
+  ['碗能不能洗干净点', '你行你上啊'],
+  ['别老抢我灶台', '谁先抢到算谁的'],
+  ['你拖把又乱放', '管得着吗你'],
+  ['刚才那单是不是你漏的', '别血口喷人'],
+  ['你打鼾隔壁都听见了', '有本事你换间卧室'],
+  ['你又用我的杯子', '洗洗不就得了'],
+  ['干活就你最慢', '催什么催，要不你来'],
+];
+
+export function phaseOf(t        )         {
+  if (t < 45) return '暖场';
+  if (t < 160) return '上客';
+  if (t < 180) return '低谷';
+  if (t < 270) return '晚高峰';
+  return '收尾';
+}
+
+function clamp(v        , a        , b        )         { return v < a ? a : v > b ? b : v; }
+
+const LOOK_THEMES = ['cyber', 'ancient', 'magic'];
+
+function traitPairValue(a        , b        )         {
+  if (a === b) return TRAIT_SAME[a] !== undefined ? TRAIT_SAME[a] : 1;
+  let value = 0;
+  for (const [x, y, v] of TRAIT_CHEM) if ((x === a && y === b) || (x === b && y === a)) value += v;
+  return value;
+}
+
+/** 根据综合技能与性格，自动规划员工领取新任务的先后顺序（0..3）。 */
+export function plannedStaffPriority(skills                         , traits           = [])         {
+  const values = SKILL_KEYS.map((k) => skills[k] || 0).sort((a, b) => b - a);
+  const avg = values.reduce((a, b) => a + b, 0) / Math.max(1, values.length);
+  let score = avg * 0.62 + (values[0] || 0) * 0.26 + (values[1] || 0) * 0.12;
+  const add                              = {
+    decisive: 8, diligent: 6, fast: 5, organized: 4, ambitious: 4, careful: 3, patient: 2,
+    lazy: -9, clumsy: -5, grumpy: -3, aloof: -2,
+  };
+  for (const t of traits) score += add[t] || 0;
+  return score >= 74 ? 3 : score >= 58 ? 2 : score >= 42 ? 1 : 0;
+}
+
+                                                                                             
+
+export function makeStaff(rng     , id        , isOwner         , app             , name         , opt          )        {
+  const raceIdx = app ? app.race : (opt && opt.race !== undefined && opt.race >= 0 ? opt.race : rng.int(18));
+  // 六成应聘者是成套造型（赛博/古装/魔幻），四成保持万界杂糅
+  const theme = rng.chance(0.6) ? LOOK_THEMES[rng.int(LOOK_THEMES.length)] : undefined;
+  const a = app || randomAppearance(rng, raceIdx, true, theme);
+  // 年龄：大部分 17–47；约两成中年段（人族也到顶 100）；长生种另有一成机会出真正的高龄
+  const maxAge = AGE_MAX[raceIdx] || 100;
+  let age = Math.round(17 + Math.pow(rng.next(), 1.6) * 30);
+  if (rng.chance(0.18)) age = Math.round(rng.range(46, Math.min(maxAge, 100)));
+  if (maxAge > 100 && rng.chance(0.08)) age = Math.round(rng.range(100, maxAge));
+  age = Math.min(age, maxAge);
+  // 年长者手艺更好：年龄加成垫高技能区间（工资随技能走，老伙计更贵）
+  const ageBoost = clamp((age - 17) / 140, 0, 1);
+  const skills                         = {};
+  const exp                         = {};
+  const lo = (opt ? opt.lo : 8) + ageBoost * 10, hi = (opt ? opt.hi : 62) + ageBoost * 26;
+  for (const k of SKILL_KEYS) { skills[k] = Math.round(rng.range(lo, hi)); exp[k] = 0; }
+  // 每人两个突出项；广告指定了数值偏向时，第一个突出项就是它
+  const strong = [opt && opt.bias ? opt.bias : SKILL_KEYS[rng.int(SKILL_KEYS.length)], SKILL_KEYS[rng.int(SKILL_KEYS.length)]];
+  for (const s of strong) skills[s] = Math.round(clamp(skills[s] + rng.range(20, 40), 5, 95));
+  if (opt && opt.bias) skills[opt.bias] = Math.round(clamp(Math.max(skills[opt.bias], lo + (hi - lo) * 0.6 + rng.range(0, 14)), 5, 96));
+  const traits           = [];
+  let traitGuard = 0;
+  while (traits.length < 2 && traitGuard++ < 100) {
+    const t = TRAITS[rng.int(TRAITS.length)].id;
+    if (!traits.includes(t) && !traits.some((other) => traitPairValue(t, other) <= -1.5)) traits.push(t);
+  }
+  while (traits.length < 2) { const t = TRAITS[rng.int(TRAITS.length)].id; if (!traits.includes(t)) traits.push(t); }
+  const skillSum = SKILL_KEYS.reduce((s, k) => s + skills[k], 0);
+  const requestedSex = opt && (opt.sex === '女' || opt.sex === '男') ? opt.sex : '';
+  const sex = requestedSex || (rng.chance(0.5) ? '女' : '男');
+  // 面部装饰2＝胡须只给男性，装饰3＝面饰只给女性
+  if (!app) {
+  }
+  return {
+    id, name: name || makeName(rng), sex,
+    age, race: RACE_NAMES[raceIdx], raceIdx,
+    ht: Math.round([148, 168, 192][a.ht] + rng.range(-6, 6)), wt: Math.round([46, 62, 88][a.bd] + rng.range(-5, 8)),
+    traits, skills, exp, wage: Math.round((18 + skillSum * 0.14 + (isOwner ? 0 : rng.range(0, 12))) * (traits.includes('frugal') ? 0.88 : 1)),
+    app: a, job: isOwner ? 'greeter' : 'free', roomId: null, prio: isOwner ? 2 : plannedStaffPriority(skills, traits), isOwner,
+    x: 0, y: 0, dir: 0, pose: 'idle', animT: 0, path: [], carry: null, task: null, actT: 0, actTotal: 0,
+    needs: { stamina: 100, hunger: 0, stress: 10, morale: 70 }, note: '', bubble: null,
+    aff: isOwner ? 100 : Math.round(rng.range(4, 16)), affCd: 0, chats: 0, chatLog: [], hireDay: 1,
+  };
+}
+
+;                                                                              
+;                                                                     
+
+export class Sim {
+  tavern        ;
+  staff          = [];
+  pool          = [];
+  /** 三个招募广告位：每位一张广告 + 它带来的候选人 */
+  ads       = [{ spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }];
+  guests          = [];
+  groups          = [];
+  orders          = [];
+  econ      ;
+  rng     ;
+  dayT = 0;
+  running = false;
+  dayActive = false;
+  seatOwner = new Map                ();
+  /** 设施占用：家具 id -> 组 id（客床/汤池/台球桌） */
+  facOwner = new Map                ();
+  /** 打烊闲聊：名字＋台词，屏幕底部信息条滚动展示，uiTick 计时 */
+  chatter                                = [];
+  /** 员工之间的关系值 -100..100（key = 小 id-大 id）。店里只有友情与同事情，没有爱情线 */
+  rels                         = {};
+  pendingEvent                   = null;
+  eventTimes           = [];
+  eventHistory = [];
+  log           = [];
+  scores           = [];
+  scoreParts = { quality: [], wait: [], service: [], hygiene: [], comfort: [], spectacle: [] };
+  lastStat                 = null;
+  sealed = false;
+  endingSeen = false;
+  toasts                                = [];
+  sounds           = [];
+  /** 直控店主：开启后店主不再接派工，改由玩家按键驱动 */
+  manualOwner = false;
+  manualVec = { x: 0, y: 0 };
+  fx                                                      = [];
+          nextId = 1;
+
+  constructor(tavern        , econ      ) {
+    this.tavern = tavern;
+    this.econ = econ;
+    this.rng = new Rng(econ.seed || 12345);
+  }
+
+  id()         { return this.nextId++; }
+
+  toast(text        )       {
+    this.toasts.push({ text, t: 4 });
+    this.log.unshift(text);
+    if (this.log.length > 60) this.log.pop();
+  }
+
+  // ---------- 招聘 ----------
+  refreshPool()       {
+    // 自来应聘：只有零星一两个人，主力靠玩家发招募广告
+    this.pool = [];
+    const n = this.econ.day <= 1 ? 1 : this.rng.chance(0.5) ? 1 : 0;
+    for (let i = 0; i < n; i++) this.pool.push(makeStaff(this.rng, this.id(), false, undefined, undefined, { lo: 8, hi: 52 }));
+    // 开局赠送一张已生效的传单广告，让玩家看到招募系统长什么样
+    if (this.econ.day <= 1 && !this.ads.some((a) => a.spec)) {
+      this.ads[0] = { spec: { tier: 'flyer', race: -1, sex: '', bias: '' }, cands: [], day: 1 };
+      this.ads[0].cands = this.rollCands(this.ads[0].spec          );
+    }
+  }
+
+  adTier(id        )         {
+    return AD_TIERS.find((t) => t.id === id) || AD_TIERS[0];
+  }
+
+  /** 广告报价：档位基价 × 各附加要求倍率 */
+  adCost(spec        )         {
+    let c = this.adTier(spec.tier).cost;
+    if (spec.race >= 0) c *= AD_REQ_MULT.race;
+    if (spec.sex) c *= AD_REQ_MULT.sex;
+    if (spec.bias) c *= AD_REQ_MULT.bias;
+    return Math.round(c / 10) * 10;
+  }
+
+          rollCands(spec        )          {
+    const t = this.adTier(spec.tier);
+    const n = 3 + this.rng.int(3);                     // 3–5 位符合要求的候选者
+    const out          = [];
+    for (let i = 0; i < n; i++) {
+      out.push(makeStaff(this.rng, this.id(), false, undefined, undefined, {
+        lo: t.lo, hi: t.hi, race: spec.race, sex: spec.sex || undefined, bias: spec.bias || undefined,
+      }));
+    }
+    return out;
+  }
+
+  /** 发布广告：扣钱并立刻收到 3–5 位候选者（旧候选人被换掉） */
+  postAd(slot        , spec        )          {
+    if (slot < 0 || slot > 2) return false;
+    const cost = this.adCost(spec);
+    if (this.econ.coins < cost) { this.toast(`界币不足：这条广告要 ${cost}`); return false; }
+    this.econ.coins -= cost;
+    this.ads[slot] = { spec, cands: this.rollCands(spec), day: this.econ.day };
+    const req           = [];
+    if (spec.race >= 0) req.push(RACE_NAMES[spec.race]);
+    if (spec.sex) req.push(spec.sex);
+    if (spec.bias) req.push(SKILL_LABEL[spec.bias            ] + '偏向');
+    this.toast(`${this.adTier(spec.tier).name}已发布（-${cost}）${req.length ? '：' + req.join('·') : ''}，来了 ${this.ads[slot].cands.length} 位候选者`);
+    return true;
+  }
+
+  withdrawAd(slot        )       {
+    if (slot < 0 || slot > 2) return;
+    this.ads[slot] = { spec: null, cands: [], day: 0 };
+  }
+
+  candById(id        )               {
+    const inPool = this.pool.find((p) => p.id === id);
+    if (inPool) return inPool;
+    for (const a of this.ads) { const c = a.cands.find((p) => p.id === id); if (c) return c; }
+    return null;
+  }
+
+  /** 员工上限：店主不占床位，伙计 1 人 1 间卧室（休息室）——没空房就不能再招 */
+  maxStaff()         {
+    const lounges = this.tavern.rooms.filter((r) => r.kind === 'lounge').length;
+    return 1 + lounges;
+  }
+
+  hire(poolId        )          {
+    const s = this.candById(poolId);
+    if (!s) return false;
+    if (this.staff.length >= this.maxStaff()) { this.toast(`没有空卧室了（员工上限 ${this.maxStaff()}）：再建一间员工休息室才能继续招募`); this.sounds.push('error'); return false; }
+    const fee = s.wage * 3;
+    if (this.econ.coins < fee) { this.toast('界币不足，无法支付入职费'); return false; }
+    this.econ.coins -= fee;
+    this.pool = this.pool.filter((p) => p.id !== poolId);
+    for (const a of this.ads) a.cands = a.cands.filter((p) => p.id !== poolId);
+    const e = this.tavern.entrance();
+    s.x = e.x; s.y = e.y;
+    s.hireDay = this.econ.day;
+    s.prio = plannedStaffPriority(s.skills, s.traits);
+    this.staff.push(s);
+    this.toast(`${s.name}（${s.race}）入职，入职费 ${fee}`);
+    const br = this.freeBedroom();
+    if (br) { br.occupant = s.id; this.toast(`${s.name}入住了休息室，门牌换成「${s.name}的卧室」`); }
+    return true;
+  }
+
+  /** 好感等级：文案 + 颜色，UI 与气泡共用 */
+  affLevel(a        )                                             {
+    if (a >= 100) return { name: '崇拜', color: '#E45AD1', i: 6 };
+    if (a >= 90) return { name: '爱慕', color: '#FF8FB0', i: 5 };
+    if (a >= 80) return { name: '至交', color: '#F3B84B', i: 4 };
+    if (a >= 65) return { name: '挚友', color: '#FFD76A', i: 3 };
+    if (a >= 45) return { name: '信赖', color: '#8DDB4A', i: 2 };
+    if (a >= 25) return { name: '熟络', color: '#39D7D2', i: 1 };
+    return { name: '生疏', color: '#9A93B4', i: 0 };
+  }
+
+  /** 店主与员工搭话：加好感 + 回士气，40 秒冷却内不重复结算收益 */
+  chatWith(id        )         {
+    const s = this.staff.find((x) => x.id === id);
+    if (!s || s.isOwner) return '';
+    const lv = this.affLevel(s.aff).i;
+    const pools = [
+      ['……你好。（客气地点头）', '老板？我记得住工作，不用盯着我。', '啊、是店主本人。有事吩咐吗？', '这地方比我上一份工好点。'],
+      ['老板来啦，今天客人挺凶的。', '我把三号桌擦了两遍，那滩东西自己会动。', '要是有空，教我看看那口锅？', '嘿，工钱按时给，我就一直干。'],
+      ['放心，前厅有我。', '你昨天忘了吃饭吧？我给你留了一份。', '这活儿我熟了，闭眼都能端。', '有你在，这店塌不下来。'],
+      ['老板！等你半天了，坐会儿？', '万界不打烊——我们说到做到，对吧。', '我跟宿舍的都说了，这是最好的一家店。', '要开分店吗？我跟你去任何维度。'],
+      ['跟你干活，比我之前任何一份工作都踏实。', '昨晚我梦见咱店开到了星港对面。', '你的背影越来越难追了，但我跟得上。', '累了就靠会儿，店有我盯着。'],
+      ['（看到你过来，耳朵尖红了）……今天也很精神呢。', '我给你留了最好的那份点心，就、就是顺手！', '能多陪我聊一会儿吗？就一会儿。', '只要有你在，再闹的大厅我都觉得安心。'],
+      ['能进这家店是我这辈子最走运的事。', '老板指哪我打哪，绝无二话！', '我要把你的经营心得全抄下来！', '你说，万界的尽头是什么样？有你在我就敢去看。'],
+    ];
+    const fresh = s.affCd <= 0;
+    if (!fresh) {
+      s.bubble = { text: '刚聊过啦，先干活～', t: 3.2 };
+      this.sounds.push('clean');
+      return s.bubble.text;
+    }
+    const line = pools[lv][this.rng.int(pools[lv].length)];
+    const gain = Math.max(0.8, 4.2 * (1 - s.aff / 115));
+    s.aff = clamp(s.aff + gain, 0, 100);
+    s.needs.morale = clamp(s.needs.morale + 6, 0, 100);
+    s.needs.stress = clamp(s.needs.stress - 5, 0, 100);
+    s.affCd = 40;
+    s.chats++;
+    s.bubble = { text: line, t: 3.2 };
+    s.chatLog.unshift(`第${this.econ.day}天：${line}`);
+    if (s.chatLog.length > 6) s.chatLog.pop();
+    this.fx.push({ kind: 'heart', x: s.x, y: s.y - 0.6, t: 0.9 });
+    this.sounds.push('happy');
+    const before = this.affLevel(s.aff - gain).i, after = this.affLevel(s.aff).i;
+    if (after > before) this.toast(`${s.name}的好感升到「${this.affLevel(s.aff).name}」`);
+    return s.bubble.text;
+  }
+
+  fire(id        )       {
+    const s = this.staff.find((x) => x.id === id);
+    if (!s || s.isOwner) return;
+    this.staff = this.staff.filter((x) => x.id !== id);
+    for (const r of this.tavern.rooms) if (r.occupant === id) r.occupant = undefined;   // 腾出卧室
+    this.econ.coins -= s.wage * 2;
+    this.toast(`${s.name}离职，补偿 ${s.wage * 2}`);
+  }
+
+  /** 某员工的卧室（休息室 1 室 1 人） */
+  bedroomOf(staffId        )              {
+    return this.tavern.rooms.find((r) => r.kind === 'lounge' && r.occupant === staffId) || null;
+  }
+
+          freeBedroom()              {
+    return this.tavern.rooms.find((r) => r.kind === 'lounge' && !r.occupant) || null;
+  }
+
+  /** 休息室挂名/换牌（roomId<=0 表示搬出） */
+  assignBedroom(staffId        , roomId        )       {
+    const current = this.bedroomOf(staffId);
+    if (roomId <= 0) {
+      if (current) current.occupant = undefined;
+      return true;
+    }
+    const target = this.tavern.roomById(roomId);
+    if (!target || target.kind !== 'lounge') return false;
+    if (target.occupant === staffId) return true;
+    const displaced = target.occupant;
+    if (displaced && !current) {
+      this.toast('这间休息室已有住户，请先给当前员工安排空房');
+      return false;
+    }
+    if (current) current.occupant = displaced;
+    target.occupant = staffId;
+    return true;
+  }
+
+  // ---------- 员工关系（友情/同事情，无爱情线） ----------
+          say(text        )       {
+    this.chatter.push({ text, t: 7 });
+    if (this.chatter.length > 2) this.chatter.shift();
+    this.log.unshift(text);
+    if (this.log.length > 60) this.log.pop();
+  }
+          relKey(a        , b        )         { return a < b ? `${a}-${b}` : `${b}-${a}`; }
+  relOf(a        , b        )         { return this.rels[this.relKey(a, b)] || 0; }
+  addRel(a        , b        , d        )         {
+    const v = clamp(this.relOf(a, b) + d, -100, 70);   // 同事关系上限 70（挚友）
+    this.rels[this.relKey(a, b)] = v;
+    return v;
+  }
+
+  /** 性格相性：两人性格两两查表 + 同性格加减；>0 合得来，<0 犯冲 */
+  chemistry(a       , b       )         {
+    let c = 0;
+    for (const ta of a.traits) for (const tb of b.traits) {
+      if (ta === tb) { c += TRAIT_SAME[ta] !== undefined ? TRAIT_SAME[ta] : 1; continue; }
+      for (const [x, y, v] of TRAIT_CHEM) if ((x === ta && y === tb) || (x === tb && y === ta)) c += v;
+    }
+    return c;
+  }
+  relLabel(v        )         { return v >= 60 ? '挚友' : v >= 25 ? '合得来' : v > -25 ? '普通同事' : v > -60 ? '不对付' : '死对头'; }
+  relsOf(id        )                               {
+    return this.staff.filter((x) => x.id !== id && !x.isOwner)
+      .map((mate) => ({ mate, v: this.relOf(id, mate.id) }))
+      .filter((r) => r.v !== 0)
+      .sort((a, b) => Math.abs(b.v) - Math.abs(a.v)).slice(0, 4);
+  }
+
+  // ---------- 打烊后的员工自由时间 ----------
+          tickFreeTime(dt        )       {
+    for (const s of this.staff) {
+      if (s.isOwner) continue;
+      if (!s.free) this.pickFreeAct(s);
+      const f = s.free;
+      if (!f) continue;
+      if (s.path.length) { this.moveActor(s, dt, 1.7); continue; }
+      if (Math.round(s.x) !== f.tx || Math.round(s.y) !== f.ty) {
+        const p = this.tavern.path(Math.round(s.x), Math.round(s.y), f.tx, f.ty);
+        if (!p) { s.free = null; continue; }
+        s.path = p; continue;
+      }
+      f.t -= dt;
+      if (f.kind === 'rest') {
+        s.pose = 'sit';           // 坐进沙发/床边
+        s.needs.stamina = clamp(s.needs.stamina + 2.4 * dt, 0, 100);
+        s.needs.stress = clamp(s.needs.stress - 1.8 * dt, 0, 100);
+        if (this.rng.chance(0.1 * dt)) this.fx.push({ kind: 'heart', x: s.x, y: s.y - 0.4, t: 0.9 });
+      } else if (f.kind === 'cook' || f.kind === 'mix') {
+        s.pose = 'work';
+        const k = f.kind                  ;
+        // 偷练手艺：偶尔 +1，最多练到 45（再往上得靠培训）
+        if (s.skills[k] < 45 && this.rng.chance(0.2 * dt)) {
+          s.skills[k]++;
+          this.fx.push({ kind: 'happy', x: s.x, y: s.y - 0.4, t: 0.8 });
+          this.log.unshift(`${s.name}打烊后偷练${SKILL_LABEL[k]}，${SKILL_LABEL[k]} +1`);
+          if (this.log.length > 60) this.log.pop();
+        }
+      } else if (f.kind === 'chat') {
+        const mate = f.partner !== undefined ? this.staff.find((x) => x.id === f.partner) : null;
+        if (!mate) { s.free = null; continue; }
+        // 对方也正朝我走来：id 大者就地等候，避免双向追逐
+        if (mate.free && mate.free.kind === 'chat' && mate.free.partner === s.id && s.id > mate.id) {
+          s.free = { kind: 'wait', tx: Math.round(s.x), ty: Math.round(s.y), t: 7 };
+          continue;
+        }
+        if (Math.hypot(mate.x - s.x, mate.y - s.y) > 1.6) {
+          // 对方挪窝了，跟过去接着聊
+          f.tx = Math.round(mate.x); f.ty = Math.round(mate.y);
+          continue;
+        }
+        // 面对面站着聊
+        s.dir = mate.x >= s.x ? 1 : -1;
+        s.pose = 'idle';
+        if (this.rng.chance(0.5 * dt)) {
+          const rel = this.relOf(s.id, mate.id);
+          const chem = this.chemistry(s, mate);
+          let quarrel = chem <= -2 ? 0.5 : chem < 0 ? 0.26 : rel <= -30 ? 0.3 : 0.06;
+          if (s.traits.includes('easygoing') || mate.traits.includes('easygoing')) quarrel *= 0.65;
+          if (this.rng.chance(quarrel)) {
+            // 本来就不对付，聊着聊着呛起来了
+            this.addRel(s.id, mate.id, -3);
+            s.needs.stress = clamp(s.needs.stress + 3, 0, 100);
+            mate.needs.stress = clamp(mate.needs.stress + 3, 0, 100);
+            this.fx.push({ kind: 'angry', x: (s.x + mate.x) / 2, y: s.y - 0.5, t: 0.9 });
+            const spat = CHAT_BAD[this.rng.int(CHAT_BAD.length)];
+            s.bubble = { text: spat[0], t: 2.6 };
+            mate.bubble = { text: spat[1], t: 2.8 };
+            this.say(`${s.name}：${spat[0]}　／　${mate.name}：${spat[1]}`);
+            this.log.unshift(`${s.name}和${mate.name}拌了几句嘴（关系 ${this.relLabel(this.relOf(s.id, mate.id))}）`);
+            if (this.log.length > 60) this.log.pop();
+          } else {
+            // 相性加成涨关系；独来独往的减半
+            let gain = this.rng.range(2, 5) * (1 + chem * 0.18);
+            if (s.traits.includes('aloof') || mate.traits.includes('aloof')) gain *= 0.5;
+            if (s.traits.includes('empathetic') || mate.traits.includes('empathetic')) gain *= 1.25;
+            const v = this.addRel(s.id, mate.id, gain);
+            s.needs.morale = clamp(s.needs.morale + 2, 0, 100);
+            mate.needs.morale = clamp(mate.needs.morale + 2, 0, 100);
+            this.fx.push({ kind: 'heart', x: (s.x + mate.x) / 2, y: s.y - 0.5, t: 0.9 });
+            const pair = CHAT_GOOD[this.rng.int(CHAT_GOOD.length)];
+            s.bubble = { text: pair[0], t: 2.6 };
+            mate.bubble = { text: pair[1], t: 2.8 };
+            this.say(`${s.name}：${pair[0]}　／　${mate.name}：${pair[1]}`);
+            if (v >= 25 && v - gain < 25) this.toast(`${s.name}和${mate.name}成了合得来的同事`);
+            if (v >= 60 && v - gain < 60) this.toast(`${s.name}和${mate.name}成了挚友`);
+          }
+        }
+      } else if (f.kind === 'stargaze' || f.kind === 'game' || f.kind === 'brew' || f.kind === 'watch' || f.kind === 'stroll') {
+        if (f.kind === 'watch') s.pose = 'sit';
+        else if (f.kind === 'game' || f.kind === 'brew') s.pose = 'work';
+        else s.pose = 'idle';
+        if (f.kind === 'stargaze') { s.needs.stress = clamp(s.needs.stress - 1.4 * dt, 0, 100); if (this.rng.chance(0.02 * dt)) this.sounds.push('chime'); }
+        if (f.kind === 'game') { s.needs.morale = clamp(s.needs.morale + 1.6 * dt, 0, 100); if (this.rng.chance(0.03 * dt)) this.sounds.push('chime'); }
+        if (f.kind === 'brew') { s.needs.stress = clamp(s.needs.stress - 0.8 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.8 * dt, 0, 100); }
+        if (f.kind === 'watch') s.needs.morale = clamp(s.needs.morale + 1.2 * dt, 0, 100);
+        if (f.kind === 'stroll') { s.needs.stress = clamp(s.needs.stress - 1.2 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.4 * dt, 0, 100); }
+      } else if (f.kind === 'piano' || f.kind === 'tend' || f.kind === 'snack' || f.kind === 'read' || f.kind === 'tea' || f.kind === 'groom') {
+        s.pose = 'work';
+        if (f.kind === 'piano') {
+          s.needs.morale = clamp(s.needs.morale + 1.2 * dt, 0, 100);
+          if (this.rng.chance(0.03 * dt)) this.sounds.push('chime');
+        }
+        if (f.kind === 'tend') s.needs.stress = clamp(s.needs.stress - 1.2 * dt, 0, 100);
+        if (f.kind === 'snack') s.needs.hunger = clamp(s.needs.hunger + 3 * dt, 0, 100);
+        if (f.kind === 'read') s.needs.stress = clamp(s.needs.stress - 1.6 * dt, 0, 100);
+        if (f.kind === 'tea') { s.needs.hunger = clamp(s.needs.hunger + 2.2 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.6 * dt, 0, 100); }
+        if (f.kind === 'groom') s.needs.morale = clamp(s.needs.morale + 1.4 * dt, 0, 100);
+      } else {
+        s.pose = 'idle';   // wander/wait：到了就发会儿呆
+      }
+      if (f.t <= 0) s.free = null;
+    }
+  }
+
+          pickFreeAct(s       )       {
+    // 串门锁定：我正被别人找来聊天 → 原地等候，不再自己挑事（修双向奔赴死循环）
+    const claimed = new Set        ();
+    for (const x of this.staff) if (x.free && x.free.kind === 'chat' && x.free.partner !== undefined) claimed.add(x.free.partner);
+    if (claimed.has(s.id)) {
+      s.free = { kind: 'wait', tx: Math.round(s.x), ty: Math.round(s.y), t: 7 };
+      return;
+    }
+    const opts                                                                          = [];
+    const spot = (kinds          )                                  => {
+      const fs = this.tavern.furnsOfKind(kinds[this.rng.int(kinds.length)]);
+      if (!fs.length) return null;
+      const f = fs[this.rng.int(fs.length)];
+      return this.tavern.standTileNear(this.tavern.useTiles(f)) || null;
+    };
+    // 回自己卧室休息；没分到房的只能去还空着的休息室（不进别人卧室）
+    const usableRest = this.restFurnsFor(s);
+    if (usableRest.length) {
+      const own = usableRest.filter((f) => { const r = this.tavern.roomOfFurn(f); return !!r && r.occupant === s.id; });
+      const f0 = (own.length ? own : usableRest)[this.rng.int((own.length ? own : usableRest).length)];
+      const t = this.tavern.standTileNear(this.tavern.useTiles(f0));
+      if (t) opts.push({ kind: 'rest', w: s.needs.stamina < 55 ? 8 : 1.5, tx: t.x, ty: t.y });
+    }
+    if (this.tavern.furnsOfKind('piano').length) {
+      const t = spot(['piano']);
+      if (t) opts.push({ kind: 'piano', w: 1.5, tx: t.x, ty: t.y });
+    }
+    if (this.tavern.furnsOfKind('plant').length) {
+      const t = spot(['plant']);
+      if (t) opts.push({ kind: 'tend', w: 1.5, tx: t.x, ty: t.y });
+    }
+    if (this.tavern.furnsOfKind('shelf').length) {
+      const t = spot(['shelf']);
+      if (t) opts.push({ kind: 'snack', w: 1.2, tx: t.x, ty: t.y });
+    }
+    if (this.tavern.furnsOfKind('bookshelf').length) {
+      const t = spot(['bookshelf']);
+      if (t) opts.push({ kind: 'read', w: 1.6, tx: t.x, ty: t.y });
+    }
+    if (this.tavern.furnsOfKind('teatable').length) {
+      const t = spot(['teatable']);
+      if (t) opts.push({ kind: 'tea', w: 1.6, tx: t.x, ty: t.y });
+    }
+    if (this.tavern.furnsOfKind('vanity').length) {
+      const t = spot(['vanity']);
+      if (t) opts.push({ kind: 'groom', w: 1.4, tx: t.x, ty: t.y });
+    }
+    if (this.tavern.furnsOfKind('stove').length) {
+      const t = spot(['stove']);
+      if (t) opts.push({ kind: 'cook', w: 2, tx: t.x, ty: t.y });
+    }
+    if (this.tavern.furnsOfKind('keg').length) {
+      const t = spot(['keg']);
+      if (t) opts.push({ kind: 'mix', w: 2, tx: t.x, ty: t.y });
+    }
+    // 没人正朝我走来的同事才可当聊伴（已被认领的不抢）
+    // 设施房玩耍：星象台观星/游艺厅打电动/炼金房鼓捣/放映厅看片/庭院散步
+    for (const [fk, kind, w] of [['telescope', 'stargaze', 1.4], ['arcadem', 'game', 1.9], ['cauldron', 'brew', 1.2], ['screen', 'watch', 1.5], ['fountain', 'stroll', 1.3]]                              ) {
+      if (this.tavern.furnsOfKind(fk).length) {
+        const t = spot([fk]);
+        if (t) opts.push({ kind, w, tx: t.x, ty: t.y });
+      }
+    }
+    const mates = this.staff.filter((x) => x.id !== s.id && !x.isOwner && !claimed.has(x.id) && !(x.free && x.free.kind === 'chat'));
+    if (mates.length) {
+      // 挑聊伴看相性：合得来的优先；话痨/热心肠更主动，寡言的很少开口
+      const wts = mates.map((m) => 1 + Math.max(0, this.chemistry(s, m)));
+      let roll = this.rng.next() * wts.reduce((a, b) => a + b, 0);
+      let m = mates[mates.length - 1];
+      for (let i = 0; i < mates.length; i++) { roll -= wts[i]; if (roll <= 0) { m = mates[i]; break; } }
+      let w = 2.5;
+      if (s.traits.includes('chatty')) w *= 1.7;
+      if (s.traits.includes('sociable')) w *= 1.4;
+      if (s.traits.includes('quiet')) w *= 0.45;
+      opts.push({ kind: 'chat', w, tx: Math.round(m.x), ty: Math.round(m.y), partner: m.id });
+    }
+    const room = this.tavern.rooms[this.rng.int(this.tavern.rooms.length)];
+    if (room) { const t = this.tavern.freeTileIn(room, this.rng.int(70)); opts.push({ kind: 'wander', w: 1, tx: t.x, ty: t.y }); }
+    let roll = this.rng.next() * opts.reduce((a, o) => a + o.w, 0);
+    let pick = opts[opts.length - 1];
+    for (const o of opts) { roll -= o.w; if (roll <= 0) { pick = o; break; } }
+    if (!pick) { s.free = null; return; }
+    s.free = {
+      kind: pick.kind, tx: pick.tx, ty: pick.ty, partner: pick.partner,
+      t: pick.kind === 'wander' ? 1 : this.rng.range(6, 12),
+    };
+    // 冒出一句心里话：头顶气泡 + 底部信息栏
+    if (pick.kind !== 'chat' && this.rng.chance(0.55)) {
+      const pool = FREE_THOUGHTS[pick.kind] || FREE_THOUGHTS.wander;
+      const th = pool[this.rng.int(pool.length)];
+      s.bubble = { text: th, t: 2.8 };
+      this.say(`${s.name}：${th}`);
+    }
+  }
+
+  // ---------- 营业日 ----------
+  openDay()       {
+    this.dayT = 0;
+    this.dayActive = true;
+    this.running = true;
+    this.econ.revenue = 0; this.econ.served = 0; this.econ.lost = 0;
+    this.scores = [];
+    this.scoreParts = { quality: [], wait: [], service: [], hygiene: [], comfort: [], spectacle: [] };
+    // 过夜住宿客保留，开门即按住宿价统一结账送客；其余客人清场
+    const lodgers = this.groups.filter((g) => g.overnight);
+    this.guests = []; this.groups = []; this.orders = []; this.seatOwner.clear(); this.facOwner.clear();
+    for (const g of lodgers) {
+      g.overnight = false;
+      this.groups.push(g);
+      this.guests.push(...g.members);
+      if (g.facId) this.facOwner.set(g.facId, g.id);
+      g.state = 'using';                      // toFac 半路天亮的也按已入住结账
+    }
+    for (const g of [...lodgers]) this.payFacility(g);
+    for (const s of this.staff) { s.task = null; s.path = []; s.carry = null; s.free = null; }
+    // 事件窗口
+    this.eventTimes = [];
+    const evCount = this.rng.chance(0.55) ? 2 : 1;
+    for (let i = 0; i < evCount; i++) this.eventTimes.push(this.rng.range(60, 265));
+    this.eventTimes.sort((a, b) => a - b);
+    this.toast(`第 ${this.econ.day} 天开门营业`);
+  }
+
+  closeDay()          {
+    this.dayActive = false;
+    this.running = false;
+    // 还在用床/走向床的住宿客转为过夜：留在店里，明早结账
+    for (const g of this.groups) {
+      if (g.want === 'sleep' && (g.state === 'using' || g.state === 'toFac')) { g.overnight = true; g.useT = Infinity; }
+    }
+    // 其余客人统一结束当日行程。收盘规划期仍会继续更新离场移动，避免人物冻结在店内。
+    for (const g of [...this.groups]) if (!g.overnight) this.leave(g, '');
+    // 打烊：手上活儿全部放下，进入自由时间
+    for (const s of this.staff) { s.task = null; s.path = []; s.carry = null; s.free = null; }
+    const wages = this.staff.filter((s) => !s.isOwner).reduce((a, s) => a + s.wage, 0);
+    let maintenance = 0;
+    for (const r of this.tavern.rooms) maintenance += Math.round(6 + r.w * r.h * 0.9 + r.quality * 8);
+    for (const f of this.tavern.furns) maintenance += Math.round(2 + f.quality * 3);
+    let restock = 0;
+    if (this.econ.autoRestock) {
+      const par                         = { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 };
+      for (const k of ING_KEYS) {
+        const need = Math.max(0, par[k] - this.econ.stock[k]);
+        restock += need * ING_PRICE[k];
+        this.econ.stock[k] += need;
+      }
+    }
+    const avg = this.scores.length ? this.scores.reduce((a, b) => a + b, 0) / this.scores.length : 3;
+    let repDelta = Math.round((avg - 3) * 9 + this.econ.served * 0.7 - this.econ.lost * 2.2);
+    if (this.econ.served === 0) repDelta = Math.min(repDelta, -4);
+    this.econ.rep = Math.max(0, this.econ.rep + repDelta);
+    // 客人结账时收入已经实时计入 coins；日结只扣除当日成本。
+    // revenue 仅用于结算展示与统计，不能在这里再次入账。
+    this.econ.coins -= wages + maintenance + restock;
+    const creditLine = -(150 + starsOf(this.econ.rep) * 150);
+    if (this.econ.coins < creditLine) this.econ.strikes++; else this.econ.strikes = 0;
+    const sealed = this.econ.strikes >= 3;
+    if (sealed) this.sealed = true;
+    const fiveStarReached = !this.endingSeen && starsOf(this.econ.rep) >= 5;
+    if (fiveStarReached) this.endingSeen = true;
+    // 员工恢复 / 士气
+    for (const s of this.staff) {
+      s.needs.stamina = clamp(s.needs.stamina + 55, 0, 100);
+      s.needs.hunger = clamp(s.needs.hunger - 60, 0, 100);
+      s.needs.stress = clamp(s.needs.stress - (s.traits.includes('stubborn') ? 13 : 22) - (s.traits.includes('resilient') ? 8 : 0), 0, 100);
+      const fair = s.wage >= 18 + SKILL_KEYS.reduce((a, k) => a + s.skills[k], 0) * 0.13 ? 6 : -7;
+      s.needs.morale = clamp(s.needs.morale + fair - s.needs.stress * 0.08, 0, 100);
+      if (!s.isOwner) {
+        // 日结好感：士气高就更亲近，长期压榨会掉
+        s.aff = clamp(s.aff + (s.needs.morale >= 65 ? 1.6 : s.needs.morale < 30 ? -2.4 : 0.4), 0, 100);
+      }
+      if (s.needs.morale < 18 && !s.isOwner && this.rng.chance(0.35 * (1 - s.aff / 130))) {
+        this.toast(`${s.name}士气过低，提出辞职`);
+        this.staff = this.staff.filter((x) => x.id !== s.id);
+        for (const r of this.tavern.rooms) if (r.occupant === s.id) r.occupant = undefined;   // 腾出卧室
+      }
+    }
+    for (const r of this.tavern.rooms) r.maint = clamp(r.maint - 2, 30, 100);
+    this.econ.day++;
+    this.refreshPool();
+    const scoreBreakdown = {};
+    for (const [key, values] of Object.entries(this.scoreParts)) {
+      scoreBreakdown[key] = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
+    }
+    const stat          = {
+      day: this.econ.day - 1, revenue: this.econ.revenue, wages, maintenance, restock,
+      served: this.econ.served, lost: this.econ.lost, repDelta, avgScore: avg,
+      coinsAfter: this.econ.coins, sealed, creditLine, scoreBreakdown, fiveStarReached,
+    };
+    this.lastStat = stat;
+    return stat;
+  }
+
+  stars()         { return starsOf(this.econ.rep); }
+
+  // ---------- 主循环 ----------
+  update(dt        )       {
+    if (!this.running) {
+      this.tickDepartures(dt);
+      // 收盘规划期：店主归玩家驱动，伙计们自由行动（研究/休息/调酒/串门聊天）
+      if (this.manualOwner) { const o = this.staff.find((x) => x.isOwner); if (o) this.driveOwner(o, dt); }
+      this.tickFreeTime(dt);
+      this.tickAnim(dt); return;
+    }
+    this.dayT += dt;
+    if (this.dayActive && this.eventTimes.length && this.dayT >= this.eventTimes[0] && !this.pendingEvent) {
+      this.eventTimes.shift();
+      this.triggerEvent();
+    }
+    this.spawnTick(dt);
+    this.tickGroups(dt);
+    this.tickStaff(dt);
+    this.tickWorld(dt);
+    this.tickAnim(dt);
+  }
+
+  /** 与暂停无关的表现层计时（提示、特效、气泡） */
+  uiTick(dt        )       {
+    for (const t of this.toasts) t.t -= dt;
+    this.toasts = this.toasts.filter((t) => t.t > 0);
+    for (const f of this.fx) f.t -= dt;
+    this.fx = this.fx.filter((f) => f.t > 0);
+    for (const s of this.staff) if (s.bubble) { s.bubble.t -= dt; if (s.bubble.t <= 0) s.bubble = null; }
+    for (const c of this.chatter) c.t -= dt;
+    this.chatter = this.chatter.filter((c) => c.t > 0);
+  }
+
+          tickAnim(dt        )       {
+    for (const s of this.staff) s.animT += dt;
+    for (const g of this.guests) g.animT += dt;
+  }
+
+  seatsFree()         {
+    let n = 0;
+    for (const t of this.tavern.allTables()) for (const c of this.tavern.tableSeats(t)) if (!this.seatOwner.has(c.id)) n++;
+    return n;
+  }
+
+          spawnTick(dt        )       {
+    if (!this.dayActive || this.dayT > DAY_LEN - 30) return;
+    const p = phaseOf(this.dayT);
+    const base = p === '暖场' ? 22 : p === '上客' ? 13 : p === '低谷' ? 26 : p === '晚高峰' ? 9 : 999;
+    const repBoost = 1 - Math.min(0.45, this.econ.rep / 2200);
+    // 开局节奏：第一天客人稀疏，之后逐日放开（避免第一天就是中期强度）
+    const ease = this.econ.day <= 1 ? 2.4 : this.econ.day === 2 ? 1.7 : this.econ.day === 3 ? 1.3 : 1;
+    const waiting = this.groups.filter((g) => g.state === 'wait').length;
+    if (waiting >= (this.econ.day <= 2 ? 2 : 4)) return;
+    const maxGroups = 3 + this.stars() * 2 + Math.min(4, this.econ.day);
+    if (this.groups.length >= maxGroups) return;
+    // 厨房积压时不再涌入新客（产能自适应：扩厨房/招厨师直接提高客流）
+    const cooks = this.staff.filter((s) => s.job === 'cook' || s.job === 'bartender' || s.job === 'free').length;
+    const backlog = this.orders.filter((o) => o.stage === 'queued' || o.stage === 'prep' || o.stage === 'cook').length;
+    if (backlog > 2 + cooks * 2) return;
+    if (this.seatsFree() < 1 && this.freeFacilities() < 1 && waiting >= 1) return;
+    this.spawnAcc = (this.spawnAcc || 0) + dt;
+    const interval = base * repBoost * ease * (0.8 + this.rng.next() * 0.5);
+    if (this.spawnAcc < interval) return;
+    this.spawnAcc = 0;
+    this.spawnGroup();
+  }
+          spawnAcc = 0;
+
+  spawnGroup()       {
+    // 只有当前酒馆能满足的需求才会有客人带着它上门
+    const wants = this.availableWants();
+    if (!wants.length) return;
+    let roll = this.rng.next() * wants.reduce((n, w) => n + w.weight, 0);
+    let want = wants[0];
+    for (const w of wants) { roll -= w.weight; if (roll <= 0) { want = w; break; } }
+    const e = this.tavern.entrance();
+    const sizeCap = this.econ.day <= 1 ? 2 : this.econ.day <= 3 ? 3 : 4;
+    let size = 1 + this.rng.int(this.rng.chance(0.5) ? Math.min(2, sizeCap) : sizeCap);
+    if (want.facility) {                       // 设施容量决定这组最多几个人
+      const caps = this.facilitiesOf(want).map((f) => this.facilityCap(f));
+      const maxCap = caps.length ? Math.max(...caps) : 1;
+      size = Math.min(size, maxCap);
+    }
+    const gid = this.id();
+    const members          = [];
+    for (let i = 0; i < size; i++) {
+      const race = this.rng.int(18);
+      members.push({
+        id: this.id(), app: randomAppearance(this.rng, race, false, this.rng.chance(0.5) ? LOOK_THEMES[this.rng.int(3)] : undefined),
+        name: makeName(this.rng), race: RACE_NAMES[race],
+        groupId: gid, x: e.x + (i % 2) * 0.4 - 0.2, y: e.y + 0.2 * i, dir: 0, pose: 'idle', animT: this.rng.next() * 2,
+        path: [], seatId: 0, mood: 1,
+      });
+    }
+    const pool = want.facility ? this.allDishes() : this.makeableDishes(want.drink);
+    const taste = [pool[this.rng.int(pool.length)].id, pool[this.rng.int(pool.length)].id];
+    // 口味偏好：两个不重复的口味标签
+    const f1 = FLAVORS[this.rng.int(FLAVORS.length)].id;
+    let f2 = f1;
+    while (f2 === f1) f2 = FLAVORS[this.rng.int(FLAVORS.length)].id;
+    const g        = {
+      id: gid, members, size, tableId: 0, state: 'wait', want: want.id, greeted: false, seatCd: 0, facId: 0, useT: 0, facT: 0,
+      maxPatience: Math.round(this.rng.range(78, 135)), patience: 0, budget: Math.round(this.rng.range(30, 120)),
+      hygieneSens: this.rng.range(0.4, 1.5), taste, flavors: [f1, f2], orderId: 0,
+      enterT: this.dayT, orderedT: 0, servedT: 0, eatT: 0, leaveReason: '',
+      praised: 0, mocked: 0, intCd: 0,
+    };
+    g.patience = g.maxPatience;
+    this.groups.push(g);
+    this.guests.push(...members);
+    this.fx.push({ x: e.x, y: e.y, t: 0.6, kind: 'portal' });
+    this.sounds.push('chime');
+    // 进店即自己往目标区域走（餐桌 / 客床 / 汤池 / 台球桌）；没位置才去前台排队
+    if (!this.tryPlace(g)) this.goWaitArea(g);
+  }
+
+  /** 当前能做出来的菜（库存 + 产出设备 + 星级 都满足） */
+  /** 经典菜 + 玩家研发菜（菜谱全集） */
+  allDishes()         { return DISHES.concat(this.econ.customDishes); }
+
+  dishOf(id        )       { return this.allDishes().find((d) => d.id === id) || DISHES[0]; }
+
+  makeableDishes(drink         )         {
+    return this.allDishes().filter((d) => {
+      if (d.drink !== drink) return false;
+      const st = this.dishStatus(d);
+      return st.on && st.facility && st.skillOk && st.stockOk;
+    });
+  }
+
+  /** 菜品供应状态：上架 / 设施 / 厨师技能 / 库存 四道闸，菜单面板与出品过滤共用 */
+  dishStatus(d      )                                                                                       {
+    const hasBar = this.tavern.rooms.some((r) => r.kind === 'bar') && this.tavern.furnsOfKind('keg').length > 0;
+    const hasKitchen = this.tavern.rooms.some((r) => r.kind === 'kitchen')
+      && this.tavern.furnsOfKind('stove').length > 0 && this.tavern.furnsOfKind('pass').length > 0;
+    const best = this.bestSkill(d.drink ? 'mix' : 'cook').value;
+    let stockOk = true;
+    for (const k of ING_KEYS) { const n = d.ing[k] || 0; if (n > 0 && this.econ.stock[k] < n) { stockOk = false; break; } }
+    return {
+      on: this.econ.menu[d.id] !== false,
+      facility: d.drink ? hasBar : hasKitchen,
+      skillOk: best >= d.skill,
+      stockOk,
+      best,
+    };
+  }
+
+  /** 新菜数值推导：售价/厨艺门槛/味道全由配方决定，研发面板预览与正式研发共用 */
+  dishStats(ing                                 , flavors          , fun          , drink         )                                                                                             {
+    const value = ING_KEYS.reduce((a, k) => a + (ing[k] || 0) * ING_PRICE[k], 0);
+    let price = 14 + value * 2.1 + flavors.length * 4;
+    if (fun.includes('glow')) price *= 1.25;
+    if (fun.includes('huge')) price *= 1.45;
+    let skill = 10 + (ing.grain || 0) * 2 + (ing.veg || 0) * 2.5 + (ing.meat || 0) * 5 + (ing.spice || 0) * 6 + (ing.ether || 0) * 9
+      + Math.max(0, flavors.length - 1) * 5 + (fun.includes('huge') ? 8 : 0) + (flavors.includes('weird') ? 4 : 0);
+    let taste = 1.02 + flavors.length * 0.045 + (fun.includes('glow') ? 0.08 : 0) - (flavors.includes('weird') ? 0.05 : 0);
+    const dom = (['ether', 'spice', 'meat', 'veg', 'grain']            ).reduce((best, k) => (ing[k] || 0) * ING_PRICE[k] > (ing[best] || 0) * ING_PRICE[best] ? k : best, 'grain'          );
+    const color = { grain: '#E8C25A', veg: '#8DDB4A', meat: '#A8542E', spice: '#E4732C', ether: '#7A4BE0' }[dom];
+    return { price: Math.round(price), skill: Math.min(88, Math.round(skill)), taste: Math.round(taste * 100) / 100, color, value, fee: Math.round(60 + value) };
+  }
+
+  /** 研发新菜：消耗配方食材 + 研发费，按厨师技能对门槛检定；成功即自动上架 */
+  researchDish(input                                                                                                                 )                               {
+    const total = ING_KEYS.reduce((a, k) => a + (input.ing[k] || 0), 0);
+    if (total < 2) return { ok: false, msg: '配方太单薄了，至少放 2 份食材。' };
+    if (total > 10) return { ok: false, msg: '最多 10 份食材，再多灶台要装不下了。' };
+    if (!input.flavors.length) return { ok: false, msg: '至少选一种口味。' };
+    if (this.econ.customDishes.length >= 10) return { ok: false, msg: '自创菜最多 10 道，先在菜单里删掉几道。' };
+    const chef = this.staff.find((s) => s.id === input.chefId);
+    if (!chef) return { ok: false, msg: '请指派一位研发厨师。' };
+    for (const k of ING_KEYS) if ((input.ing[k] || 0) > this.econ.stock[k]) return { ok: false, msg: `${ING_LABEL[k]}库存不够，研发要先备料。` };
+    const st = this.dishStats(input.ing, input.flavors, input.fun, input.drink);
+    if (this.econ.coins < st.fee) return { ok: false, msg: `研发费要 ${st.fee} 币，手头不够。` };
+    for (const k of ING_KEYS) this.econ.stock[k] -= input.ing[k] || 0;
+    this.econ.coins -= st.fee;
+    const chefSkill = chef.skills[input.drink ? 'mix' : 'cook'];
+    const chance = clamp(55 + (chefSkill - st.skill) * 1.6, 20, 98);
+    if (!this.rng.chance(chance / 100)) {
+      this.sounds.push('angry');
+      return { ok: false, msg: `研发失败……${chef.name}端出一锅不可名状物（成功率 ${Math.round(chance)}%）。食材和研发费打了水漂。` };
+    }
+    const name = input.name.trim() || '无名料理';
+    const dish       = {
+      id: 'cus' + this.id(), name, ing: { ...input.ing }, price: st.price, skill: st.skill,
+      color: st.color, drink: input.drink, taste: st.taste,
+      flavors: [...input.flavors], custom: true, fun: [...input.fun],
+    };
+    this.econ.customDishes.push(dish);
+    this.sounds.push('powerup');
+    return { ok: true, msg: `研发成功！《${name}》已写入菜单：售价 ${st.price} 币，${input.drink ? '调酒' : '厨艺'}门槛 ${st.skill}。` };
+  }
+
+  deleteCustomDish(id        )       {
+    this.econ.customDishes = this.econ.customDishes.filter((d) => d.id !== id);
+    delete this.econ.menu[id];
+  }
+
+  /** 这条需求现在能不能满足：设施/产出都要到位（被占只是要等，不算不能满足） */
+  wantOk(w           )          {
+    if (w.facility) return this.facilitiesOf(w).length > 0;
+    if (!this.makeableDishes(w.drink).length) return false;
+    return this.seatsInRooms(w.seatRooms) > 0;
+  }
+
+  /** 该需求对应的、摆在正确房间里的设施 */
+  facilitiesOf(w           )         {
+    if (!w.facility) return [];
+    const kinds = w.facility === 'bed' ? BED_KINDS : [w.facility];
+    return this.tavern.furns.filter((f) => kinds.includes(f.kind)).filter((f) => {
+      const room = this.tavern.roomOfFurn(f);
+      return !!room && w.seatRooms.includes(room.kind);
+    });
+  }
+
+  /** 现在还空着、也不需要整理的设施数量 */
+  freeFacilities()         {
+    let n = 0;
+    for (const w of GUEST_WANTS) {
+      if (!w.facility) continue;
+      for (const f of this.facilitiesOf(w)) if (!this.facOwner.has(f.id) && !(f.dirty || 0)) n++;
+    }
+    return n;
+  }
+
+          facilityCap(f      )         {
+    const cap = furnDef(f.kind).cap                        ;
+    return cap ? cap[f.quality - 1] : 2;
+  }
+
+          findFacility(w           , size        )              {
+    let best              = null; let bestKey = 1e9;
+    for (const f of this.facilitiesOf(w)) {
+      if (this.facOwner.has(f.id) || (f.dirty || 0)) continue;
+      const cap = this.facilityCap(f);
+      if (size > cap) continue;
+      const key = (cap - size) * 10 - f.quality;
+      if (key < bestKey) { bestKey = key; best = f; }
+    }
+    return best;
+  }
+
+  /** 设施周围可站立的格子（不挡路的设施直接站上去） */
+          facilitySpots(f      )                             {
+    const tiles = this.tavern.furnTiles(f);
+    if (!this.tavern.blocks(f.kind)) return tiles;
+    const room = this.tavern.roomOfFurn(f);
+    const out                             = [];
+    const seen = new Set        ();
+    for (const t of tiles) {
+      for (const [dx, dy] of [[0, 1], [0, -1], [1, 0], [-1, 0]]              ) {
+        const x = t.x + dx, y = t.y + dy, k = x + ',' + y;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        const r2 = this.tavern.roomAt(x, y);
+        if (!r2 || !room || r2.id !== room.id) continue;
+        if (!this.tavern.walkable(x, y)) continue;
+        out.push({ x, y });
+      }
+    }
+    return out;
+  }
+
+  /** 设施型需求：占住设施并各自走过去 */
+          tryUseFacility(g       )          {
+    const w = wantById(g.want);
+    const f = this.findFacility(w, g.size);
+    if (!f) return false;
+    const spots = this.facilitySpots(f);
+    if (!spots.length) return false;
+    const paths                               = [];
+    for (let i = 0; i < g.size; i++) {
+      const m = g.members[i];
+      const t = spots[i % spots.length];
+      const p = this.tavern.path(Math.round(m.x), Math.round(m.y), t.x, t.y);
+      if (!p) return false;
+      paths.push(p);
+    }
+    // 站位比人少时会有人挤在同一格：走到就算到，不强求踩准（见 toFac 的到位判定）
+    this.facOwner.set(f.id, g.id);
+    g.facId = f.id;
+    g.state = 'toFac';
+    g.facT = 0;
+    g.members.forEach((m, i) => { m.path = paths[i]; });
+    return true;
+  }
+
+          releaseFacility(g       )       {
+    if (!g.facId) return;
+    if (this.facOwner.get(g.facId) === g.id) this.facOwner.delete(g.facId);
+    g.facId = 0;
+  }
+
+  /** 住店客续摊：消费完一个需求后，接着去下一个（通常是回房睡觉）；返回 true 表示不走了 */
+          advanceWant(g       )          {
+    if (!g.nextWant) return false;
+    g.want = g.nextWant;
+    g.nextWant = undefined;
+    g.state = 'wait';
+    g.patience = g.maxPatience;
+    g.facT = 0; g.orderId = 0; g.tableId = 0;
+    for (const m of g.members) { if (m.seatId) this.seatOwner.delete(m.seatId); m.seatId = 0; m.path = []; }
+    this.toast('住店客消费完，回房休息去了');
+    return true;
+  }
+
+  /** 需求分派入口：设施型去设施，餐饮型去座位；住店客可能先去娱乐区续一摊 */
+          tryPlace(g       )          {
+    if (g.want === 'sleep' && !g.detourDone) {
+      g.detourDone = true;
+      // 主要待客房，但店里有酒吧/温泉/台球室时，过半概率先去消费一发
+      if (this.rng.chance(0.55)) {
+        const opts = GUEST_WANTS.filter((w) => w.id !== 'sleep' && this.wantOk(w));
+        if (opts.length) {
+          const pick = opts[this.rng.int(opts.length)];
+          g.nextWant = 'sleep';
+          g.want = pick.id;
+          this.toast(`住店客决定先去${pick.name}再回房`);
+        }
+      }
+    }
+    return wantById(g.want).facility ? this.tryUseFacility(g) : this.trySelfSeat(g);
+  }
+
+  availableWants()              { return GUEST_WANTS.filter((w) => this.wantOk(w)); }
+
+          seatsInRooms(kinds            )         {
+    let n = 0;
+    for (const t of this.tavern.allTables()) {
+      const room = this.tavern.roomOfFurn(t);
+      if (!room || !kinds.includes(room.kind)) continue;
+      n += this.tavern.tableSeats(t).length;
+    }
+    return n;
+  }
+
+  /** 找桌：优先客人想去的房间类型（喝酒先去酒吧，吃饭先去餐饮间） */
+          findTable(size        , want            )              {
+    const order = want ? want.seatRooms : null;
+    let best              = null; let bestKey = 1e9;
+    for (const t of this.tavern.allTables()) {
+      const seats = this.tavern.tableSeats(t).filter((c) => !this.seatOwner.has(c.id));
+      if (seats.length < size) continue;
+      const cap = (furnDef('table').cap            )[t.quality - 1];
+      if (size > cap) continue;
+      const room = this.tavern.roomOfFurn(t);
+      let pref = 2;
+      if (order && room) { const i = order.indexOf(room.kind); pref = i < 0 ? 3 : i; }
+      const key = pref * 100 + (seats.length - size);
+      if (key < bestKey) { bestKey = key; best = t; }
+    }
+    return best;
+  }
+
+  /** 客人自己走到对应区域落座；没座位返回 false（去前台等） */
+          trySelfSeat(g       )          {
+    const t = this.findTable(g.size, wantById(g.want));
+    if (!t) return false;
+    this.seatGroup(g, t);
+    return g.state === 'seating' || g.state === 'seated';
+  }
+
+  /** 前台等位：站在门厅里、离入口最近的空地上，按组号错开 */
+          goWaitArea(g       )       {
+    g.state = 'wait';
+    const e = this.tavern.entrance();
+    const foyer = this.tavern.rooms.find((r) => r.kind === 'foyer');
+    const spots                             = [];
+    if (foyer) {
+      for (let y = foyer.y; y < foyer.y + foyer.h; y++) for (let x = foyer.x; x < foyer.x + foyer.w; x++) {
+        if (this.tavern.walkable(x, y)) spots.push({ x, y });
+      }
+      spots.sort((a, b) => (Math.abs(a.x - e.x) + Math.abs(a.y - e.y) * 1.4) - (Math.abs(b.x - e.x) + Math.abs(b.y - e.y) * 1.4));
+    }
+    const waitingBefore = this.groups.filter((x) => x.id !== g.id && x.state === 'wait')
+      .reduce((n, x) => n + x.size, 0);
+    g.members.forEach((m, i) => {
+      // 队列比门厅空地还长时绕回来排（不要所有人挤在最后一格）
+      const spot = spots.length ? spots[(1 + waitingBefore + i) % spots.length] : e;
+      const p = this.tavern.path(Math.round(m.x), Math.round(m.y), spot.x, spot.y);
+      if (p) m.path = p;
+    });
+  }
+
+          tickGroups(dt        )       {
+    for (const g of [...this.groups]) {
+      if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered') {
+        g.patience -= dt * (1 + (g.state === 'ordered' ? 0.15 : 0));
+        if (g.patience <= 0) { this.leave(g, g.state === 'wait' ? '在前台等太久' : '等菜太久'); continue; }
+      }
+      if (g.state === 'wait') {
+        // 有人吃完走了就自己补位；一直等不到座位才离店
+        g.seatCd -= dt;
+        if (g.seatCd <= 0) {
+          g.seatCd = 0.6;
+          if (this.tryPlace(g)) continue;
+        }
+        if (g.patience < g.maxPatience * 0.3) { this.leave(g, '等不到座位'); continue; }
+      }
+      if (g.state === 'seating') {
+        const arrived = g.members.every((m) => m.path.length === 0);
+        if (arrived) { g.state = 'seated'; for (const m of g.members) { const c = this.tavern.furnById(m.seatId); if (c) m.dir = c.dir; m.pose = 'idle'; } }
+      }
+      if (g.state === 'toFac') {
+        const ff = this.tavern.furnById(g.facId);
+        if (!ff) { this.leave(g, ''); continue; }
+        g.facT += dt;
+        const fp = furnFootprint(ff.kind, ff.dir);
+        const ccx = ff.x + fp[0] / 2, ccy = ff.y + fp[1] / 2;
+        const arrived = g.members.every((m) => m.path.length === 0
+          || Math.hypot(m.x + 0.5 - ccx, m.y + 0.5 - ccy) < 1.9);
+        if (arrived || g.facT > 25) {
+          for (const m of g.members) m.path = [];
+          const f = this.tavern.furnById(g.facId);
+          if (!f) { this.leave(g, ''); continue; }
+          const t = furnDef(f.kind).time                        ;
+          g.state = 'using';
+          g.useT = t ? t[f.quality - 1] : 22;
+          for (const m of g.members) {
+            m.pose = 'idle';
+            m.dir = Math.abs(m.x - f.x) > Math.abs(m.y - f.y) ? (m.x > f.x ? 1 : 3) : (m.y > f.y ? 2 : 0);
+          }
+          this.fx.push({ x: f.x + 0.5, y: f.y + 0.5, t: 0.6, kind: 'serve' });
+          this.sounds.push(f.kind === 'pool' || f.kind === 'fountain' || f.kind === 'cauldron' ? 'splash' : BED_KINDS.includes(f.kind) ? 'snore' : f.kind === 'screen' || f.kind === 'telescope' || f.kind === 'arcadem' ? 'chime' : 'cue');
+        }
+      }
+      if (g.state === 'using') {
+        if (g.overnight) continue;          // 过夜住宿客：一直睡到次日开门结账
+        g.useT -= dt;
+        if (g.useT <= 0) {
+          // 入夜后用完床的住宿客不走，继续睡过夜
+          if (g.want === 'sleep' && this.dayT > DAY_LEN * 0.72) { g.overnight = true; g.useT = Infinity; continue; }
+          this.payFacility(g); continue;
+        }
+      }
+      if (g.state === 'eating') {
+        g.eatT -= dt;
+        if (g.eatT <= 0) this.pay(g);
+      }
+      if (g.state === 'leaving') {
+        this.tickLeavingGroup(g, dt);
+        continue;
+      }
+      for (const m of g.members) this.moveActor(m, dt, 2.1);
+    }
+  }
+
+  tickLeavingGroup(g       , dt        )       {
+    g.leaveT = (g.leaveT || 0) + dt;
+    for (const m of g.members) this.moveActor(m, dt, 2.1);
+    // 路径不可达时 leave() 会给空路径；超时兜底防止旧存档中的坏坐标永久残留。
+    if (g.members.every((m) => m.path.length === 0) || g.leaveT > 20) {
+      this.guests = this.guests.filter((x) => x.groupId !== g.id);
+      this.groups = this.groups.filter((x) => x.id !== g.id);
+    }
+  }
+
+  tickDepartures(dt        )       {
+    for (const g of [...this.groups]) if (g.state === 'leaving') this.tickLeavingGroup(g, dt);
+  }
+
+          seatGroup(g       , table      )       {
+    const seats = this.tavern.tableSeats(table).filter((c) => !this.seatOwner.has(c.id)).slice(0, g.size);
+    if (seats.length < g.size) { this.goWaitArea(g); return; }
+    g.tableId = table.id;
+    g.state = 'seating';
+    for (let i = 0; i < g.size; i++) {
+      const m = g.members[i];
+      const c = seats[i];
+      this.seatOwner.set(c.id, m.id);
+      m.seatId = c.id;
+      const p = this.tavern.path(Math.round(m.x), Math.round(m.y), c.x, c.y);
+      m.path = p || [];
+      if (!p) { this.leave(g, '没有可通行的路线'); return; }
+    }
+  }
+
+  leave(g       , reason        )       {
+    g.leaveReason = reason;
+    g.state = 'leaving';
+    g.leaveT = 0;
+    this.releaseFacility(g);
+    if (reason !== '') {
+      this.econ.lost++;
+      this.scores.push(1.2);
+      this.recordScoreParts({ wait: 1.2, service: 1.2 });
+      this.toast(`一组客人离店：${reason}`);
+      this.sounds.push('angry');
+    }
+    for (const m of g.members) {
+      if (m.seatId) this.seatOwner.delete(m.seatId);
+      m.seatId = 0;
+      const e = this.tavern.entrance();
+      m.path = this.tavern.path(Math.round(m.x), Math.round(m.y), e.x, e.y) || [];
+    }
+  }
+
+  /** 这桌人爱不爱这道菜：点了心头好，或菜品口味命中他们的偏好 */
+          guestLikes(g       , dish      )          {
+    if (g.taste.includes(dish.id)) return true;
+    return (dish.flavors || []).some((f) => (g.flavors || []).includes(f));
+  }
+
+  /** 房间氛围值（壁炉/盆栽/星灯），封顶避免堆盆栽刷分 */
+  charmIn(roomId        )         {
+    const room0 = this.tavern.roomById(roomId);
+    let sum = styleById(this.tavern.roomStyle(room0)).charm + (room0 ? (ROOM_CHARM[room0.kind] || 0) : 0);
+    for (const f of this.tavern.furnsIn(roomId)) {
+      const c = furnDef(f.kind).charm;
+      if (c) sum += c[f.quality - 1];
+    }
+    return Math.min(1.6, sum);
+  }
+
+  charmTotal()         {
+    let sum = 0;
+    for (const r of this.tavern.rooms) sum += this.charmIn(r.id);
+    return Math.min(4, sum);
+  }
+
+  recordScoreParts(parts)       {
+    for (const [key, value] of Object.entries(parts)) {
+      if (Number.isFinite(value) && this.scoreParts[key]) this.scoreParts[key].push(value);
+    }
+  }
+
+          pay(g       )       {
+    const order = this.orders.find((o) => o.id === g.orderId);
+    const dish = order ? this.dishOf(order.dishId) : DISHES[0];
+    const table = this.tavern.furnById(g.tableId);
+    const room = table ? this.tavern.roomOfFurn(table) : null;
+    const revenue = Math.round(dish.price * this.econ.markup * g.size);
+    this.econ.coins += revenue;
+    this.econ.revenue += revenue;
+    this.econ.served += g.size;
+    // 评价 6 项
+    const waitPen = clamp(3 + (g.patience / g.maxPatience) * 2.4, 1, 5);
+    const taste = clamp((order ? order.quality : 2) * (this.guestLikes(g, dish) ? 1.15 : 1) * (this.econ.markup > 2 ? 0.8 : 1), 1, 5);    const serveScore = clamp(2 + this.bestSkill('serve').value / 30 + (g.greeted ? 0.5 : 0)
+      + (this.staff.some((x) => x.traits.includes('sociable')) ? 0.3 : 0)
+      + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75), 1, 5);
+    const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
+    const roomCharm = room ? this.charmIn(room.id) : 0;
+    const comfort = clamp(1.6 + (table ? table.quality : 1) * 0.8 + (room ? room.quality * 0.4 : 0) + roomCharm, 1, 5);
+    const spectacle = clamp(1.8 + this.tavern.rooms.length * 0.25 + this.tavern.furns.length * 0.03 + this.charmTotal() * 0.18, 1, 5);
+    const score = (taste * 1.25 + waitPen * 1.15 + serveScore + hygiene * 1.1 + comfort * 0.85 + spectacle * 0.65) / 6.0;
+    this.scores.push(score);
+    this.recordScoreParts({ quality: taste, wait: waitPen, service: serveScore, hygiene, comfort, spectacle });
+    if (table) table.dirty = (table.dirty || 0) + g.size;
+    if (room) room.clean = clamp(room.clean - g.size * 0.8, 0, 100);
+    if (this.rng.chance(0.5)) this.tavern.addDirt(Math.round(g.members[0].x), Math.round(g.members[0].y));
+    this.fx.push({ x: table ? table.x : g.members[0].x, y: table ? table.y : g.members[0].y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
+    if (score >= 3.6) this.sounds.push('happy');
+    if (this.advanceWant(g)) return;   // 住店客：吃完这摊去睡觉
+    g.state = 'leaving';
+    g.leaveT = 0;
+    for (const m of g.members) {
+      if (m.seatId) this.seatOwner.delete(m.seatId);
+      m.seatId = 0;
+      const e = this.tavern.entrance();
+      m.path = this.tavern.path(Math.round(m.x), Math.round(m.y), e.x, e.y) || [];
+    }
+    this.toast(`结账 +${revenue}（评价 ${score.toFixed(1)}★）`);
+    this.sounds.push('coin');
+  }
+
+  /** 设施型需求结算：住宿/泡汤/台球按人头收费，设施留下需要整理的状态 */
+          payFacility(g       )       {
+    const w = wantById(g.want);
+    const f = this.tavern.furnById(g.facId);
+    const room = f ? this.tavern.roomOfFurn(f) : null;
+    const q = f ? f.quality : 1;
+    const bedMult = f ? (BED_PRICE_MULT[f.kind] || 1) : 1;
+    const revenue = Math.round((w.price || 30) * bedMult * this.econ.markup * g.size * (1 + (q - 1) * 0.3));
+    this.econ.coins += revenue;
+    this.econ.revenue += revenue;
+    this.econ.served += g.size;
+    const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
+    const charm = room ? this.charmIn(room.id) : 0;
+    const comfort = clamp(1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm, 1, 5);
+    const serveScore = clamp(2 + this.bestSkill('serve').value / 34 + (g.greeted ? 0.5 : 0)
+      + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75), 1, 5);
+    const spectacle = clamp(1.8 + this.tavern.rooms.length * 0.25 + this.charmTotal() * 0.2, 1, 5);
+    const waitPen = clamp(3 + (g.patience / g.maxPatience) * 2.4, 1, 5);
+    const score = (comfort * 1.5 + hygiene * 1.2 + waitPen + serveScore * 0.8 + spectacle * 0.5) / 5.0;
+    this.scores.push(score);
+    this.recordScoreParts({ quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, spectacle });
+    if (f) f.dirty = (f.dirty || 0) + 1;                 // 用完要整理，整理前不再接客
+    if (room) room.clean = clamp(room.clean - g.size * 0.7, 0, 100);
+    const m0 = g.members[0];
+    const dx = Math.round(m0.x), dy = Math.round(m0.y);
+    if (this.tavern.walkable(dx, dy)) this.tavern.addDirt(dx, dy);
+    else if (room) { const t = this.tavern.freeTileIn(room, this.rng.int(70)); this.tavern.addDirt(t.x, t.y); }
+    this.fx.push({ x: m0.x, y: m0.y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
+    if (score >= 3.6) this.sounds.push('happy');
+    this.releaseFacility(g);
+    if (this.advanceWant(g)) return;   // 住店客：玩完这摊去睡觉
+    g.state = 'leaving';
+    g.leaveT = 0;
+    const e = this.tavern.entrance();
+    for (const m of g.members) {
+      m.path = this.tavern.path(Math.round(m.x), Math.round(m.y), e.x, e.y) || [];
+    }
+    this.toast(`${w.name} +${revenue}（评价 ${score.toFixed(1)}★）`);
+    this.sounds.push('coin');
+  }
+
+  // ---------- 店主互动 ----------
+
+  /** 夸员工：好感/士气大涨，短时干活更快 */
+  praiseStaff(id        )         {
+    const s = this.staff.find((x) => x.id === id);
+    if (!s || s.isOwner) return '';
+    const fresh = s.affCd <= 0;
+    if (!fresh) {
+      const line = '刚夸过啦，我还没干出新活儿呢。';
+      s.bubble = { text: line, t: 3.2 };
+      this.sounds.push('clean');
+      return line;
+    }
+    const gain = Math.max(1.2, 5.4 * (1 - s.aff / 115));
+    s.aff = clamp(s.aff + gain, 0, 100);
+    s.needs.morale = clamp(s.needs.morale + 9, 0, 100);
+    s.needs.stress = clamp(s.needs.stress - 8, 0, 100);
+    s.boostT = Math.max(s.boostT || 0, 14);
+    s.affCd = 34;
+    s.chats++;
+    const lines = ['嘿嘿，那我可要更卖力了。', '老板你今天嘴甜得像掺了蜜。', '记着这句啊，年底涨工钱。', '……谢、谢谢。（耳朵红了）'];
+    const line = lines[this.rng.int(lines.length)];
+    s.bubble = { text: line, t: 3.2 };
+    s.chatLog.unshift(`第${this.econ.day}天·夸奖：${line}`);
+    if (s.chatLog.length > 6) s.chatLog.pop();
+    this.fx.push({ kind: 'heart', x: s.x, y: s.y - 0.6, t: 0.9 });
+    this.sounds.push('happy');
+    return line;
+  }
+
+  /** 贬低员工：好感掉、压力涨，但短时被吓得手脚更快 */
+  scoldStaff(id        )         {
+    const s = this.staff.find((x) => x.id === id);
+    if (!s || s.isOwner) return '';
+    s.aff = clamp(s.aff - (s.traits.includes('grumpy') ? 9 : 6), 0, 100);
+    s.needs.morale = clamp(s.needs.morale - 10, 0, 100);
+    s.needs.stress = clamp(s.needs.stress + 11, 0, 100);
+    s.boostT = Math.max(s.boostT || 0, 16);
+    const lines = ['……知道了。（手在抖）', '我哪儿做错了？我改。', '呵，这话我记住了。', '要不你自己来端？'];
+    const line = lines[this.rng.int(lines.length)];
+    s.bubble = { text: line, t: 3.4 };
+    s.chatLog.unshift(`第${this.econ.day}天·被贬低：${line}`);
+    if (s.chatLog.length > 6) s.chatLog.pop();
+    this.fx.push({ kind: 'sad', x: s.x, y: s.y - 0.6, t: 0.9 });
+    this.sounds.push('angry');
+    return line;
+  }
+
+  /** 催一催：不伤好感，只是短时提速（压力小涨） */
+  urgeStaff(id        )         {
+    const s = this.staff.find((x) => x.id === id);
+    if (!s || s.isOwner) return '';
+    s.boostT = Math.max(s.boostT || 0, 12);
+    s.needs.stress = clamp(s.needs.stress + 4, 0, 100);
+    const line = ['来了来了！', '手上这单马上好。', '别催，越催越乱……不过好吧。'][this.rng.int(3)];
+    s.bubble = { text: line, t: 2.6 };
+    this.sounds.push('chime');
+    return line;
+  }
+
+  groupOfGuest(guestId        )               {
+    const gu = this.guests.find((x) => x.id === guestId);
+    if (!gu) return null;
+    return this.groups.find((x) => x.id === gu.groupId) || null;
+  }
+
+  /** 夸客人：耐心回一截，这单评价加分 */
+  praiseGuest(groupId        )         {
+    const g = this.groups.find((x) => x.id === groupId);
+    if (!g) return '';
+    if (g.intCd > 0) return '（刚说过话，客人正忙着回味）';
+    g.intCd = 26;
+    g.praised++;
+    g.greeted = true;
+    g.patience = clamp(g.patience + g.maxPatience * 0.22, 0, g.maxPatience);
+    for (const m of g.members) m.mood = Math.min(1.4, m.mood + 0.2);
+    const line = ['「您这身行头，隔着三个位面都亮眼。」客人笑得合不上嘴。',
+      '「稀客稀客，今天这桌算我招待。」客人心情大好。',
+      '「您上次说的那个星域故事，我还念着呢。」客人乐了。'][this.rng.int(3)];
+    this.fx.push({ kind: 'heart', x: g.members[0].x, y: g.members[0].y - 0.6, t: 0.9 });
+    this.sounds.push('happy');
+    return line;
+  }
+
+  /** 贬低客人：耐心掉、评价扣，但偶尔有怪客反而吃这一套 */
+  mockGuest(groupId        )         {
+    const g = this.groups.find((x) => x.id === groupId);
+    if (!g) return '';
+    if (g.intCd > 0) return '（刚说过话，先缓缓）';
+    g.intCd = 26;
+    if (this.rng.chance(0.25)) {                 // 抖 M 客：越贬越上头
+      g.praised++;
+      g.patience = clamp(g.patience + g.maxPatience * 0.15, 0, g.maxPatience);
+      this.fx.push({ kind: 'heart', x: g.members[0].x, y: g.members[0].y - 0.6, t: 0.9 });
+      this.sounds.push('happy');
+      return '「……再骂一句。」这位客人似乎很受用，加点了一份。';
+    }
+    g.mocked++;
+    g.patience = clamp(g.patience - g.maxPatience * 0.2, 0, g.maxPatience);
+    for (const m of g.members) m.mood = Math.max(0.4, m.mood - 0.25);
+    this.fx.push({ kind: 'sad', x: g.members[0].x, y: g.members[0].y - 0.6, t: 0.9 });
+    this.sounds.push('angry');
+    return ['「您这吃相，够写进志怪了。」客人脸色发青。',
+      '「排队都排不利索，怎么修的仙？」客人差点掀桌。'][this.rng.int(2)];
+  }
+
+  /** 请一杯：花钱换耐心与评价 */
+  treatGuest(groupId        )         {
+    const g = this.groups.find((x) => x.id === groupId);
+    if (!g) return '';
+    const cost = 12 + g.size * 6;
+    if (this.econ.coins < cost) return '界币不够，请不起这一轮。';
+    this.econ.coins -= cost;
+    g.intCd = 18;
+    g.praised++;
+    g.greeted = true;
+    g.patience = clamp(g.patience + g.maxPatience * 0.4, 0, g.maxPatience);
+    for (const m of g.members) m.mood = Math.min(1.5, m.mood + 0.3);
+    this.fx.push({ kind: 'heart', x: g.members[0].x, y: g.members[0].y - 0.4, t: 0.9 });
+    this.sounds.push('coin');
+    return `店主请了这桌一轮（-${cost}）：客人举杯，耐心回了一大截。`;
+  }
+
+  // ---------- 员工 ----------
+          moveActor(a                                                                                     , dt        , speed        )       {
+    if (!a.path.length) { if (a.pose === 'walk') a.pose = 'idle'; return; }
+    const n = a.path[0];
+    const dx = n.x - a.x, dy = n.y - a.y;
+    const d = Math.hypot(dx, dy);
+    if (d < 0.06) { a.x = n.x; a.y = n.y; a.path.shift(); return; }
+    const v = Math.min(speed * dt, d);
+    const nx = a.x + (dx / d) * v;
+    const ny = a.y + (dy / d) * v;
+    if (this.tavern.bodyFree(a.x, a.y, nx, ny, 0.14, false)) {
+      a.x = nx;
+      a.y = ny;
+    } else {
+      // 路径格合法但角色偏离了格心时，先回到当前格心再过门，避免斜切墙角。
+      const cx = Math.round(a.x), cy = Math.round(a.y);
+      const cdx = cx - a.x, cdy = cy - a.y;
+      const cd = Math.hypot(cdx, cdy);
+      if (cd > 0.01) {
+        const cv = Math.min(v, cd);
+        const rx = a.x + (cdx / cd) * cv, ry = a.y + (cdy / cd) * cv;
+        if (this.tavern.bodyFree(a.x, a.y, rx, ry, 0.14, false)) { a.x = rx; a.y = ry; }
+      }
+    }
+    a.pose = 'walk';
+    if (Math.abs(dx) > Math.abs(dy)) a.dir = dx > 0 ? 3 : 1; else a.dir = dy > 0 ? 0 : 2;
+  }
+
+  staffSpeed(s       )         {
+    let v = 2.5 + s.app.ht * 0.12;
+    if (s.traits.includes('lazy')) v *= 0.88;
+    if (s.needs.stamina < 30) v *= 0.75;
+    return v;
+  }
+
+  actSpeed(s       , skill          )         {
+    let m = (0.55 + s.skills[skill] / 130) * (1 + s.aff / 400);
+    if ((s.boostT || 0) > 0) m *= 1.35;
+    if (s.traits.includes('fast')) m *= 1.15;
+    if (s.traits.includes('perfectionist')) m *= 0.88;
+    if (skill === 'clean' && s.traits.includes('clean_freak')) m *= 1.25;
+    if ((skill === 'clean' || skill === 'carry') && s.traits.includes('organized')) m *= 1.1;
+    if ((s.prio || 0) >= 2 && s.traits.includes('competitive')) m *= 1.08;
+    if (s.needs.stamina < 25) m *= 0.8;
+    return m;
+  }
+
+          tickStaff(dt        )       {
+    const staffOrder = [...this.staff].sort((a, b) => (b.prio || 0) - (a.prio || 0) || a.id - b.id);
+    const claimed = new Set        ();
+    const taskProgress = (s       )         => !s.task ? -1 : (s.task.i || 0) * 10
+      + (s.actTotal > 0 && s.actT > 0 ? 1 - s.actT / s.actTotal : 0) + (s.carry ? 0.2 : 0);
+    const ownerOrder = [...staffOrder].sort((a, b) => taskProgress(b) - taskProgress(a));
+    // 旧状态里若两人持有同一任务，只保留进度更深的认领者；进度相同才看抢单优先级。
+    // 被释放的人会在同一帧从 open 中领取另一项工作。
+    for (const s of ownerOrder) {
+      const key = s.task && s.task.key;
+      if (!key) continue;
+      if (!claimed.has(key)) { claimed.add(key); continue; }
+      s.task = null;
+      s.path = [];
+      s.carry = null;
+      s.actT = 0;
+      s.actTotal = 0;
+      s.note = '';
+      s.pose = 'idle';
+      s.bubble = { text: '这活有人接了，我换一项', t: 2 };
+    }
+    const open = this.buildTasks(claimed);
+    for (const s of staffOrder) {
+      // 需求
+      const work = s.task ? 1 : 0.35;
+      const drain = (0.42 * work) * (s.traits.includes('diligent') ? 0.8 : 1);
+      s.needs.stamina = clamp(s.needs.stamina - drain * dt, 0, 100);
+      s.needs.hunger = clamp(s.needs.hunger + 0.12 * dt, 0, 100);
+      const stressUp = (this.groups.filter((g) => g.state === 'wait').length * 0.05 + (s.needs.stamina < 25 ? 0.12 : 0.02))
+        * (s.traits.includes('grumpy') ? 1.5 : 1) * (s.traits.includes('patient') ? 0.85 : 1) * (1 - s.aff / 300);
+      if (s.affCd > 0) s.affCd = Math.max(0, s.affCd - dt);
+      if ((s.boostT || 0) > 0) s.boostT = Math.max(0, (s.boostT          ) - dt);
+      s.needs.stress = clamp(s.needs.stress + stressUp * dt, 0, 100);
+      if (this.manualOwner && s.isOwner) { this.driveOwner(s, dt); continue; }
+      if (!s.task && open.length) this.assign(s, open);
+      if (s.task) this.runTask(s, dt);
+      else {
+        // 回到岗位房间 / 低体力去休息室
+        if (s.job === 'front' && s.needs.stamina >= 22) this.standByDesk(s);
+        else if (s.needs.stamina < 22) this.tryRest(s);
+        else if (!s.path.length && this.rng.chance(0.006)) {
+          const room = s.roomId ? this.tavern.roomById(s.roomId) : this.tavern.rooms[this.rng.int(this.tavern.rooms.length)];
+          if (room) {
+            const t = this.tavern.freeTileIn(room, this.rng.int(50));
+            s.path = this.tavern.path(Math.round(s.x), Math.round(s.y), t.x, t.y) || [];
+          }
+        }
+      }
+      this.moveActor(s, dt, this.staffSpeed(s));
+      if (s.pose !== 'walk' && !s.task) s.pose = 'idle';
+    }
+  }
+
+  /** 前台伙计空闲时回柜台站岗（没有柜台就守在门厅入口） */
+          standByDesk(s       )       {
+    if (s.path.length) return;
+    const desk = this.tavern.furnsOfKind('desk')[0];
+    let spot                                  = null;
+    if (desk) {
+      // 站柜台里侧（服务面的反方向），客人在外侧
+      const [dx, dy] = dirDelta(desk.dir);
+      const back = this.tavern.furnTiles(desk).map((t) => ({ x: t.x - dx, y: t.y - dy }));
+      spot = this.tavern.standTileNear(back) || this.tavern.standTileNear(this.tavern.useTiles(desk));
+    }
+    if (!spot) {
+      const e = this.tavern.entrance();
+      spot = this.tavern.walkable(e.x, e.y + 1) ? { x: e.x, y: e.y + 1 } : null;
+    }
+    if (!spot) return;
+    if (Math.hypot(s.x - spot.x, s.y - spot.y) < 0.8) { s.dir = 0; return; }   // 面朝客人（正面）
+    if (this.rng.chance(0.05)) s.path = this.tavern.path(Math.round(s.x), Math.round(s.y), spot.x, spot.y) || [];
+  }
+
+  /** 玩家直控：逐轴推进，撞墙只挡住那一轴（斜向贴墙才不会卡住） */
+          driveOwner(s       , dt        )       {
+    s.task = null; s.path = [];
+    const v = this.manualVec;
+    const len = Math.hypot(v.x, v.y);
+    if (len < 0.01) { s.pose = 'idle'; return; }
+    const R = 0.16;
+    const step = this.staffSpeed(s) * 1.2 * dt;
+    // 站在椅子/床/汤池上时先放宽，否则玩家会被自己脚下的家具锁死
+    const strict = this.tavern.bodyFree(s.x, s.y, s.x, s.y, R, true);
+    // ① 先沿"前进方向的垂直轴"向格心回正：门只有一格宽，斜着挤门口时不先对准就永远进不去
+    //    朝自己所在格的中心走一定还在同一格内，不需要再判碰撞
+    const snap = step * 1.6;
+    if (Math.abs(v.x) > 0.01) {
+      const cy = Math.round(s.y), d = cy - s.y;
+      if (Math.abs(d) > 0.02) s.y += Math.sign(d) * Math.min(Math.abs(d), snap);
+    }
+    if (Math.abs(v.y) > 0.01) {
+      const cx = Math.round(s.x), d = cx - s.x;
+      if (Math.abs(d) > 0.02) s.x += Math.sign(d) * Math.min(Math.abs(d), snap);
+    }
+    // ② 再逐轴推进：撞墙只挡住那一轴，斜向贴墙不会整个卡死
+    const dx = (v.x / len) * step, dy = (v.y / len) * step;
+    if (Math.abs(v.x) > 0.01 && this.tavern.bodyFree(s.x, s.y, s.x + dx, s.y, R, strict)) s.x += dx;
+    if (Math.abs(v.y) > 0.01 && this.tavern.bodyFree(s.x, s.y, s.x, s.y + dy, R, strict)) s.y += dy;
+    s.pose = 'walk';
+    if (Math.abs(v.x) > Math.abs(v.y)) s.dir = v.x > 0 ? 3 : 1; else s.dir = v.y > 0 ? 0 : 2;
+  }
+
+  /** 该员工可以用的休息家具：自己卧室里的，或还空着的休息室里的（绝不进别人卧室） */
+          restFurnsFor(s       )         {
+    return this.tavern.furns.filter((f) => {
+      if (f.kind !== 'bunk' && f.kind !== 'couch') return false;
+      const r = this.tavern.roomOfFurn(f);
+      return !!r && r.kind === 'lounge' && (!r.occupant || r.occupant === s.id);
+    });
+  }
+
+          tryRest(s       )       {
+    if (s.path.length) return;
+    const usable = this.restFurnsFor(s);
+    const bunks = usable.filter((f) => f.kind === 'bunk');
+    const spots = bunks.length ? bunks : usable;
+    if (!spots.length) return;
+    const c = spots[this.rng.int(spots.length)];
+    const onBunk = c.kind === 'bunk';
+    const dur = onBunk ? (furnDef('bunk').time            )[c.quality - 1] : 14;
+    const stand = this.tavern.standTileNear(this.tavern.useTiles(c));
+    if (!stand) return;
+    s.task = {
+      kind: 'rest', key: 'rest:' + s.id, label: onBunk ? '睡一觉' : '休息', i: 0,
+      steps: [
+        { tx: stand.x, ty: stand.y },
+        {
+          dur, label: onBunk ? '睡一觉' : '休息', skill: 'calm', done: () => {
+            s.needs.stamina = clamp(s.needs.stamina + (onBunk ? 85 : 55), 0, 100);
+            s.needs.stress = clamp(s.needs.stress - (onBunk ? 42 : 25), 0, 100);
+            if (onBunk) s.needs.morale = clamp(s.needs.morale + 4, 0, 100);
+            s.bubble = { text: onBunk ? 'Zzz……' : '呼——', t: 2 };
+          },
+        },
+      ],
+    };
+  }
+
+  jobFit(kind        , job     )         {
+    const table                                               = {
+      greet: { front: 90, greeter: 60, free: 25, server: 15 },
+      tidy: { cleaner: 60, free: 25, porter: 18, server: 10, greeter: 8 },
+      order: { server: 55, greeter: 25, free: 25, bartender: 10 },
+      cook: { cook: 60, free: 18 },
+      mix: { bartender: 60, cook: 20, free: 15 },
+      serve: { server: 55, free: 22, greeter: 12, porter: 15 },
+      bus: { cleaner: 40, porter: 45, server: 25, free: 20 },
+      clean: { cleaner: 60, porter: 20, free: 18 },
+    };
+    const t = table[kind] || {};
+    const v = t[job];
+    return v === undefined ? -30 : v;
+  }
+
+  /** 只读的工作积压快照，供 UI 展示；不会像 buildTasks 那样改变订单状态。 */
+  workQueue() {
+    const byKey = new Map();
+    const add = (key, kind, label, age = 0) => {
+      if (!key || byKey.has(key)) return;
+      const owner = this.staff.find((s) => s.task && s.task.key === key);
+      const eligible = this.staff.filter((s) => this.jobFit(kind, s.job) >= 0);
+      byKey.set(key, {
+        key, kind, label, age: Math.max(0, age),
+        staff: owner ? owner.name : '',
+        status: owner ? (owner.path && owner.path.length ? '前往中' : '处理中') : '待领取',
+        reason: owner ? '' : eligible.length ? '等待员工空闲' : '没有匹配岗位',
+      });
+    };
+
+    for (const s of this.staff) if (s.task) add(s.task.key, s.task.kind, s.task.label || '工作');
+    for (const g of this.groups) {
+      if (g.state === 'wait' && !g.greeted) add(`greet:${g.id}`, 'greet', '招呼客人', this.dayT - (g.enterT || this.dayT));
+      if (g.state === 'seated' && !g.orderId) add(`order:${g.id}`, 'order', '点单', this.dayT - (g.enterT || this.dayT));
+    }
+    for (const o of this.orders) {
+      if (o.stage === 'queued') add(`cook:${o.id}`, this.dishOf(o.dishId).drink ? 'mix' : 'cook', this.dishOf(o.dishId).drink ? '调酒' : '烹饪', this.dayT - (o.t0 || this.dayT));
+      if (o.stage === 'ready') add(`serve:${o.id}`, 'serve', '上菜', this.dayT - (o.t0 || this.dayT));
+    }
+    for (const f of this.tavern.furns) {
+      if (f.kind === 'table' && (f.dirty || 0) > 0) add(`bus:${f.id}`, 'bus', '收台');
+      if (['bed', 'doublebed', 'kingbed', 'pool', 'billiardtable', 'screen', 'fountain', 'telescope', 'arcadem', 'cauldron'].includes(f.kind)
+        && (f.dirty || 0) > 0 && !this.facOwner.has(f.id)) add(`tidy:${f.id}`, 'tidy', '整理设施');
+    }
+    for (const d of this.tavern.dirt) add(`clean:${d.x},${d.y}`, 'clean', '清洁');
+    return [...byKey.values()].sort((a, b) => (a.staff ? 1 : 0) - (b.staff ? 1 : 0) || b.age - a.age || a.label.localeCompare(b.label, 'zh-CN'));
+  }
+
+  buildTasks(claimed             )         {
+    const out         = [];
+    // 客人已离店的订单作废，避免厨房白忙、出餐台被废盘占死
+    for (const o of this.orders) {
+      const g = this.groups.find((x) => x.id === o.groupId);
+      const gone = !g || g.state === 'leaving';
+      if (!gone) continue;
+      if (o.stage === 'queued' && !claimed.has('cook:' + o.id)) { o.stage = 'void'; this.econ.wasted = (this.econ.wasted || 0) + 1; }
+      else if (o.stage === 'ready' && !claimed.has('serve:' + o.id)) {
+        const pf = this.tavern.furnById(o.passId);
+        if (pf) pf.plates = Math.max(0, (pf.plates || 0) - 1);
+        o.stage = 'void';
+        this.econ.wasted = (this.econ.wasted || 0) + 1;
+      }
+    }
+    // 迎宾：客人自己会找位子，所以迎宾专门去安抚在前台排队的客人（续耐心、加服务分）
+    for (const g of this.groups) {
+      if (g.state !== 'wait' || g.greeted) continue;
+      const key = 'greet:' + g.id;
+      if (claimed.has(key)) continue;
+      const m = g.members[0];
+      if (m.path.length) continue;                       // 等他们站定再上去招呼
+      const stand = this.nearStand(Math.round(m.x), Math.round(m.y));
+      if (!stand) continue;
+      out.push({
+        kind: 'greet', key, label: '招呼客人', i: 0,
+        steps: [{ tx: stand.x, ty: stand.y }, {
+          dur: 2.0, label: '招呼客人', skill: 'serve', done: () => {
+            if (g.state !== 'wait') return;
+            g.greeted = true;
+            g.patience = Math.min(g.maxPatience, g.patience + g.maxPatience * 0.3);
+            for (const mm of g.members) mm.mood = Math.min(1.4, mm.mood + 0.2);
+            this.fx.push({ x: m.x, y: m.y, t: 0.6, kind: 'serve' });
+          },
+        }],
+      });
+    }
+    // 点单
+    for (const g of this.groups) {
+      if (g.state !== 'seated') continue;
+      const key = 'order:' + g.id;
+      if (claimed.has(key)) continue;
+      const table = this.tavern.furnById(g.tableId);
+      if (!table) continue;
+      const stand = this.nearStand(table.x, table.y);
+      if (!stand) continue;
+      out.push({
+        kind: 'order', key, label: '点单', i: 0,
+        steps: [{ tx: stand.x, ty: stand.y }, {
+          dur: 2.6, label: '点单', skill: 'serve', done: () => {
+            if (g.state !== 'seated') return;
+            const dish = this.chooseDish(g);
+            if (!dish) { this.leave(g, '菜单上没有能做的菜'); return; }
+            const o        = { id: this.id(), groupId: g.id, dishId: dish.id, stage: 'queued', t0: this.dayT, passId: 0, quality: 2, cookId: 0 };
+            this.orders.push(o);
+            g.orderId = o.id;
+            g.state = 'ordered';
+            g.orderedT = this.dayT;
+          },
+        }],
+      });
+    }
+    // 制作
+    for (const o of this.orders) {
+      if (o.stage !== 'queued') continue;
+      const key = 'cook:' + o.id;
+      if (claimed.has(key)) continue;
+      const dish = this.dishOf(o.dishId);
+      const task = this.buildCookTask(o, dish, key);
+      if (task) out.push(task);
+    }
+    // 上菜
+    for (const o of this.orders) {
+      if (o.stage !== 'ready') continue;
+      const key = 'serve:' + o.id;
+      if (claimed.has(key)) continue;
+      const g = this.groups.find((x) => x.id === o.groupId);
+      const table = g ? this.tavern.furnById(g.tableId) : null;
+      const passF = this.tavern.furnById(o.passId);
+      if (!g || !table || !passF) continue;
+      const p1 = this.tavern.standTileNear(this.tavern.useTiles(passF));
+      const p2 = this.nearStand(table.x, table.y);
+      if (!p1 || !p2) continue;
+      out.push({
+        kind: 'serve', key, label: '上菜', i: 0,
+        steps: [
+          { tx: p1.x, ty: p1.y },
+          { dur: 1.0, label: '取餐', skill: 'carry', done: () => { passF.plates = Math.max(0, (passF.plates || 0) - 1); } },
+          { tx: p2.x, ty: p2.y },
+          {
+            dur: 1.0, label: '上菜', skill: 'serve', done: () => {
+              o.stage = 'served';
+              if (g.state === 'ordered') {
+                g.state = 'eating';
+                g.servedT = this.dayT;
+                g.eatT = 10 + this.rng.range(0, 8);
+                this.fx.push({ x: table.x, y: table.y, t: 0.5, kind: 'serve' });
+                this.sounds.push('serve');
+              }
+            },
+          },
+        ],
+      });
+    }
+    // 收脏盘
+    for (const t of this.tavern.allTables()) {
+      if (!t.dirty) continue;
+      const key = 'bus:' + t.id;
+      if (claimed.has(key)) continue;
+      const sinks = this.tavern.furnsOfKind('sink');
+      if (!sinks.length) continue;
+      const sink = sinks[0];
+      const p1 = this.nearStand(t.x, t.y);
+      const p2 = this.tavern.standTileNear(this.tavern.useTiles(sink));
+      if (!p1 || !p2) continue;
+      const st = (furnDef('sink').time            )[sink.quality - 1];
+      out.push({
+        kind: 'bus', key, label: '收台', i: 0,
+        steps: [
+          { tx: p1.x, ty: p1.y },
+          { dur: 1.2, label: '收脏盘', skill: 'carry', done: () => { t.dirty = Math.max(0, (t.dirty || 0) - 2); } },
+          { tx: p2.x, ty: p2.y },
+          {
+            dur: st, label: '洗涤', skill: 'clean', done: () => {
+              const room = this.tavern.roomOfFurn(sink);
+              if (room) room.clean = clamp(room.clean + 3, 0, 100);
+            },
+          },
+        ],
+      });
+    }
+    // 整理设施（换床单／打理水面／摆球）：整理完才能再接客
+    for (const kind of [...BED_KINDS, 'pool', 'billiardtable', 'screen', 'fountain', 'telescope', 'arcadem', 'cauldron']) {
+      for (const f of this.tavern.furnsOfKind(kind)) {
+        if (!(f.dirty || 0) || this.facOwner.has(f.id)) continue;
+        const key = 'tidy:' + f.id;
+        if (claimed.has(key)) continue;
+        const spots = this.facilitySpots(f);
+        const stand = spots.length ? spots[0] : this.nearStand(f.x, f.y);
+        if (!stand) continue;
+        const label = BED_KINDS.includes(kind) ? '换床单' : kind === 'pool' ? '打理水面' : kind === 'screen' ? '收拾场地' : kind === 'fountain' ? '清理水池'
+          : kind === 'telescope' ? '校准镜片' : kind === 'arcadem' ? '复位街机' : kind === 'cauldron' ? '清洗炼金釜' : '摆球';
+        out.push({
+          kind: 'tidy', key, label, i: 0,
+          steps: [{ tx: stand.x, ty: stand.y }, {
+            dur: 3.0, label, skill: 'clean', done: () => {
+              f.dirty = 0;
+              this.sounds.push('clean');
+              const room = this.tavern.roomOfFurn(f);
+              if (room) room.clean = clamp(room.clean + 4, 0, 100);
+            },
+          }],
+        });
+      }
+    }
+    // 清洁脏污
+    for (const d of this.tavern.dirt) {
+      const key = `clean:${d.x},${d.y}`;
+      if (claimed.has(key)) continue;
+      if (!this.tavern.walkable(d.x, d.y)) continue;
+      out.push({
+        kind: 'clean', key, label: '清洁', i: 0,
+        steps: [{ tx: d.x, ty: d.y }, {
+          dur: 3.2, label: '清洁', skill: 'clean', done: () => {
+            this.sounds.push('clean');
+            d.level--;
+            if (d.level <= 0) this.tavern.dirt = this.tavern.dirt.filter((x) => x !== d);
+            const room = this.tavern.roomAt(d.x, d.y);
+            if (room) room.clean = clamp(room.clean + 6, 0, 100);
+          },
+        }],
+      });
+    }
+    return out;
+  }
+
+          buildCookTask(o       , dish      , key        )              {
+    const kitchens = this.tavern.rooms.filter((r) => r.kind === (dish.drink ? 'bar' : 'kitchen'));
+    if (!kitchens.length) return null;
+    const shelves = this.tavern.furnsOfKind('shelf');
+    const iceboxes = this.tavern.furnsOfKind('icebox');
+    const preps = this.tavern.furnsOfKind('prep');
+    const stoves = this.tavern.furnsOfKind(dish.drink ? 'keg' : 'stove');
+    const passes = this.tavern.furnsOfKind('pass');
+    if ((!shelves.length && !iceboxes.length) || !stoves.length || !passes.length) return null;
+    if (!dish.drink && !preps.length) return null;
+    const stove = stoves[0], passF = passes[0];
+    // 灶台同房间的冰柜优先：省掉往储藏室跑的那趟
+    const stoveRoom = this.tavern.roomOfFurn(stove);
+    const nearIce = iceboxes.find((f) => {
+      const r = this.tavern.roomOfFurn(f);
+      return !!r && !!stoveRoom && r.id === stoveRoom.id;
+    });
+    const shelf = nearIce || shelves[0] || iceboxes[0];
+    const prep = preps.length ? preps[0] : null;
+    const passCap = (furnDef('pass').cap            )[passF.quality - 1];
+    if ((passF.plates || 0) >= passCap) return null;
+    const sShelf = this.tavern.standTileNear(this.tavern.useTiles(shelf));
+    const sStove = this.tavern.standTileNear(this.tavern.useTiles(stove));
+    const sPass = this.tavern.standTileNear(this.tavern.useTiles(passF));
+    const sPrep = prep ? this.tavern.standTileNear(this.tavern.useTiles(prep)) : null;
+    if (!sShelf || !sStove || !sPass || (prep && !sPrep)) return null;
+    // 库存检查
+    for (const k of ING_KEYS) {
+      const need = dish.ing[k] || 0;
+      if (need > 0 && this.econ.stock[k] < need) return null;
+    }
+    const steps         = [
+      { tx: sShelf.x, ty: sShelf.y },
+      {
+        dur: 1.6, label: '取料', skill: 'carry', done: () => {
+          for (const k of ING_KEYS) { const need = dish.ing[k] || 0; if (need) this.econ.stock[k] = Math.max(0, this.econ.stock[k] - need); }
+          o.stage = 'carry';
+        },
+      },
+    ];
+    if (prep && sPrep) {
+      steps.push({ tx: sPrep.x, ty: sPrep.y });
+      steps.push({ dur: (furnDef('prep').time            )[prep.quality - 1], label: '备餐', skill: 'cook', done: () => { o.stage = 'prep'; } });
+    }
+    const cookSkill           = dish.drink ? 'mix' : 'cook';
+    steps.push({ tx: sStove.x, ty: sStove.y });
+    steps.push({
+      dur: (furnDef(dish.drink ? 'keg' : 'stove').time            )[stove.quality - 1] * (0.8 + dish.skill / 160) * (dish.fun && dish.fun.includes('huge') ? 1.3 : 1),
+      label: dish.drink ? '调酒' : '烹饪', skill: cookSkill,
+      done: (s       ) => {
+        o.stage = 'cook';
+        o.cookId = s.id;
+        this.sounds.push('sizzle');
+        // 出品质量 = 技能 + 设备品质 + 菜品难度惩罚
+        o.quality = clamp(0.9 + s.skills[cookSkill] / 26 + (stove.quality - 1) * 0.55 - dish.skill / 90
+          + (s.traits.includes('perfectionist') ? 0.4 : 0) + (s.traits.includes('creative') ? 0.25 : 0), 1, 5) * dish.taste;
+        // 整蛊料理：出品质量大幅随机，客人反应两极
+        if (dish.fun && dish.fun.includes('prank')) o.quality = clamp(o.quality * this.rng.range(0.7, 1.35), 1, 5);
+      },
+    });
+    steps.push({ tx: sPass.x, ty: sPass.y });
+    steps.push({
+      dur: 0.8, label: '出餐', skill: 'carry', done: () => {
+        o.stage = 'ready'; o.passId = passF.id;
+        passF.plates = (passF.plates || 0) + 1;
+        this.fx.push({ x: passF.x, y: passF.y, t: 0.5, kind: 'steam' });
+      },
+    });
+    return { kind: dish.drink ? 'mix' : 'cook', key, label: dish.drink ? '调酒' : '烹饪', i: 0, steps };
+  }
+
+          chooseDish(g       )              {
+    const w = wantById(g.want);
+    let avail = this.makeableDishes(w.drink).filter((d) => d.price * this.econ.markup <= g.budget * 1.6);
+    // 想喝酒但酒都超预算/断货时，退一步看看另一类，实在没有才离店
+    if (!avail.length) avail = this.makeableDishes(!w.drink).filter((d) => d.price * this.econ.markup <= g.budget * 1.6);
+    if (!avail.length) return null;
+    const liked = avail.filter((d) => g.taste.includes(d.id));
+    return liked.length ? liked[this.rng.int(liked.length)] : avail[this.rng.int(avail.length)];
+  }
+
+          nearStand(x        , y        )                                  {
+    const cand = [{ x: x + 1, y }, { x: x - 1, y }, { x, y: y + 1 }, { x, y: y - 1 }];
+    for (const c of cand) {
+      const f = this.tavern.furnAt(c.x, c.y);
+      if (this.tavern.walkable(c.x, c.y) && (!f || f.kind !== 'chair')) return c;
+    }
+    for (const c of cand) if (this.tavern.walkable(c.x, c.y)) return c;
+    return null;
+  }
+
+          assign(s       , open        )       {
+    let best              = null; let bestScore = -1e9;
+    for (const t of open) {
+      const fit = this.jobFit(t.kind, s.job);
+      if (fit < 0) continue;
+      const first = t.steps.find((st) => st.tx !== undefined);
+      const dist = first ? Math.abs((first.tx          ) - s.x) + Math.abs((first.ty          ) - s.y) : 0;
+      const skill = t.steps.reduce((a, st) => a + (st.skill ? s.skills[st.skill] : 0), 0) / Math.max(1, t.steps.filter((st) => st.skill).length);
+      let score = fit + skill * 0.5 - dist * 1.4 + s.needs.stamina * 0.08;
+      const targetRoom = first ? this.tavern.roomAt(first.tx          , first.ty          ) : null;
+      if (s.roomId && targetRoom && targetRoom.id === s.roomId) score += 30;
+      else if (s.roomId && targetRoom && targetRoom.id !== s.roomId) score -= 45;
+      if (score > bestScore) { bestScore = score; best = t; }
+    }
+    if (!best) return;
+    // 可达性检查
+    const first = best.steps.find((st) => st.tx !== undefined);
+    if (first) {
+      const p = this.tavern.path(Math.round(s.x), Math.round(s.y), first.tx          , first.ty          );
+      if (!p) return;
+    }
+    s.task = best;
+    s.task.i = 0;
+    open.splice(open.indexOf(best), 1);
+    this.beginStep(s);
+  }
+
+          beginStep(s       )       {
+    const t = s.task;
+    if (!t) return;
+    const step = t.steps[t.i];
+    if (!step) { s.task = null; return; }
+    if (step.tx !== undefined && step.ty !== undefined) {
+      const p = this.tavern.path(Math.round(s.x), Math.round(s.y), step.tx, step.ty);
+      if (!p) { s.task = null; s.bubble = { text: '过不去!', t: 2 }; return; }
+      s.path = p;
+      s.pose = s.carry ? 'carry' : 'walk';
+    } else if (step.dur !== undefined) {
+      s.actTotal = step.dur / this.actSpeed(s, step.skill || 'serve');
+      s.actT = s.actTotal;
+      s.pose = 'work';
+      if (step.label) s.note = step.label;
+    }
+  }
+
+          runTask(s       , dt        )       {
+    const t = s.task;
+    if (!t) return;
+    const step = t.steps[t.i];
+    if (!step) { s.task = null; return; }
+    if (step.tx !== undefined) {
+      if (s.path.length === 0) {
+        const dx = Math.abs(s.x - (step.tx          )), dy = Math.abs(s.y - (step.ty          ));
+        if (dx + dy < 0.2) { t.i++; this.beginStep(s); } else {
+          const p = this.tavern.path(Math.round(s.x), Math.round(s.y), step.tx          , step.ty          );
+          if (!p) { s.task = null; s.bubble = { text: '无路可走', t: 2 }; return; }
+          if (!p.length) { t.i++; this.beginStep(s); return; }
+          s.path = p;
+        }
+      }
+      return;
+    }
+    s.actT -= dt;
+    s.pose = s.carry ? 'carry' : 'work';
+    if (s.actT <= 0) {
+      if (step.done) step.done(s);
+      if (step.skill) this.gainExp(s, step.skill, 1.4);
+      // 搬运态
+      if (t.kind === 'serve' && t.i === 1) s.carry = 'dish';
+      if (t.kind === 'bus' && t.i === 1) s.carry = 'dirty';
+      if ((t.kind === 'cook' || t.kind === 'mix') && t.i === 1) s.carry = 'ing';
+      if (t.i >= t.steps.length - 1) s.carry = null;
+      if (t.kind === 'serve' && t.i === 3) s.carry = null;
+      if (s.traits.includes('clumsy') && !s.traits.includes('careful') && this.rng.chance(0.06)) {
+        this.tavern.addDirt(Math.round(s.x), Math.round(s.y));
+        s.bubble = { text: '啊！', t: 1.5 };
+      }
+      t.i++;
+      if (t.i >= t.steps.length) { s.task = null; s.carry = null; s.pose = 'idle'; s.note = ''; }
+      else this.beginStep(s);
+    }
+  }
+
+  gainExp(s       , k          , amount        )       {
+    s.exp[k] += amount * (s.traits.includes('gourmet') && k === 'cook' ? 1.5 : 1) * (s.traits.includes('ambitious') ? 1.2 : 1);
+    const need = 12 + s.skills[k] * 0.9;
+    if (s.exp[k] >= need && s.skills[k] < 100) {
+      s.exp[k] = 0;
+      s.skills[k] = Math.min(100, s.skills[k] + 1);
+    }
+  }
+
+          tickWorld(dt        )       {
+    // 卫生随人流下降；脏污随机产生
+    const traffic = this.guests.length + this.staff.length;
+    if (this.rng.chance(dt * traffic * 0.012)) {
+      const room = this.tavern.rooms[this.rng.int(this.tavern.rooms.length)];
+      if (room) {
+        const t = this.tavern.freeTileIn(room, this.rng.int(60));
+        this.tavern.addDirt(t.x, t.y);
+      }
+    }
+    for (const r of this.tavern.rooms) {
+      const dirtHere = this.tavern.dirt.filter((d) => d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h).length;
+      r.clean = clamp(r.clean - dirtHere * 0.06 * dt, 0, 100);
+    }
+  }
+
+  // ---------- 事件 ----------
+  bestSkill(k          )                                  {
+    let best = { name: '无人', value: 0 };
+    for (const s of this.staff) if (s.skills[k] > best.value) best = { name: s.name, value: s.skills[k] };
+    return best;
+  }
+
+  eventCtx()           {
+    return {
+      coins: (d) => { this.econ.coins += d; },
+      rep: (d) => { this.econ.rep = Math.max(0, this.econ.rep + d); },
+      stock: (k, d) => { this.econ.stock[k] = Math.max(0, this.econ.stock[k] + d); },
+      cleanAll: (d) => { for (const r of this.tavern.rooms) r.clean = clamp(r.clean + d, 0, 100); },
+      stressAll: (d) => { for (const s of this.staff) s.needs.stress = clamp(s.needs.stress + d, 0, 100); },
+      moraleAll: (d) => { for (const s of this.staff) s.needs.morale = clamp(s.needs.morale + d, 0, 100); },
+      bestSkill: (k) => this.bestSkill(k),
+      staffCount: () => this.staff.length,
+      spawnDirt: (n) => {
+        for (let i = 0; i < n; i++) {
+          const room = this.tavern.rooms[this.rng.int(this.tavern.rooms.length)];
+          if (room) { const t = this.tavern.freeTileIn(room, this.rng.int(70)); this.tavern.addDirt(t.x, t.y); }
+        }
+      },
+      patienceAll: (d) => { for (const g of this.groups) g.patience = Math.max(4, g.patience + d); },
+      toast: (s) => this.toast(s),
+    };
+  }
+
+  triggerEvent()       {
+    const recent = new Set(this.eventHistory.slice(-5));
+    const pool = EVENTS.filter((e) => !recent.has(e.id));
+    const card = pool[this.rng.int(pool.length)];
+    this.lastEventId = card.id;
+    this.eventHistory.push(card.id);
+    if (this.eventHistory.length > 12) this.eventHistory.shift();
+    this.pendingEvent = card;
+    this.fx.push({ ...this.tavern.entrance(), t: 1.2, kind: 'event' });
+    this.sounds.push('alert');
+  }
+          lastEventId = '';
+
+  /** 返回选项成功率（0-100），无检定则 100 */
+  choiceChance(choice                                     )         {
+    if (!choice.skill) return 100;
+    const best = this.bestSkill(choice.skill);
+    const stoic = this.staff.some((s) => s.traits.includes('stoic')) ? 10 : 0;
+    return clamp(Math.round((choice.base || 50) * 0.5 + best.value * 0.6 + stoic), 5, 96);
+  }
+
+  resolveEvent(idx        )         {
+    const card = this.pendingEvent;
+    if (!card) return '';
+    const c = card.choices[idx];
+    this.pendingEvent = null;
+    if (c.cost && this.econ.coins < c.cost) return '界币不足，只能眼睁睁看着事情发生。';
+    if (c.cost) this.econ.coins -= c.cost;
+    const ctx = this.eventCtx();
+    if (c.skill) {
+      const chance = this.choiceChance(c);
+      if (this.rng.next() * 100 <= chance) return c.ok(ctx);
+      return c.fail ? c.fail(ctx) : '失败了。';
+    }
+    return c.ok(ctx);
+  }
+
+  serialize()          {
+    return {
+      econ: this.econ,
+      staff: this.staff.map((s) => ({ ...s, task: null, path: [], carry: null })),
+      pool: this.pool.map((s) => ({ ...s, task: null, path: [] })),
+      ads: this.ads.map((a) => ({ spec: a.spec, day: a.day, cands: a.cands.map((s) => ({ ...s, task: null, path: [] })) })),
+      // 过夜住宿客：整个规划期都睡在店里，得跟着存档走
+      lodgers: this.groups.filter((g) => g.overnight).map((g) => ({ ...g, members: g.members.map((m) => ({ ...m, path: [] })) })),
+      rels: this.rels,
+      nextId: this.nextId,
+      sealed: this.sealed,
+      endingSeen: this.endingSeen,
+      eventHistory: this.eventHistory,
+    };
+  }
+
+  loadState(data                                                                                                                                              )       {
+    this.econ = data.econ;
+    if (!this.econ.menu) this.econ.menu = {};   // 老存档：全部上架
+    if (!this.econ.customDishes) this.econ.customDishes = [];   // 老存档：无自创菜
+    this.rels = data.rels || {};                // 老存档：暂无关系
+    const fix = (s       , replan = false)        => ({
+      ...s, task: null, path: [], carry: null, bubble: null,
+      sex: s.sex === '男' || s.sex === '女' ? s.sex : ((s.id || 0) % 2 ? '女' : '男'),
+      aff: s.aff === undefined ? (s.isOwner ? 100 : 10) : s.aff,
+      prio: replan || s.prio === undefined ? (s.isOwner ? 2 : plannedStaffPriority(s.skills, s.traits || [])) : s.prio,
+      affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], hireDay: s.hireDay || 1,
+    });
+    this.staff = data.staff.map((s) => fix(s, false));
+    this.pool = data.pool.map((s) => fix(s, true));
+    this.ads = (data.ads && data.ads.length === 3 ? data.ads : [{ spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }])
+      .map((a) => ({
+        spec: a.spec ? { ...a.spec, sex: a.spec.sex === '男' || a.spec.sex === '女' ? a.spec.sex : '' } : null,
+        day: a.day || 0,
+        cands: (a.cands || []).map((s) => fix(s, true)),
+      }));
+    // 恢复过夜住宿客：保持睡着的状态，下次开门统一结账
+    this.groups = (data.lodgers || []).map((g) => ({ ...g, overnight: true, useT: Infinity, state: 'using' }));
+    this.guests = [];
+    for (const g of this.groups) {
+      this.guests.push(...g.members);
+      if (g.facId) this.facOwner.set(g.facId, g.id);
+    }
+    this.nextId = data.nextId;
+    this.sealed = data.sealed;
+    this.endingSeen = !!data.endingSeen;
+    this.eventHistory = Array.isArray(data.eventHistory) ? data.eventHistory.slice(-12) : [];
+    this.rng = new Rng(this.econ.seed + this.econ.day * 977);
+  }
+}
+
+export function newEcon(seed        )       {
+  return {
+    coins: 1200, rep: 12, day: 1, strikes: 0, markup: 1.5, autoRestock: true,
+    stock: { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 },
+    menu: {},
+    customDishes: [],
+    revenue: 0, served: 0, lost: 0, seed,
+  };
+}
+
+export const ALL_JOBS = JOBS;
+export const ALL_FURN = FURN_DEFS;
+export function dirOf(dx        , dy        )         {
+  return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 3 : 1) : dy > 0 ? 0 : 2;
+}
+export { dirDelta };
