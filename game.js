@@ -636,6 +636,7 @@ class Game                    {
   click(x        , y        , right         )       {
     if (right) { this.cancelBuild(); return; }
     if (this.blocked) return;
+    if (this.moveRoomId !== null) { this.tryMoveRoom(x, y); return; }
     if (this.moveFurnId !== null) { this.tryMoveFurn(x, y); return; }
     if (this.buildBp) { this.tryBuildRoom(x, y); return; }
     if (this.buildFurn) { this.tryBuildFurn(x, y); return; }
@@ -728,12 +729,49 @@ class Game                    {
     if (s.kind === 'furn') { const f = this.tavern.furnById(s.id); if (f) this.focusOn(f.x, f.y); }
   }
 
+  moveRoomId                = null;
   moveFurnId                = null;
+
+  startMoveRoom(id        )       {
+    if (this.sim.dayActive) { this.sim.toast('营业中不能移动房间，先完成今天'); this.audio.play('error'); return; }
+    if (this.moveRoomId === id) { this.cancelBuild(); return; }
+    const room = this.tavern.roomById(id);
+    if (!room) return;
+    this.buildBp = null; this.buildFurn = null; this.moveFurnId = null;
+    this.moveRoomId = id;
+    this.sim.toast('移动房间：点击新位置整体放下（家具与房内角色会一起移动，右键或 Esc 取消）');
+    this.ui.render(true);
+  }
+
+  tryMoveRoom(x        , y        )       {
+    const id = this.moveRoomId;
+    if (id === null) return;
+    const room = this.tavern.roomById(id);
+    if (!room) { this.moveRoomId = null; return; }
+    const check = this.tavern.canMoveRoom(id, x, y);
+    if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error', 0.5); return; }
+    const inside = (person      ) => this.tavern.roomAt(Math.round(person.x), Math.round(person.y))?.id === id;
+    const actors = [...this.sim.staff, ...this.sim.guests].filter(inside);
+    const moved = this.tavern.moveRoom(id, x, y);
+    if (!moved) { this.sim.toast('房间无法移动到这里'); this.audio.play('error', 0.5); return; }
+    for (const person of actors) { person.x += moved.dx; person.y += moved.dy; person.path = []; }
+    for (const s of this.sim.staff) { s.task = null; s.path = []; s.carry = null; s.free = null; }
+    for (const guest of this.sim.guests) guest.path = [];
+    this.sim.fx.length = 0;
+    this.staticVersion = -1;
+    this.dirtVersion = -1;
+    this.moveRoomId = null;
+    this.selection = { kind: 'room', id };
+    this.focusOn(moved.room.x + moved.room.w / 2, moved.room.y + moved.room.h / 2);
+    this.audio.play('place', 0.8);
+    this.sim.toast(`${ROOM_LABEL[moved.room.kind]}已整体移动`);
+    this.save();
+  }
 
   startMoveFurn(id        )       {
     const f = this.tavern.furnById(id);
     if (!f) return;
-    this.buildBp = null; this.buildFurn = null;
+    this.buildBp = null; this.buildFurn = null; this.moveRoomId = null;
     this.moveFurnId = id;
     this.buildRot = f.dir;
     this.sim.toast('搬家具：在同一房间里点新位置放下（R 转朝向，右键或 Esc 取消）');
@@ -765,7 +803,7 @@ class Game                    {
 
   startBuildRoom(id        )       {
     if (this.sim.dayActive) { this.sim.toast('营业中不能建造，先完成今天'); this.audio.play('error'); return; }
-    this.buildBp = id; this.buildFurn = null; this.buildRot = 0;
+    this.buildBp = id; this.buildFurn = null; this.moveRoomId = null; this.moveFurnId = null; this.buildRot = 0;
   }
   startBuildFurn(kind        , q        )       {
     if (this.sim.dayActive) { this.sim.toast('营业中不能改造，先完成今天'); this.audio.play('error'); return; }
@@ -775,9 +813,10 @@ class Game                    {
     const needStar = furnQualityUnlock(kind, q);
     if (this.sim.stars() < needStar) { this.sim.toast(`家具品质 ${'I'.repeat(q)} 需要 ★${needStar}`); this.audio.play('error'); return; }
     if (!room || room.quality < q) { this.sim.toast(`先把当前房间升级到品质 ${'I'.repeat(q)}`); this.audio.play('error'); return; }
-    this.buildFurn = kind; this.buildQuality = q; this.buildBp = null; this.buildRot = 0;
+    this.buildFurn = kind; this.buildQuality = q; this.buildBp = null; this.moveRoomId = null; this.moveFurnId = null; this.buildRot = 0;
   }
   cancelBuild()       {
+    if (this.moveRoomId !== null) { this.moveRoomId = null; this.sim.toast('取消移动房间'); }
     if (this.moveFurnId !== null) { this.moveFurnId = null; this.sim.toast('取消搬动'); }
     this.buildBp = null; this.buildFurn = null;
   }
@@ -1592,6 +1631,16 @@ class Game                    {
       g.rect(this.hover.x * T, this.hover.y * T, w * T, h * T).fill({ color: col, alpha: 0.28 }).stroke({ width: 2, color: col });
       if (!chk.ok) label(chk.reason, this.hover.x * T, this.hover.y * T - 14, 0xff6b5a);
       else label(`${bp.name} -${bp.cost}`, this.hover.x * T, this.hover.y * T - 14, 0x8ddb4a);
+    }
+    if (this.moveRoomId !== null) {
+      const room = this.tavern.roomById(this.moveRoomId);
+      if (room) {
+        const chk = this.tavern.canMoveRoom(room.id, this.hover.x, this.hover.y);
+        const col = chk.ok ? hexToNum(PAL.acid) : hexToNum(PAL.coral);
+        g.rect(this.hover.x * T, this.hover.y * T, room.w * T, room.h * T).fill({ color: col, alpha: 0.3 }).stroke({ width: 3, color: col });
+        if (!chk.ok) label(chk.reason, this.hover.x * T, this.hover.y * T - 14, 0xff6b5a);
+        else label('整体移动到这里', this.hover.x * T, this.hover.y * T - 14, 0x8ddb4a);
+      }
     }
     if (this.moveFurnId !== null) {
       const mf = this.tavern.furnById(this.moveFurnId);

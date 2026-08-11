@@ -307,6 +307,7 @@ export class UI {
     else if (act === 'wage') g.setWage(parseInt(t.dataset.id          , 10), parseInt(v, 10));
     else if (act === 'sroom') g.setStaffRoom(parseInt(t.dataset.id          , 10), v === 'null' ? null : parseInt(v, 10));
     else if (act === 'uproom') g.upgradeRoom(parseInt(v, 10));
+    else if (act === 'moveroom') g.startMoveRoom(parseInt(v, 10));
     else if (act === 'rstyle') g.setRoomStyle(parseInt(v, 10), t.dataset.s          );
     else if (act === 'delroom') g.demolishRoom(parseInt(v, 10));
     else if (act === 'upfurn') g.upgradeFurn(parseInt(v, 10));
@@ -626,6 +627,13 @@ export class UI {
           renderBottom()       {
     const g = this.g;
     const sel = g.selection;
+    if (g.moveRoomId !== null) {
+      const room = g.tavern.roomById(g.moveRoomId);
+      this.bottom.innerHTML = `<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
+        <div class="dim">房间、家具、污渍与房内角色会整体平移；绿色=可放，红色=重叠、断开或没有门位。</div>
+        <div class="row"><button data-act="moveroom" data-v="${g.moveRoomId}" class="warn">取消移动</button></div>`;
+      return;
+    }
     if (g.buildBp) {
       const b = BLUEPRINTS.find((x) => x.id === g.buildBp);
       this.bottom.innerHTML = `<b class="hi">建造：${b?.name}</b> ${b?.w}×${b?.h}（旋转 ${g.buildRot ? '是' : '否'}）
@@ -705,6 +713,7 @@ export class UI {
         <span class="dim">氛围 ${this.g.sim.charmIn(r.id).toFixed(2)}/1.60</span></div>
       <div class="row">${r.quality < 3 ? `<button data-act="uproom" data-v="${r.id}">升级房间（${upCost}，+槽位/舒适）</button>` : '<span class="dim">已达最高房间品质</span>'}
         <button data-act="roomfurn" data-v="${r.id}">布置家具</button>
+        <button data-act="moveroom" data-v="${r.id}" class="${this.g.moveRoomId === r.id ? 'on' : ''}" ${this.g.sim.dayActive ? 'disabled title="营业结束后才能移动房间"' : ''}>↔ 移动房间</button>
         <button data-act="delroom" data-v="${r.id}" class="warn">拆除（返还70%）</button></div>
     </div></div>`;
   }

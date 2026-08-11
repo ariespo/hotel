@@ -284,6 +284,91 @@ export class Tavern {
     return room;
   }
 
+  /** 整体移动现有房间：预检重叠、门位和移动后的全店连通性。 */
+  canMoveRoom(id        , x        , y        )                                  {
+    const room = this.roomById(id);
+    if (!room) return { ok: false, reason: '房间不存在' };
+    if (room.x === x && room.y === y) return { ok: false, reason: '房间已经在这里' };
+    const moved = this.rooms.map((r) => r.id === id ? { ...r, x, y } : r);
+    const target = moved.find((r) => r.id === id)          ;
+    for (const other of moved) {
+      if (other.id === id) continue;
+      const overlap = target.x < other.x + other.w && target.x + target.w > other.x
+        && target.y < other.y + other.h && target.y + target.h > other.y;
+      if (overlap) return { ok: false, reason: '与已有房间重叠' };
+    }
+    if (moved.length > 1 && !this.roomsConnected(moved)) {
+      return { ok: false, reason: '移动后会有房间与门厅断开' };
+    }
+
+    // 预演家具的整体位移；新共享墙的每一扇门都至少要有一对空格可用。
+    const dx = x - room.x, dy = y - room.y;
+    const occupied = new Set        ();
+    for (const f of this.furns) {
+      const owner = this.roomOfFurn(f);
+      const ox = owner?.id === id ? dx : 0, oy = owner?.id === id ? dy : 0;
+      for (const tile of this.furnTiles(f)) occupied.add(tkey(tile.x + ox, tile.y + oy));
+    }
+    for (const other of moved) {
+      if (other.id === id) continue;
+      let adjacent = false, hasDoorTile = false;
+      if (target.x + target.w === other.x || other.x + other.w === target.x) {
+        adjacent = true;
+        const left = target.x + target.w === other.x ? target : other;
+        const right = left === target ? other : target;
+        const y0 = Math.max(target.y, other.y), y1 = Math.min(target.y + target.h, other.y + other.h);
+        for (let yy = y0; yy < y1; yy++) {
+          if (!occupied.has(tkey(left.x + left.w - 1, yy)) && !occupied.has(tkey(right.x, yy))) { hasDoorTile = true; break; }
+        }
+      } else if (target.y + target.h === other.y || other.y + other.h === target.y) {
+        adjacent = true;
+        const top = target.y + target.h === other.y ? target : other;
+        const bottom = top === target ? other : target;
+        const x0 = Math.max(target.x, other.x), x1 = Math.min(target.x + target.w, other.x + other.w);
+        for (let xx = x0; xx < x1; xx++) {
+          if (!occupied.has(tkey(xx, top.y + top.h - 1)) && !occupied.has(tkey(xx, bottom.y))) { hasDoorTile = true; break; }
+        }
+      }
+      if (adjacent && !hasDoorTile) return { ok: false, reason: '共享墙边没有可用门位，请先挪开家具' };
+    }
+    return { ok: true, reason: '' };
+  }
+
+  roomsConnected(rooms        )          {
+    if (!rooms.length) return true;
+    const foyer = rooms.find((r) => r.kind === 'foyer');
+    if (!foyer) return false;
+    const seen = new Set        ([foyer.id]);
+    const stack = [foyer];
+    while (stack.length) {
+      const current = stack.pop()          ;
+      for (const other of rooms) {
+        if (seen.has(other.id)) continue;
+        const hOverlap = Math.min(current.x + current.w, other.x + other.w) - Math.max(current.x, other.x);
+        const vOverlap = Math.min(current.y + current.h, other.y + other.h) - Math.max(current.y, other.y);
+        const touch = ((current.x + current.w === other.x || other.x + other.w === current.x) && vOverlap >= 1)
+          || ((current.y + current.h === other.y || other.y + other.h === current.y) && hOverlap >= 1);
+        if (touch) { seen.add(other.id); stack.push(other); }
+      }
+    }
+    return seen.size === rooms.length;
+  }
+
+  moveRoom(id        , x        , y        )                                      {
+    const room = this.roomById(id);
+    if (!room) return null;
+    const check = this.canMoveRoom(id, x, y);
+    if (!check.ok) return null;
+    const dx = x - room.x, dy = y - room.y;
+    const furns = this.furnsIn(id);
+    const dirt = this.dirt.filter((d) => d.x >= room.x && d.x < room.x + room.w && d.y >= room.y && d.y < room.y + room.h);
+    room.x = x; room.y = y;
+    for (const f of furns) { f.x += dx; f.y += dy; f.busyBy = undefined; }
+    for (const d of dirt) { d.x += dx; d.y += dy; }
+    this.reindex();
+    return { room, dx, dy };
+  }
+
   /** 拆除：不能让任何房间与门厅断开 */
   canRemoveRoom(id        )                                  {
     const room = this.roomById(id);
