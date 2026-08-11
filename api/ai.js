@@ -96,6 +96,12 @@ export default async function handler(req, res) {
         temperature: body.temperature,
         max_tokens: body.max_tokens,
         stream: false,
+        ...(['enabled', 'disabled'].includes(body.thinking?.type)
+          ? { thinking: { type: body.thinking.type } }
+          : {}),
+        ...(body.response_format?.type === 'json_object'
+          ? { response_format: { type: 'json_object' } }
+          : {}),
       }),
       redirect: 'error',
       signal: controller.signal,

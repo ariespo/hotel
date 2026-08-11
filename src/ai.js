@@ -144,12 +144,25 @@ export async function refreshAIModels(config, options = {}) {
 
 export async function chatWithAI(messages, options = {}) {
   const config = validateConfig(options.config || loadAIConfig(), true);
+  let structuredOptions = {};
+  try {
+    // DeepSeek V4 默认开启思考模式；思考 token 也计入 max_tokens，长篇日结可能
+    // 在真正输出 content 前就耗尽额度。游戏任务只需要结构化成稿，因此关闭思考并
+    // 启用其官方 JSON Output，既减少等待，也避免得到空 content。
+    if (new URL(config.baseUrl).hostname === 'api.deepseek.com') {
+      structuredOptions = {
+        thinking: { type: 'disabled' },
+        response_format: { type: 'json_object' },
+      };
+    }
+  } catch (err) { /* 地址已由 validateConfig 校验 */ }
   const payload = await requestAI('chat', config, {
     model: config.model,
     messages,
     temperature: options.temperature ?? 0.7,
     max_tokens: options.maxTokens ?? 500,
     stream: false,
+    ...structuredOptions,
   }, options.fetchImpl);
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content !== 'string') throw new Error('模型返回格式不兼容 Chat Completions');
