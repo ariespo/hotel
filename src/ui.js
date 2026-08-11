@@ -1838,7 +1838,7 @@ export class UI {
       { key: 'eye', label: '眼睛', names: EYE_NAMES, get: () => app.eye, set: (v) => { app.eye = v; } },
       { key: 'fringe', label: '刘海', names: FRINGE_NAMES, get: () => app.fringe, set: (v) => { app.fringe = v; } },
       { key: 'hairLen', label: '发型', names: HAIRLEN_NAMES, get: () => app.hairLen, set: (v) => { app.hairLen = v; } },
-      { key: 'acc', label: '配饰', names: ACC_NAMES, get: () => app.acc || 0, set: (v) => { app.acc = v; } },
+      { key: 'acc', label: '面饰', names: ACC_NAMES, get: () => app.acc || 0, set: (v) => { app.acc = v; } },
       { key: 'top', label: '衣装', names: BODY_NAMES, get: () => app.wear.top, set: (v) => { app.wear.top = v; } },
       { key: 'leg', label: '裤子', names: PANTS_NAMES, get: () => app.wear.leg || 0, set: (v) => { app.wear.leg = v; } },
       { key: 'sock', label: '袜子腿型', names: SOCK_NAMES, get: () => app.wear.sock || 0, set: (v) => { app.wear.sock = v; } },
@@ -1851,7 +1851,7 @@ export class UI {
       { key: 'clothA', label: '主衣色', names: CLOTH_COLORS.map(() => ''), get: () => app.clothA, set: (v) => { app.clothA = v; }, colors: CLOTH_COLORS },
       { key: 'clothB', label: '辅衣色', names: CLOTH_COLORS.map(() => ''), get: () => app.clothB, set: (v) => { app.clothB = v; }, colors: CLOTH_COLORS },
       { key: 'accC', label: '点缀色', names: ACCENT_COLORS.map(() => ''), get: () => app.accC, set: (v) => { app.accC = v; }, colors: ACCENT_COLORS },
-      { key: 'hand', label: '手持物', names: HAND_NAMES, get: () => app.wear.hand, set: (v) => { app.wear.hand = v; } },
+      { key: 'hand', label: '配饰', names: HAND_NAMES, get: () => app.wear.hand, set: (v) => { app.wear.hand = v; } },
     ];
     const groups = [
       { key: 'face', label: '面部', cats: ['face', 'eye', 'skin', 'eyeC', 'acc'] },
@@ -1970,7 +1970,7 @@ export class UI {
         const keepVals = new Map                ();
         for (const c of visible) if (locks.has(c.key)) keepVals.set(c.key, c.get());
         const base = cloneApp(app);
-        app = randomAppearance(new Rng(Math.floor(Math.random() * 1e9)), locks.has('race') ? base.race : undefined);
+        app = randomAppearance(new Rng(Math.floor(Math.random() * 1e9)), locks.has('race') ? base.race : undefined, false);
         if (dressOnly) {
           app.race = base.race; app.ht = base.ht; app.bd = base.bd; app.skin = base.skin;
           app.face = base.face; app.eye = base.eye; app.fringe = base.fringe; app.hairLen = base.hairLen; app.hairC = base.hairC; app.eyeC = base.eyeC;

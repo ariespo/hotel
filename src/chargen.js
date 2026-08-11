@@ -40,7 +40,11 @@ export const RACE_NAMES = ['人类', '精灵', '兽人', '猫族', '龙裔', '�
   '机械体', '虫族', '鱼人', '星灵', '花妖', '石魔', '幽影', '矮人', '巨人'];
 export const HT_NAMES = ['矮', '中', '高'];
 export const BD_NAMES = ['瘦', '标准', '胖'];
-export const HAND_NAMES = ['无', '托盘', '酒杯', '扫帚', '提灯'];
+// 旧存档仍使用 wear.hand 字段；界面语义已从“手持物”扩展为可分层绘制的“配饰”。
+// 只在末尾追加，确保既有存档中的 1~4 仍对应原来的服务道具。
+export const HAND_NAMES = ['无', '服务托盘', '玻璃酒杯', '旅店扫帚', '星火提灯',
+  '背负武士刀', '星辉法杖', '冒险者背包', '浮空魔导书', '月影纸伞', '炼金腰瓶', '机械羽翼'];
+export const BACK_ACCESSORY_IDS = new Set([5, 7, 11]);
 
                                                                                                                                                            
 export const THEMES             = [
@@ -93,16 +97,63 @@ const RACE_FACE                         = {
   17: [[22, 11, '.S'], [23, 11, 'SS'], [24, 12, 'S'], [16, 10, 'XxD'], [17, 11, 'Xx']],                // 巨人：上獠牙＋重眉骨
 };
 
-// ---------------- 手持物 ----------------
-function drawHand(p     , a            , carry               , dy        )       {
-  const id = carry ? (carry === 'mug' ? 2 : 1) : (a.wear.hand || 0);
+// ---------------- 配饰：背负层 / 手持层 ----------------
+function selectedAccessory(a            )        { return a.wear.hand || 0; }
+
+function drawBackAccessory(p     , a            , dy        )       {
+  const id = selectedAccessory(a);
+  if (!BACK_ACCESSORY_IDS.has(id)) return;
+  const ink = '#120C16';
+  const pal = palOf(a);
+  if (id === 5) { // 背负武士刀：刀鞘从肩后斜落到腰侧
+    for (let i = 0; i < 34; i++) {
+      const x = 24 - Math.floor(i / 2), y = 15 + i + dy;
+      p.px(x, y, ink); p.px(x + 1, y, i < 5 ? pal.accent : '#4A3038');
+    }
+    p.rect(22, 12 + dy, 5, 2, ink); p.rect(23, 11 + dy, 3, 2, pal.accent);
+    p.rect(5, 48 + dy, 6, 2, ink); p.rect(6, 49 + dy, 4, 2, '#8A8A9B');
+  } else if (id === 7) { // 冒险者背包
+    p.rect(7, 29 + dy, 18, 23, ink); p.rect(8, 30 + dy, 16, 21, '#6E3C27');
+    p.rect(10, 27 + dy, 12, 5, ink); p.rect(11, 28 + dy, 10, 4, '#9B5B3C');
+    p.rect(9, 35 + dy, 14, 2, pal.accent); p.rect(10, 43 + dy, 12, 6, '#4A3038');
+    p.rect(15, 42 + dy, 2, 8, pal.accent);
+  } else if (id === 11) { // 机械羽翼
+    const metal = '#8A8A9B', glow = pal.accent;
+    p.rect(5, 30 + dy, 5, 3, ink); p.rect(3, 27 + dy, 5, 3, metal); p.rect(1, 23 + dy, 5, 3, glow);
+    p.rect(4, 34 + dy, 6, 3, ink); p.rect(1, 35 + dy, 6, 3, metal); p.rect(0, 39 + dy, 5, 3, glow);
+    p.rect(22, 30 + dy, 5, 3, ink); p.rect(24, 27 + dy, 5, 3, metal); p.rect(27, 23 + dy, 5, 3, glow);
+    p.rect(22, 34 + dy, 6, 3, ink); p.rect(25, 35 + dy, 6, 3, metal); p.rect(27, 39 + dy, 5, 3, glow);
+    p.rect(14, 29 + dy, 4, 15, ink); p.rect(15, 30 + dy, 2, 13, glow);
+  }
+}
+
+function drawFrontAccessory(p     , a            , carry               , dy        )       {
+  const equipped = selectedAccessory(a);
+  const id = carry ? (carry === 'mug' ? 2 : 1) : (BACK_ACCESSORY_IDS.has(equipped) ? 0 : equipped);
   if (!id) return;
   const x = 18, y = 44 + dy;
   const ink = '#120C16';
+  const pal = palOf(a);
   if (id === 1) { p.rect(x - 4, y, 11, 1, ink); p.rect(x - 3, y + 1, 9, 2, '#C9AE8A'); p.rect(x - 3, y + 1, 9, 1, '#F0DCB8'); p.rect(x - 1, y - 2, 5, 2, '#E7E2D2'); }
   else if (id === 2) { p.rect(x, y - 3, 6, 6, ink); p.rect(x + 1, y - 2, 4, 4, '#C9922F'); p.rect(x + 1, y - 2, 4, 1, '#F3E0A0'); }
   else if (id === 3) { p.rect(x + 2, y - 8, 2, 12, '#8E5A2B'); p.rect(x, y + 3, 6, 4, '#C9A87A'); p.rect(x, y + 3, 6, 1, ink); }
   else if (id === 4) { p.rect(x, y - 5, 6, 6, ink); p.rect(x + 1, y - 4, 4, 4, '#FFF3A8'); p.rect(x + 2, y - 7, 2, 2, '#8A8A9B'); }
+  else if (id === 6) { // 星辉法杖
+    p.rect(25, 23 + dy, 3, 39, ink); p.rect(26, 24 + dy, 1, 37, '#8E5A2B');
+    p.rect(23, 18 + dy, 7, 7, ink); p.rect(24, 19 + dy, 5, 5, pal.accent);
+    p.rect(25, 17 + dy, 3, 9, '#F3E0A0'); p.px(22, 20 + dy, pal.accent); p.px(30, 20 + dy, pal.accent);
+  } else if (id === 8) { // 浮空魔导书
+    p.rect(20, 38 + dy, 11, 10, ink); p.rect(21, 39 + dy, 4, 8, pal.clothB); p.rect(26, 39 + dy, 4, 8, pal.clothB);
+    p.rect(25, 39 + dy, 1, 8, pal.accent); p.px(19, 36 + dy, pal.accent); p.px(29, 35 + dy, pal.accent); p.px(31, 40 + dy, pal.accent);
+  } else if (id === 9) { // 月影纸伞
+    p.rect(26, 22 + dy, 2, 41, ink); p.rect(27, 23 + dy, 1, 39, '#8E5A2B');
+    p.rect(10, 17 + dy, 21, 2, ink); p.rect(12, 14 + dy, 17, 3, pal.clothB);
+    p.rect(15, 12 + dy, 11, 2, pal.accent); p.rect(19, 10 + dy, 4, 2, ink);
+    p.rect(19, 16 + dy, 1, 3, ink); p.rect(25, 16 + dy, 1, 3, ink);
+  } else if (id === 10) { // 炼金腰瓶
+    p.rect(21, 42 + dy, 8, 10, ink); p.rect(23, 40 + dy, 4, 3, ink);
+    p.rect(22, 43 + dy, 6, 8, '#3A5A8C'); p.rect(23, 46 + dy, 4, 4, pal.accent); p.rect(24, 43 + dy, 2, 2, '#E7E2D2');
+  }
 }
 
 /** 身高抬高躯干后把腿顶补上，避免断层 */
@@ -138,6 +189,7 @@ export function drawSprite(a            , dir        , pose      , frame        
     const w = 19 - Math.abs(y) * 5;
     p.rect(CX - Math.floor(w / 2), FEET_Y + 2 + y, w, 1, 'rgba(18,12,22,0.26)');
   }
+  drawBackAccessory(p, a, dy);
   drawHairUnder(p, head, dy);
   paintSpans(p, BASE, pal, 0);
   paintSpans(p, SOCKS[(a.wear.sock || 0) % SOCKS.length].spans, pal, 0);
@@ -156,7 +208,8 @@ export function drawSprite(a            , dir        , pose      , frame        
     if (acc.sym === false) paintSpansL(p, acc.spans, pal, dy);
     else paintSpans(p, acc.spans, pal, dy);
   }
-  if (!back) drawHand(p, a, carry, dy);
+  // 手持配饰位于身体外侧，正面与背面都应可见；背负配饰则已在角色本体之前绘制。
+  drawFrontAccessory(p, a, carry, dy);
   clothSheen(p, pal);
   hairSheen(p, pal, back);
   if (pose === 'walk') stepLegs(p, frame);   // 交替抬脚要在描边前，不然边缘留残渣
@@ -315,7 +368,8 @@ export function randomAppearance(rng     , race         , forWork = true, theme 
     hairC: rng.int(HAIR_COLORS.length), eyeC: rng.int(EYE_COLORS.length),
     clothA: rng.int(CLOTH_COLORS.length), clothB: rng.int(CLOTH_COLORS.length),
     accC: rng.int(ACCENT_COLORS.length),
-    wear: { top: rng.int(BODIES.length), hand: 0, leg: rng.int(PANTS.length), sock: rng.int(SOCKS.length) },
+    wear: { top: rng.int(BODIES.length), hand: !forWork && rng.chance(0.28) ? 5 + rng.int(HAND_NAMES.length - 5) : 0,
+      leg: rng.int(PANTS.length), sock: rng.int(SOCKS.length) },
   };
   if (th) {
     a.hairC = pick(th.hairC); a.eyeC = pick(th.eyeC);
