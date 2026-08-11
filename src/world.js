@@ -23,6 +23,20 @@ export function furnFootprint(kind        , dir        )                   {
   return dir === 1 || dir === 3 ? [h, w] : [w, h];
 }
 
+/** Stable visual placement for guests using a bed, independent of path/save coordinates. */
+export function bedDisplayPlacement(f, memberIndex = 0, memberCount = 1) {
+  const [w, h] = furnFootprint(f.kind, f.dir);
+  const count = Math.max(1, Math.round(memberCount));
+  const index = Math.max(0, Math.min(count - 1, Math.round(memberIndex)));
+  const sideOffset = (index - (count - 1) / 2) * 0.28;
+  const vertical = Math.abs((f.dir || 0) % 2) === 1;
+  return {
+    x: f.x + w / 2 + (vertical ? sideOffset : 0),
+    y: f.y + h / 2 + (vertical ? 0 : sideOffset),
+    rotation: -Math.PI / 2 + ((f.dir || 0) % 4) * Math.PI / 2,
+  };
+}
+
 export function dirDelta(dir        )                   {
   return dir === 0 ? [0, 1] : dir === 1 ? [-1, 0] : dir === 2 ? [0, -1] : [1, 0];
 }

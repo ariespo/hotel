@@ -7,6 +7,7 @@ import {
 import { Rng } from './pix.js';
 import { AI_PRESETS, loadAIConfig, presetById, refreshAIModels, saveAIConfig } from './ai.js';
 import { aiConfigured, requestGameAI } from './ai-game.js';
+import { loadPromptTasks, PROMPT_TASKS, resetPromptTasks, savePromptTasks } from './prompt-settings.js';
 import { canPersistSim } from './save-policy.js';
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
@@ -155,6 +156,11 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui.compact .toasts{top:36px;font-size:12px}
 #ui.compact .mbox{max-width:96vw;max-height:86vh;padding:12px}
 #ui.compact.scrimOn #scrim{display:block}
+.prompt-editor{display:block;margin:5px 0 12px;width:100%;min-height:88px;box-sizing:border-box;resize:vertical;line-height:1.55}
+.prompt-card{padding:8px 10px;border:2px solid #E3C9A4;border-left:5px solid #8A74B8;border-radius:10px;background:#FFF8E9;margin-top:8px}
+.creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
+.creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
+@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}.creator-identity{grid-template-columns:1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}}
 `;
 
 function el(html        )              {
@@ -435,6 +441,9 @@ export class UI {
     else if (act === 'loadslot') this.openLoadSlotConfirm(parseInt(v, 10));
     else if (act === 'loadslotgo') g.loadSlot(parseInt(v, 10));
     else if (act === 'help') this.openHelp();
+    else if (act === 'prompts') this.openPromptSettings();
+    else if (act === 'promptsave') this.savePromptSettings();
+    else if (act === 'promptreset') { resetPromptTasks(); this.openPromptSettings('已恢复四项默认任务文本。'); }
     else if (act === 'settings') this.openSettings();
     else if (act === 'aipreset') {
       const current = this.syncAIForm();
@@ -548,6 +557,7 @@ export class UI {
       ${s.dayActive ? '' : '<button data-act="open">开门营业</button>'}
       <button data-act="savemenu">💾 档位 ${this.g.currentSlot}</button>
       <button data-act="help">帮助</button>
+      <button data-act="prompts">提示词</button>
       <button data-act="settings">⚙ 设置</button>`);
   }
 
@@ -1587,6 +1597,29 @@ export class UI {
       <div class="row" style="margin-top:10px"><button data-act="loadslotgo" data-v="${slot}">确认读取</button><button data-act="savemenu">取消</button></div>`);
   }
 
+  openPromptSettings(status = '') {
+    const tasks = loadPromptTasks();
+    const cards = Object.entries(PROMPT_TASKS).map(([key, meta]) => `<section class="prompt-card">
+      <div class="row"><b>${htmlText(meta.label)}</b><span class="dim">最多 2000 字</span></div>
+      <div class="dim">${htmlText(meta.description)}</div>
+      <textarea class="prompt-editor" data-prompt-key="${key}" maxlength="2000" spellcheck="false">${htmlText(tasks[key])}</textarea>
+    </section>`).join('');
+    this.showModal(`<h3>提示词</h3>
+      <div class="dim">这里只修改 AI 的任务重点和叙事风格。角色事实、数值边界、内容安全规则和 JSON 返回格式由游戏固定附加，不能在这里覆盖。</div>
+      ${status ? `<div class="good" style="margin-top:7px">${htmlText(status)}</div>` : ''}
+      ${cards}
+      <div class="row" style="margin-top:12px"><button data-act="promptreset" class="warn">恢复默认</button><span style="flex:1"></span><button data-act="promptsave">保存任务文本</button><button data-act="closemodal">关闭</button></div>`);
+  }
+
+  savePromptSettings() {
+    const current = loadPromptTasks();
+    if (this.modal) {
+      for (const input of this.modal.querySelectorAll('[data-prompt-key]')) current[input.dataset.promptKey] = input.value;
+    }
+    savePromptTasks(current);
+    this.openPromptSettings('四项任务文本已保存，仅存放在当前浏览器。');
+  }
+
   openSettings()       {
     const manual = this.g.sim.manualOwner;
     const vols = this.g.audio.curVolumes();
@@ -1798,7 +1831,6 @@ export class UI {
   openCreator(initial            , name        , onDone                                                      , dressOnly = false, sex0 = '女')       {
     let app = cloneApp(initial);
     let sex = sex0;
-    let dir = 0;
     let pose                           = 'walk';
     const locks = new Set        ();
     const cats                                                                                                                    = [
@@ -1821,18 +1853,29 @@ export class UI {
       { key: 'accC', label: '点缀色', names: ACCENT_COLORS.map(() => ''), get: () => app.accC, set: (v) => { app.accC = v; }, colors: ACCENT_COLORS },
       { key: 'hand', label: '手持物', names: HAND_NAMES, get: () => app.wear.hand, set: (v) => { app.wear.hand = v; } },
     ];
+    const groups = [
+      { key: 'face', label: '面部', cats: ['face', 'eye', 'skin', 'eyeC', 'acc'] },
+      { key: 'hair', label: '发型', cats: ['fringe', 'hairLen', 'hairC'] },
+      { key: 'body', label: '身体', cats: ['race', 'ht', 'bd'] },
+      { key: 'outfit', label: '服装', cats: ['top', 'leg', 'sock', 'hand'] },
+      { key: 'color', label: '配色', cats: ['clothA', 'clothB', 'accC'] },
+    ];
     const visibleCats = ()              => {
       return dressOnly ? cats.filter((c) => ['acc', 'top', 'leg', 'sock', 'clothA', 'clothB', 'accC', 'hand'].includes(c.key)) : cats;
     };
     let visible = visibleCats();
     let activeCat = visible[0].key;
+    let activeGroup = groups.find((group) => group.cats.includes(activeCat))?.key || 'face';
+    let history = [cloneApp(app)];
+    let historyIndex = 0;
+    const remember = () => {
+      history = history.slice(0, historyIndex + 1);
+      history.push(cloneApp(app));
+      if (history.length > 30) history.shift();
+      historyIndex = history.length - 1;
+    };
     const m = this.showModal(`<div id="cr"></div>`, dressOnly);
     const host = m.querySelector('#cr')               ;
-    host.addEventListener('change', (e) => {
-      const t = e.target                    ;
-      if (t.dataset.lock) { if (t.checked) locks.add(t.dataset.lock); else locks.delete(t.dataset.lock); }
-      e.stopPropagation();
-    });
     const draw = ()       => {
       const cv = host.querySelector('canvas.prev')                            ;
       if (!cv) return;
@@ -1849,48 +1892,59 @@ export class UI {
       if (av) av.src = avatarURL(app);
     };
     const rerender = ()       => {
+      const currentName = host.querySelector('#crname')?.value;
+      if (currentName !== undefined) name = currentName;
       visible = visibleCats();
       if (!visible.some((c) => c.key === activeCat)) activeCat = visible[0].key;
+      const availableGroups = groups.map((group) => ({ ...group, cats: group.cats.filter((key) => visible.some((cat) => cat.key === key)) })).filter((group) => group.cats.length);
+      if (!availableGroups.some((group) => group.key === activeGroup)) activeGroup = availableGroups[0].key;
+      const group = availableGroups.find((item) => item.key === activeGroup);
+      if (!group.cats.includes(activeCat)) activeCat = group.cats[0];
       const cat = visible.find((c) => c.key === activeCat)                     ;
-      host.innerHTML = `<h3>${dressOnly ? '纸娃娃换装' : '捏一个店主'}</h3>
-      <div class="dim">先挑个样板再细调；脸只由脸型／眼睛／发型构成</div>
-      <div class="row" style="margin:4px 0 8px;flex-wrap:wrap">${PRESETS.map((ps) => `<button data-preset="${ps.id}">${ps.name}</button>`).join('')}</div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap">
-        <div style="width:170px">
-          ${visible.map((c) => `<div class="row"><button data-cat="${c.key}" class="${activeCat === c.key ? 'on' : ''}" style="flex:1;text-align:left">${c.label}</button>
-            <input type="checkbox" data-lock="${c.key}" ${locks.has(c.key) ? 'checked' : ''} title="锁定该部位不被随机"></div>`).join('')}
-        </div>
-        <div style="width:256px">
-          <canvas class="prev" width="256" height="144" style="width:256px;height:144px"></canvas>
-          <div class="row" style="margin-top:4px"><span class="dim">正面 / 背面</span>
-            ${['idle', 'walk', 'work'].map((p) => `<button data-pose="${p}" class="${pose === p ? 'on' : ''}">${p === 'idle' ? '待机' : p === 'walk' ? '行走' : '工作'}</button>`).join('')}</div>
-          <div style="margin-top:6px"><b>${cat.label}</b></div>
-          <div class="grid">${cat.names.map((n, i) => cat.colors
-        ? `<span class="sw ${cat.get() === i ? 'on' : ''}" data-opt="${i}" style="background:${cat.colors[i]}"></span>`
+      host.innerHTML = `<div class="creator-head"><div><h3>${dressOnly ? '纸娃娃换装' : '捏一个店主'}</h3><div class="dim">先选样板，再按面部、发型、身体、服装与配色逐组调整。</div></div>
+        <div class="creator-history"><button data-undo title="撤销" ${historyIndex <= 0 ? 'disabled' : ''}>↶</button><button data-redo title="重做" ${historyIndex >= history.length - 1 ? 'disabled' : ''}>↷</button></div></div>
+      <div class="creator-presets">${PRESETS.map((ps) => `<button data-preset="${ps.id}">${ps.name}</button>`).join('')}</div>
+      <div class="creator-layout">
+        <section class="creator-preview">
+          <div class="creator-preview-art"><canvas class="prev" width="256" height="144"></canvas><img class="av big" src="${avatarURL(app)}" width="108" height="144"></div>
+          <div class="row creator-pose"><span class="dim">正面 / 背面</span><span>${['idle', 'walk', 'work'].map((p) => `<button data-pose="${p}" class="${pose === p ? 'on' : ''}">${p === 'idle' ? '待机' : p === 'walk' ? '行走' : '工作'}</button>`).join('')}</span></div>
+          ${dressOnly ? '' : `<div class="creator-identity"><label><span>姓名</span><input id="crname" value="${htmlText(name)}" maxlength="20"></label><div>性别 ${['女', '男'].map((s) => `<button data-sex="${s}" class="${sex === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>`}
+          <div class="creator-summary">${RACE_NAMES[app.race]} · ${HT_NAMES[app.ht]}${BD_NAMES[app.bd]}<br><span class="dim">已锁定 ${locks.size} 项，随机外观时会保留</span></div>
+          <div class="creator-actions"><button data-rand="1">随机外观</button>${THEMES.map((th) => `<button data-theme="${th.id}">${th.name}</button>`).join('')}</div>
+          <button class="creator-done" data-done="1">${dressOnly ? '换上这套服装' : '就这个店主'}</button>
+          ${dressOnly ? '<button data-act="closemodal" style="width:100%;margin-top:6px">取消</button>' : ''}
+        </section>
+        <section class="creator-editor">
+          <div class="creator-groups">${availableGroups.map((item) => `<button data-group="${item.key}" class="${activeGroup === item.key ? 'on' : ''}">${item.label}</button>`).join('')}</div>
+          <div class="creator-cats">${group.cats.map((key) => { const item = visible.find((entry) => entry.key === key); return `<button data-cat="${key}" class="${activeCat === key ? 'on' : ''}">${locks.has(key) ? '🔒 ' : ''}${item.label}</button>`; }).join('')}</div>
+          <div class="creator-cat-lock"><div><b>${cat.label}</b><div class="dim">选择样式，或锁定后继续随机其他部分。</div></div><button class="creator-lock ${locks.has(cat.key) ? 'on' : ''}" data-lockbtn="${cat.key}">${locks.has(cat.key) ? '🔒 已锁定' : '🔓 锁定此项'}</button></div>
+          <div class="grid creator-options">${cat.names.map((n, i) => cat.colors
+        ? `<span class="sw ${cat.get() === i ? 'on' : ''}" data-opt="${i}" style="background:${cat.colors[i]}" title="${cat.label} ${i + 1}"></span>`
         : `<button data-opt="${i}" class="${cat.get() === i ? 'on' : ''}">${n}</button>`).join('')}</div>
-        </div>
-        <div style="width:200px">
-          <img class="av big" src="${avatarURL(app)}" width="146" height="190">
-
-          ${dressOnly ? '' : `<div class="row" style="margin-top:6px"><span>姓名</span><input id="crname" value="${name}" style="flex:1;background:#1E1726;border:2px solid #4A3350;color:#FFE6B0;font-family:inherit"></div>
-          <div class="row">性别 ${['女', '男'].map((s) => `<button data-sex="${s}" class="${sex === s ? 'on' : ''}">${s}</button>`).join('')}</div>`}
-          <div class="dim" style="margin-top:6px">种族：${RACE_NAMES[app.race]}｜${HT_NAMES[app.ht]}${BD_NAMES[app.bd]}</div>
-          <div class="row" style="margin-top:8px"><button data-rand="1">随机（锁定项保留）</button></div>
-          <div class="dim" style="margin-top:6px">一键换风格（只改衣着配色）</div>
-          <div class="row" style="flex-wrap:wrap">${THEMES.map((th) => `<button data-theme="${th.id}">${th.name}</button>`).join('')}</div>
-          <div class="row" style="margin-top:8px"><button data-done="1" style="flex:1;border-color:#8DDB4A">${dressOnly ? '换上' : '就这个店主'}</button>
-          ${dressOnly ? '<button data-act="closemodal">取消</button>' : ''}</div>
-        </div>
+        </section>
       </div>`;
       draw();
     };
     host.addEventListener('click', (e) => {
-      const t = (e.target               ).closest('[data-cat],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-done]')                      ;
+      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-done]')                      ;
       if (!t) return;
-      if (t.dataset.cat) activeCat = t.dataset.cat;
+      let changed = false;
+      if (t.dataset.group) {
+        activeGroup = t.dataset.group;
+        const group = groups.find((item) => item.key === activeGroup);
+        const first = group?.cats.find((key) => visible.some((cat) => cat.key === key));
+        if (first) activeCat = first;
+      }
+      else if (t.dataset.cat) activeCat = t.dataset.cat;
+      else if (t.dataset.lockbtn) {
+        if (locks.has(t.dataset.lockbtn)) locks.delete(t.dataset.lockbtn); else locks.add(t.dataset.lockbtn);
+      }
+      else if (t.hasAttribute('data-undo') && historyIndex > 0) app = cloneApp(history[--historyIndex]);
+      else if (t.hasAttribute('data-redo') && historyIndex < history.length - 1) app = cloneApp(history[++historyIndex]);
       else if (t.dataset.opt !== undefined) {
         const cat = visible.find((c) => c.key === activeCat)                     ;
         cat.set(parseInt(t.dataset.opt, 10));
+        changed = true;
       } else if (t.dataset.pose) pose = t.dataset.pose          ;
       else if (t.dataset.sex) {
         sex = t.dataset.sex;
@@ -1902,6 +1956,7 @@ export class UI {
           if (dressOnly) { app.wear = made.wear; app.clothA = made.clothA; app.clothB = made.clothB; app.accC = made.accC; }
           else app = made;
           if (ps.sex !== '不定') sex = ps.sex;
+          changed = true;
         }
       }
       else if (t.dataset.theme) {
@@ -1909,6 +1964,7 @@ export class UI {
         const themed = randomAppearance(new Rng(Math.floor(Math.random() * 1e9)), app.race, false, t.dataset.theme);
         app.clothA = themed.clothA; app.clothB = themed.clothB; app.accC = themed.accC;
         app.wear.top = themed.wear.top; app.hairC = themed.hairC; app.eyeC = themed.eyeC;
+        changed = true;
       }
       else if (t.dataset.rand) {
         const keepVals = new Map                ();
@@ -1923,6 +1979,7 @@ export class UI {
           const cc = visible.find((x) => x.key === k);
           if (cc) cc.set(v);
         }
+        changed = true;
       } else if (t.dataset.done) {
         const inp = host.querySelector('#crname')                           ;
         const nm = inp && inp.value.trim() ? inp.value.trim() : name;
@@ -1930,6 +1987,7 @@ export class UI {
         onDone(app, nm, sex);
         return;
       }
+      if (changed) remember();
       rerender();
     });
     rerender();

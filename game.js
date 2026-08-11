@@ -10,7 +10,7 @@ import {
 } from './src/data.js';
 import { DAY_LEN,            makeStaff, newEcon, Sim,            } from './src/sim.js';
 import { canPersistSim } from './src/save-policy.js';
-import { bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern } from './src/world.js';
+import { bedDisplayPlacement, bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern } from './src/world.js';
 import {               UI } from './src/ui.js';
 import { TitleScreen, validGameSave } from './src/title.js';
 import { createSkyPlan } from './src/sky.js';
@@ -1578,7 +1578,7 @@ class Game                    {
       if (!f) continue;
       const fh = furnFootprint(f.kind, f.dir)[1];
       gr.members.forEach((m, i) => {
-        facUse.set(m.id, f.kind);
+        facUse.set(m.id, { kind: f.kind, furn: f, index: i, count: gr.members.length });
         // 多格设施（汤池 2×2）的精灵按底边排序，站在上排的客人要手动抬到它之上
         facZ.set(m.id, Math.round((f.y + fh) * 100) + 2);
         if (i === 0 && f.kind === 'billiardtable') shooter.add(m.id);
@@ -1602,7 +1602,8 @@ class Game                    {
         this.actorLayer.addChild(sh);
         this.actorShadows.set(id, sh);
       }
-      const fk = facUse.get(id);
+      const facilityUse = facUse.get(id);
+      const fk = facilityUse?.kind;
       const isBed = (!!fk && BED_KINDS.includes(fk)) || (restOn !== null && restOn.kind === 'bunk');
       const usePose       = fk === 'billiardtable' && shooter.has(id) ? 'work' : fk === 'arcadem' ? 'work' : fk === 'screen' ? 'sit' : fk ? 'idle' : pose;
       const useDir = fk === 'pool' || isBed ? 0 : dir;
@@ -1621,9 +1622,16 @@ class Game                    {
       if (isBed) {
         // 躺下：改成中心锚点再转 90°，人就正好压在床面上；再叠一点呼吸起伏
         sp.anchor.set(0.5, 0.5);
-        sp.rotation = -Math.PI / 2;
+        if (facilityUse) {
+          const bed = bedDisplayPlacement(facilityUse.furn, facilityUse.index, facilityUse.count);
+          sp.x = bed.x * T;
+          sp.y = bed.y * T + Math.sin(animT * 1.6) * 1.2;
+          sp.rotation = bed.rotation;
+        } else {
+          sp.rotation = -Math.PI / 2;
+          sp.y = (c.y + 0.6) * T + Math.sin(animT * 1.6) * 1.2;
+        }
         sp.scale.set(ACTOR_S, ACTOR_S);
-        sp.y = (c.y + 0.6) * T + Math.sin(animT * 1.6) * 1.2;
       } else if (fk === 'pool') {
         // 泡汤：只露头肩，随水面上下浮动（水面以下由裁剪隐藏）
         sp.y = (c.y + 1) * T - 5 + Math.sin(animT * 1.4 + id) * 1.4;
