@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+export const config = { maxDuration: 60 };
 
 function normalizeBaseUrl(value) {
   let url = String(value || '').trim().replace(/\/+$/, '');
@@ -84,7 +85,7 @@ export default async function handler(req, res) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 30000);
+  const timer = setTimeout(() => controller.abort(), 45000);
   try {
     const upstream = await fetch(`${baseUrl}/${suffix}`, {
       method: body.action === 'models' ? 'GET' : 'POST',

@@ -994,7 +994,7 @@ class Game                    {
   setMarkup(v        )       { this.sim.econ.markup = v; this.save(); }
   resolveEvent(i        )       {
     const text = this.sim.resolveEvent(i);
-    this.ui.openEventResult(text);
+    this.ui.openEventResult(text, this.sim.lastEventResolution);
     this.save();
   }
 

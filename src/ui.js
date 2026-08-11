@@ -6,6 +6,7 @@ import {
 } from './chargen.js';
 import { Rng } from './pix.js';
 import { AI_PRESETS, loadAIConfig, presetById, refreshAIModels, saveAIConfig } from './ai.js';
+import { aiConfigured, requestGameAI } from './ai-game.js';
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
@@ -321,6 +322,19 @@ export class UI {
     else if (act === 'rdgo') this.runResearch();
     else if (act === 'dress') this.openWardrobe(parseInt(v, 10));
     else if (act === 'event') { g.resolveEvent(parseInt(v, 10)); }
+    else if (act === 'airetryevent') {
+      if (this.eventAIContext) {
+        this.showModal(`<h3>事件结果</h3><div>${htmlText(this.eventAIContext.text)}</div><div class="hi" data-ai-event-status style="margin-top:10px">AI 正在演绎事件结果…</div><div class="row" style="margin-top:8px"><button data-act="closemodal">跳过 AI，继续</button></div>`);
+        this.generateAIEventResult();
+      }
+    }
+    else if (act === 'airetryday') {
+      if (this.settlementAIStat) { this.renderSettlement(this.settlementAIStat, { loading: true }); this.generateAISettlement(); }
+    }
+    else if (act === 'aichatsend') this.sendAIStaffChat(parseInt(v, 10));
+    else if (act === 'aibg') this.generateAIBackground(parseInt(v, 10));
+    else if (act === 'viewbg') this.openAIBackground(parseInt(v, 10));
+    else if (act === 'aidishname') this.generateAIDishName();
     else if (act === 'finale') this.openFinale();
     else if (act === 'closemodal') { this.closeModal(); if (!this.g.sim.dayActive) { this.g.audio.playTrack('bgm-plan'); this.g.audio.playAmb('amb-night'); } }
     else if (act === 'newgame') g.newGame();
@@ -343,7 +357,10 @@ export class UI {
     else if (act === 'traitinfo') this.openTraitInfo(v, parseInt(t.dataset.id || '0', 10));
     else if (act === 'manage') { g.select('staff', parseInt(v, 10)); this.closeModal(); }
     else if (act === 'dtab') { this.detailTab = v          ; this.openStaffDetail(this.detailId); }
-    else if (act === 'chat') { g.sim.chatWith(this.detailId); this.openStaffDetail(this.detailId); }
+    else if (act === 'chat') {
+      if (aiConfigured()) this.openAIStaffChat(this.detailId);
+      else { g.sim.chatWith(this.detailId); this.openStaffDetail(this.detailId); }
+    }
     else if (act === 'iact') this.runInteract(v, parseInt(t.dataset.id          , 10), t.dataset.k          );
     else if (act === 'adopen') this.openAdPanel(parseInt(v, 10), true);
     else if (act === 'adtier') { this.adSpec.tier = v; this.openAdPanel(this.adSlot); }
@@ -480,6 +497,7 @@ export class UI {
           const fl = (d.flavors || []).map((f) => FLAVOR_LABEL[f] || f).join('/');
           return `<div class="card">
             <div class="row"><b>${d.custom ? '🧪 ' : ''}${d.name}</b><span class="hi">${Math.round(d.price * e.markup)} 币</span></div>
+            ${d.description ? `<div class="dim">${htmlText(d.description)}</div>` : ''}
             <div class="dim">${ing}${fl ? ` · 口味 ${fl}` : ''}${d.fun && d.fun.length ? ' · ' + d.fun.map((f) => (DISH_FUN.find((x) => x.id === f) || DISH_FUN[0]).name).join('/') : ''}</div>
             <div class="row"><span class="${st.skillOk ? 'dim' : 'bad'}">${drink ? '调酒' : '厨艺'} ≥${d.skill} · 当前 ${best.value}</span>
               <span><button data-act="menuitem" data-v="${d.id}" class="${st.on ? 'on' : ''}">${st.on ? '供应中' : '已下架'}</button>
@@ -564,12 +582,15 @@ export class UI {
   }
 
           candCard(p       )         {
+    const bg = p.background;
     return `<div class="card"><div class="row"><img class="av" src="${avatarURL(p.app)}" width="36" height="36">
         <span style="flex:1"><b>${p.name}</b><div class="dim">${p.race}·${p.sex}·${p.age}岁</div></span>
         <span class="hi">日薪${p.wage}</span></div>
       <div class="dim">${SKILL_KEYS.map((k) => `${SKILL_LABEL[k]}${p.skills[k]}`).join(' ')}</div>
       <div class="row" style="justify-content:flex-start;flex-wrap:wrap">${p.traits.map((t) => this.traitTag(t)).join('')}<span class="dim" title="根据综合技能与性格自动规划">自动优先级 ${p.prio}</span></div>
-      <div class="row"><button data-act="hire" data-v="${p.id}">雇用（入职费${p.wage * 3}）</button></div></div>`;
+      ${bg ? `<div class="dim">${htmlText(bg.background.slice(0, 56))}${bg.background.length > 56 ? '…' : ''}</div>` : ''}
+      <div class="row"><button data-act="hire" data-v="${p.id}">雇用（入职费${p.wage * 3}）</button>
+        ${bg ? `<button data-act="viewbg" data-v="${p.id}">查看背景</button>` : aiConfigured() ? `<button data-act="aibg" data-v="${p.id}">AI 生成背景</button>` : ''}</div></div>`;
   }
 
           staffCard(st       )         {
@@ -765,9 +786,137 @@ export class UI {
       <div class="dim">暂停中仍可拖动镜头查看酒馆。</div>`);
   }
 
-  openEventResult(text        )       {
-    this.showModal(`<h3>事件结果</h3><div style="max-width:480px">${text}</div>
+  eventAIContext                 = null;
+
+  openEventResult(text        , detail = null)       {
+    if (detail && aiConfigured()) {
+      this.eventAIContext = { text, detail };
+      this.showModal(`<h3>事件结果</h3><div>${htmlText(text)}</div>
+        <div class="hi" data-ai-event-status style="margin-top:10px">AI 正在演绎事件结果…</div>
+        <div class="row" style="margin-top:8px"><button data-act="closemodal">跳过 AI，继续</button></div>`);
+      this.generateAIEventResult();
+      return;
+    }
+    this.showModal(`<h3>事件结果</h3><div style="max-width:480px">${htmlText(text)}</div>
       <div class="row" style="margin-top:8px"><button data-act="closemodal">继续</button></div>`);
+  }
+
+  async generateAIEventResult()       {
+    const ctx = this.eventAIContext;
+    if (!ctx) return;
+    const startedModal = this.modal;
+    const status = this.modal?.querySelector('[data-ai-event-status]')                    ;
+    if (status) { status.className = 'hi'; status.textContent = 'AI 正在演绎事件结果…'; }
+    try {
+      const result = await requestGameAI('event_result', ctx.detail);
+      if (this.modal !== startedModal) return;
+      this.showModal(`<h3>⚡ ${htmlText(result.title)}</h3>
+        <div style="max-width:680px;white-space:pre-wrap;line-height:1.75">${htmlText(result.narrative)}</div>
+        <div class="card" style="margin-top:10px"><b>实际影响</b><div>${htmlText(result.impact)}</div><div class="dim">系统结果：${htmlText(ctx.text)}</div></div>
+        <div class="row" style="margin-top:10px"><button data-act="closemodal">继续营业</button></div>`);
+    } catch (err) {
+      if (this.modal !== startedModal) return;
+      this.showModal(`<h3>事件结果</h3><div>${htmlText(ctx.text)}</div>
+        <div class="bad" style="margin-top:8px">AI 演绎失败：${htmlText(err?.message || '未知错误')}</div>
+        <div class="row" style="margin-top:8px"><button data-act="airetryevent">重试 AI</button><button data-act="closemodal">直接继续</button></div>`);
+    }
+  }
+
+  personById(id        )               {
+    return this.g.sim.staff.find((person) => person.id === id) || this.g.sim.candById(id);
+  }
+
+  staffAIFacts(st       , playerText        )         {
+    const sim = this.g.sim;
+    const owner = sim.staff.find((person) => person.isOwner);
+    return {
+      world: '万界交汇处的一家奇幻酒馆，角色都是店内真实员工。',
+      day: sim.econ.day,
+      player: { name: owner?.name || '店主', line: playerText },
+      employee: {
+        name: st.name, sex: st.sex, age: st.age, race: st.race, job: JOB_LABEL[st.job],
+        traits: st.traits.map((id) => { const trait = TRAITS.find((item) => item.id === id); return trait ? { name: trait.name, note: trait.note } : { name: id }; }),
+        skills: Object.fromEntries(SKILL_KEYS.map((key) => [SKILL_LABEL[key], st.skills[key]])),
+        affinity: { value: Math.round(st.aff), level: sim.affLevel(st.aff).name },
+        state: { task: st.task?.label || st.note || '待命', stamina: Math.round(st.needs.stamina), morale: Math.round(st.needs.morale), stress: Math.round(st.needs.stress) },
+        background: st.background || null,
+      },
+      recentConversation: (st.aiChatLog || []).slice(0, 5).reverse(),
+    };
+  }
+
+  openAIStaffChat(id        , error = '')       {
+    const st = this.g.sim.staff.find((person) => person.id === id);
+    if (!st || st.isOwner) return;
+    if (!aiConfigured()) { this.g.sim.chatWith(id); this.openStaffDetail(id); return; }
+    const history = (st.aiChatLog || []).slice(0, 6).reverse();
+    this.showModal(`<div class="row"><img class="av" src="${avatarURL(st.app)}" width="64" height="64">
+        <div style="flex:1"><h3 style="margin:0">和 ${htmlText(st.name)} 聊聊</h3><div class="dim">${htmlText(st.race)}·${JOB_LABEL[st.job]}｜${this.g.sim.affLevel(st.aff).name} ${Math.round(st.aff)}</div></div></div>
+      <div style="max-width:680px;max-height:260px;overflow:auto;margin-top:8px">
+        ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${htmlText(st.name)}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有 AI 对话记录。说点什么吧。</div>'}
+      </div>
+      ${error ? `<div class="bad" style="margin-top:7px">${htmlText(error)}</div>` : ''}
+      <textarea id="aiplayerline" maxlength="120" rows="3" placeholder="输入店主想说的话……" style="width:100%;box-sizing:border-box;margin-top:8px" ${st.affCd > 0 ? 'disabled' : ''}></textarea>
+      <div class="row" style="margin-top:8px"><span class="dim">AI 只负责角色台词，不会自行修改数值。</span>
+        <span><button data-act="aichatsend" data-v="${st.id}" ${st.affCd > 0 ? 'disabled' : ''}>发送</button><button data-act="detail" data-v="${st.id}">返回详情</button></span></div>`);
+  }
+
+  async sendAIStaffChat(id        )       {
+    const st = this.g.sim.staff.find((person) => person.id === id);
+    const input = this.modal?.querySelector('#aiplayerline')                    ;
+    const line = input?.value.trim() || '';
+    if (!st || !line) { if (input) input.focus(); return; }
+    const startedModal = this.modal;
+    const send = this.modal?.querySelector('[data-act="aichatsend"]')                     ;
+    if (send) { send.disabled = true; send.textContent = '等待回复…'; }
+    try {
+      const result = await requestGameAI('staff_chat', this.staffAIFacts(st, line));
+      if (this.modal !== startedModal) return;
+      const reply = this.g.sim.chatWith(st.id, result.reply);
+      if (!reply) throw new Error('员工现在无法回应');
+      const owner = this.g.sim.staff.find((person) => person.isOwner);
+      st.aiChatLog = st.aiChatLog || [];
+      st.aiChatLog.unshift({ day: this.g.sim.econ.day, playerName: owner?.name || '店主', player: line.slice(0, 120), reply, emotion: result.emotion });
+      if (st.aiChatLog.length > 8) st.aiChatLog.pop();
+      this.g.save();
+      this.openAIStaffChat(id);
+    } catch (err) {
+      if (this.modal === startedModal) this.openAIStaffChat(id, `AI 回复失败：${err?.message || '未知错误'}`);
+    }
+  }
+
+  openAIBackground(id        , error = '')       {
+    const person = this.personById(id);
+    if (!person) return;
+    const bg = person.background;
+    this.showModal(`<div class="row"><img class="av" src="${avatarURL(person.app)}" width="64" height="64"><div style="flex:1"><h3 style="margin:0">${htmlText(person.name)}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div></div></div>
+      ${bg ? `<div class="card" style="margin-top:9px"><b>来店之前</b><div style="white-space:pre-wrap;line-height:1.65">${htmlText(bg.background)}</div></div>
+        <div class="row"><span class="dim">个人目标</span><span>${htmlText(bg.aspiration)}</span></div>
+        <div class="row"><span class="dim">日常习惯</span><span>${htmlText(bg.quirk)}</span></div>` : '<div class="dim" style="margin-top:9px">尚未生成人物背景。</div>'}
+      ${error ? `<div class="bad" style="margin-top:7px">${htmlText(error)}</div>` : ''}
+      <div class="row" style="margin-top:10px">${aiConfigured() ? `<button data-act="aibg" data-v="${person.id}">${bg ? '重新生成' : 'AI 生成背景'}</button>` : '<span class="dim">请先在设置中接入 AI</span>'}<button data-act="closemodal">关闭</button></div>`);
+  }
+
+  async generateAIBackground(id        )       {
+    const person = this.personById(id);
+    if (!person) return;
+    const startedModal = this.showModal(`<h3>正在构思 ${htmlText(person.name)} 的背景…</h3><div class="hi">AI 会严格依据现有属性生成，不改变角色数值。</div><div class="row" style="margin-top:10px"><button data-act="closemodal">取消等待</button></div>`);
+    const facts = {
+      name: person.name, sex: person.sex, age: person.age, race: person.race,
+      traits: person.traits.map((id2) => { const trait = TRAITS.find((item) => item.id === id2); return trait ? { name: trait.name, note: trait.note } : { name: id2 }; }),
+      skills: Object.fromEntries(SKILL_KEYS.map((key) => [SKILL_LABEL[key], person.skills[key]])),
+      jobInclination: JOB_LABEL[person.job], wage: person.wage,
+      world: '角色来自万界之一，正在应聘或供职于跨位面酒馆《万界不打烊》。',
+    };
+    try {
+      const result = await requestGameAI('staff_background', facts);
+      if (this.modal !== startedModal) return;
+      person.background = result;
+      this.g.save();
+      this.openAIBackground(id);
+    } catch (err) {
+      if (this.modal === startedModal) this.openAIBackground(id, `生成失败：${err?.message || '未知错误'}`);
+    }
   }
 
   detailTab                           = 'info';
@@ -823,7 +972,8 @@ export class UI {
         <div class="row"><span class="dim">卧室</span><span>${st.isOwner ? '<span class="dim">店主守店</span>' : (() => { const br = sim.bedroomOf(st.id); return br ? `休息室 #${br.id}` : '<span class="bad">无（打地铺）</span>'; })()}</span></div>
         <div class="row"><span class="dim">体力</span>${bar(st.needs.stamina, 100, '#8DDB4A')}<span class="dim">士气</span>${bar(st.needs.morale, 100, '#39D7D2')}</div>
         <div class="row"><span class="dim">压力</span>${bar(st.needs.stress, 100, '#FF6B5A')}<span class="dim">饥饿</span>${bar(st.needs.hunger, 100, '#F3B84B')}</div>
-        <div class="dim">${st.task ? '正在：' + st.task.label : st.note || '待命中'}</div>`;
+        <div class="dim">${st.task ? '正在：' + st.task.label : st.note || '待命中'}</div>
+        ${st.background ? `<div class="card" style="margin-top:7px"><b>人物背景</b><div class="dim">${htmlText(st.background.background)}</div><button data-act="viewbg" data-v="${st.id}">查看完整背景</button></div>` : aiConfigured() && !st.isOwner ? `<button data-act="aibg" data-v="${st.id}" style="margin-top:7px">AI 生成员工背景</button>` : ''}`;
     } else if (this.detailTab === 'skill') {
       body = SKILL_KEYS.map((k) => `<div class="row"><span class="dim" style="width:52px">${SKILL_LABEL[k]}</span>${bar(st.skills[k], 100, '#F3B84B')}<span style="width:56px">${st.skills[k]}<span class="dim">+${Math.floor(st.exp[k] || 0)}</span></span></div>`).join('')
         + `<div class="dim">干活会攒经验，熟练度越高上菜/翻台/清洁越快。好感加成：当前 +${Math.round(st.aff / 4)}% 动作速度。</div>`;
@@ -927,7 +1077,10 @@ export class UI {
     const sim = this.g.sim;
     let msg = '';
     if (kind === 'staff') {
-      if (action === 'chat2') msg = sim.chatWith(id) || '（他正忙着，没接话）';
+      if (action === 'chat2') {
+        if (aiConfigured()) { window.clearInterval(this.interactTimer); this.openAIStaffChat(id); return; }
+        msg = sim.chatWith(id) || '（他正忙着，没接话）';
+      }
       else if (action === 'praise') msg = sim.praiseStaff(id);
       else if (action === 'urge') msg = sim.urgeStaff(id);
       else if (action === 'scold') msg = sim.scoldStaff(id);
@@ -948,7 +1101,7 @@ export class UI {
   // ---------- 新菜研发 ----------
           rd = {
     name: '', ing: { grain: 1, veg: 1, meat: 0, spice: 0, ether: 0 }                          ,
-    chefId: 0, flavors: []            , fun: []            , drink: false, msg: '',
+    chefId: 0, flavors: []            , fun: []            , drink: false, description: '', msg: '', aiBusy: false,
   };
 
   /** 重新渲染面板前把菜名输入框的值捞回来（重渲染会重建 DOM） */
@@ -984,7 +1137,9 @@ export class UI {
     this.showModal(`<h3>🍳 新菜研发</h3>
       <div class="dim">试验会消耗配方食材和研发费；厨师${rd.drink ? '调酒' : '厨艺'}越贴近门槛，成功率越高。成功后自动写入菜单。</div>
       <div class="row" style="margin-top:6px"><span class="dim" style="width:56px">菜名</span>
-        <input id="rdname" style="flex:1" maxlength="12" value="${rd.name.replace(/"/g, '&quot;')}"></div>
+        <input id="rdname" style="flex:1" maxlength="12" value="${rd.name.replace(/"/g, '&quot;')}">
+        ${aiConfigured() ? `<button data-act="aidishname" ${rd.aiBusy ? 'disabled' : ''}>${rd.aiBusy ? '取名中…' : 'AI 取名'}</button>` : ''}</div>
+      ${rd.description ? `<div class="dim" style="margin-left:62px">${htmlText(rd.description)}</div>` : ''}
       <div class="row"><span class="dim" style="width:56px">品类</span>
         <button data-act="rddrink" class="${rd.drink ? '' : 'on'}">餐食（灶台）</button>
         <button data-act="rddrink" class="${rd.drink ? 'on' : ''}">饮品（酒桶）</button></div>
@@ -1009,17 +1164,49 @@ export class UI {
       </div>
       ${rd.msg ? `<div class="bad" style="margin-top:6px">${rd.msg}</div>` : ''}
       <div class="row" style="margin-top:8px">
-        <button data-act="rdgo" ${canGo ? '' : 'disabled'}>点火研发（-${st.fee}）</button>
+        <button data-act="rdgo" ${canGo && !rd.aiBusy ? '' : 'disabled'}>点火研发（-${st.fee}）</button>
         <button data-act="closemodal">收工</button>
       </div>`);
     rd.msg = '';
+  }
+
+  async generateAIDishName()       {
+    if (this.rd.aiBusy) return;
+    this.syncRdName();
+    const rd = this.rd;
+    const sim = this.g.sim;
+    const chef = sim.staff.find((person) => person.id === rd.chefId);
+    const stats = sim.dishStats(rd.ing, rd.flavors, rd.fun, rd.drink);
+    const facts = {
+      category: rd.drink ? '饮品' : '餐食',
+      ingredients: ING_KEYS.filter((key) => rd.ing[key] > 0).map((key) => ({ name: ING_LABEL[key], amount: rd.ing[key] })),
+      flavors: rd.flavors.map((id) => FLAVOR_LABEL[id] || id),
+      features: rd.fun.map((id) => (DISH_FUN.find((item) => item.id === id) || { name: id }).name),
+      chef: chef ? { name: chef.name, race: chef.race, skill: chef.skills[rd.drink ? 'mix' : 'cook'] } : null,
+      fixedNumbers: { price: stats.price, skillRequirement: stats.skill, researchFee: stats.fee },
+      existingMenuNames: sim.allDishes().map((dish) => dish.name),
+    };
+    rd.aiBusy = true;
+    this.openResearch();
+    const startedModal = this.modal;
+    try {
+      const result = await requestGameAI('dish_name', facts);
+      rd.name = result.name;
+      rd.description = result.description;
+      rd.msg = '';
+    } catch (err) {
+      rd.msg = `AI 取名失败：${err?.message || '未知错误'}`;
+    } finally {
+      rd.aiBusy = false;
+      if (this.modal === startedModal) this.openResearch();
+    }
   }
 
           runResearch()       {
     this.syncRdName();
     const r = this.g.sim.researchDish({ ...this.rd, ing: { ...this.rd.ing } });
     if (r.ok) {
-      this.rd = { name: '', ing: { grain: 1, veg: 1, meat: 0, spice: 0, ether: 0 }, chefId: 0, flavors: [], fun: [], drink: false, msg: '' };
+      this.rd = { name: '', ing: { grain: 1, veg: 1, meat: 0, spice: 0, ether: 0 }, chefId: 0, flavors: [], fun: [], drink: false, description: '', msg: '', aiBusy: false };
       this.g.save();
       this.openEventResult(r.msg);
     } else {
@@ -1167,15 +1354,9 @@ export class UI {
       </div>`);
   }
 
+  settlementAIStat                 = null;
+
   openSettlement(stat         )       {
-    const s = this.g.sim;
-    const net = stat.revenue - stat.wages - stat.maintenance - stat.restock;
-    const partLabels = { quality: '品质', wait: '等待', service: '服务', hygiene: '卫生', comfort: '舒适', spectacle: '观赏' };
-    const parts = stat.scoreBreakdown || {};
-    const scored = Object.entries(partLabels).filter(([k]) => Number.isFinite(parts[k]));
-    const weakest = scored.length ? [...scored].sort((a, b) => parts[a[0]] - parts[b[0]])[0] : null;
-    const scoreRows = scored.length ? `<div class="scoregrid">${scored.map(([k, label]) => `<div><span class="dim">${label}</span><b class="${parts[k] < 3 ? 'bad' : parts[k] >= 4 ? 'good' : ''}">${parts[k].toFixed(2)}★</b></div>`).join('')}</div>
-      ${weakest ? `<div class="dim">今日主要短板：<span class="bad">${weakest[1]} ${parts[weakest[0]].toFixed(2)}★</span></div>` : ''}` : '';
     if (stat.sealed) {
       this.showModal(`<h3 class="bad">酒馆被位面房东封印</h3>
         <div>连续 3 次日结低于信用线（${stat.creditLine}），门厅的传送门被贴上了封条。</div>
@@ -1185,6 +1366,62 @@ export class UI {
           <button data-act="newgame">新开一家酒馆</button></div>`);
       return;
     }
+    this.settlementAIStat = stat;
+    if (aiConfigured()) {
+      this.renderSettlement(stat, { loading: true });
+      this.generateAISettlement();
+    } else this.renderSettlement(stat, {});
+  }
+
+  settlementFacts(stat       )         {
+    const sim = this.g.sim;
+    const report = stat.report || {};
+    const mapStock = (stock       ) => Object.fromEntries(Object.entries(stock || {}).map(([key, value]) => [ING_LABEL[key] || key, value]));
+    return {
+      world: '《万界不打烊》是一家接待不同位面来客的奇幻酒馆。所有数值和工作统计都是不可改写的事实。',
+      tavern: { rooms: this.g.tavern.rooms.length, furniture: this.g.tavern.furns.length, stars: sim.stars() },
+      day: stat.day,
+      finance: report.finance || { revenue: stat.revenue, wages: stat.wages, maintenance: stat.maintenance, restock: stat.restock, net: stat.revenue - stat.wages - stat.maintenance - stat.restock, coinsAfter: stat.coinsAfter },
+      guests: report.guests || { served: stat.served, lost: stat.lost, averageScore: stat.avgScore, scoreBreakdown: stat.scoreBreakdown },
+      reputation: report.reputation || { delta: stat.repDelta, after: sim.econ.rep },
+      inventory: { used: mapStock(report.stockUsed), before: mapStock(report.started?.stock), after: mapStock(report.finished?.stock) },
+      sales: {
+        dishes: Object.values(report.dishSales || {}),
+        facilities: Object.values(report.facilitySales || {}),
+        lostReasons: report.lostReasons || {},
+      },
+      staffWork: (report.finished?.staff || []).map((row) => ({
+        name: row.name, job: JOB_LABEL[row.job] || row.job, completedTotal: row.total, completedTasks: row.tasks,
+        needsBefore: row.needsBefore, needsAfter: row.needsAfter,
+        skillGrowth: Object.fromEntries(Object.entries(row.skillDelta || {}).map(([key, value]) => [SKILL_LABEL[key] || key, value])), leftAfterShift: row.left,
+      })),
+      characters: sim.staff.map((staff) => ({
+        name: staff.name, role: staff.isOwner ? '店主' : JOB_LABEL[staff.job], race: staff.race,
+        traits: staff.traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name),
+        affinityToOwner: staff.isOwner ? 100 : Math.round(staff.aff), background: staff.background || null,
+      })),
+      events: (report.events || []).slice(0, 10).map((event) => ({ ...event, effects: { ...event.effects, stock: mapStock(event.effects?.stock) } })),
+    };
+  }
+
+  renderSettlement(stat       , state = {})       {
+    const s = this.g.sim;
+    const net = stat.revenue - stat.wages - stat.maintenance - stat.restock;
+    const partLabels = { quality: '品质', wait: '等待', service: '服务', hygiene: '卫生', comfort: '舒适', spectacle: '观赏' };
+    const parts = stat.scoreBreakdown || {};
+    const scored = Object.entries(partLabels).filter(([key]) => Number.isFinite(parts[key]));
+    const weakest = scored.length ? [...scored].sort((a, b) => parts[a[0]] - parts[b[0]])[0] : null;
+    const scoreRows = scored.length ? `<div class="scoregrid">${scored.map(([key, label]) => `<div><span class="dim">${label}</span><b class="${parts[key] < 3 ? 'bad' : parts[key] >= 4 ? 'good' : ''}">${parts[key].toFixed(2)}★</b></div>`).join('')}</div>
+      ${weakest ? `<div class="dim">今日主要短板：<span class="bad">${weakest[1]} ${parts[weakest[0]].toFixed(2)}★</span></div>` : ''}` : '';
+    const work = stat.report?.finished?.staff || [];
+    const workRows = work.map((row) => `<div class="row"><span><b>${htmlText(row.name)}</b><span class="dim"> · ${JOB_LABEL[row.job] || row.job}</span></span><span>${row.total ? Object.entries(row.tasks).map(([label, count]) => `${htmlText(label)}×${count}`).join(' · ') : '<span class="dim">本日无完成记录</span>'}</span></div>`).join('');
+    const story = state.story;
+    const aiPanel = story ? `<div class="card" style="margin-top:12px;border-left-color:#7A4BE0"><h3>📖 ${htmlText(story.title)}</h3>
+        <div style="white-space:pre-wrap;line-height:1.8;max-width:760px">${htmlText(story.chapter)}</div>
+        ${story.afterHours.length ? `<h3 style="margin-top:12px">打烊后的灯火</h3>${story.afterHours.map((line) => `<div style="margin:4px 0"><b>${htmlText(line.speaker)}：</b>${htmlText(line.line)}</div>`).join('')}` : ''}
+        <div class="dim" style="margin-top:8px">${htmlText(story.closingNote)}</div></div>`
+      : state.loading ? '<div class="card hi" style="margin-top:10px">AI 正在把今日营业记录整理成小说章节，请稍候…</div>'
+        : state.error ? `<div class="card"><div class="bad">AI 日结生成失败：${htmlText(state.error)}</div><button data-act="airetryday">重试 AI</button></div>` : '';
     this.showModal(`<h3>第 ${stat.day} 天结算</h3>
       <div class="row"><span>营业收入</span><span class="good">+${stat.revenue}</span></div>
       <div class="row"><span>工资</span><span class="bad">-${stat.wages}</span></div>
@@ -1195,8 +1432,29 @@ export class UI {
       ${scoreRows}
       <div class="row"><span>声望变化</span><span class="${stat.repDelta >= 0 ? 'good' : 'bad'}">${stat.repDelta >= 0 ? '+' : ''}${stat.repDelta} → ${Math.round(s.econ.rep)}（${'★'.repeat(s.stars())}）</span></div>
       <div class="row"><span>信用线 ${stat.creditLine}</span><span class="${stat.coinsAfter < stat.creditLine ? 'bad' : ''}">结余 ${Math.round(stat.coinsAfter)}</span></div>
+      <h3 style="margin-top:10px">员工工作统计</h3>${workRows || '<div class="dim">没有可统计的员工工作。</div>'}
+      ${aiPanel}
       ${stat.fiveStarReached ? '<div class="card" style="margin-top:9px"><b class="good">五星声望达成：位面评议会已抵达门厅</b><div class="dim">完成今日结算后，接受酒馆的最终认证。</div></div>' : ''}
-      <div class="row" style="margin-top:10px">${stat.fiveStarReached ? '<button data-act="finale">进入五星庆典</button>' : '<button data-act="closemodal">进入收盘规划</button>'}</div>`);
+      <div class="row" style="margin-top:10px">${stat.fiveStarReached ? '<button data-act="finale">确认，进入五星庆典</button>' : `<button data-act="closemodal">${state.loading ? '跳过 AI，确认进入打烊模式' : '确认，进入打烊模式'}</button>`}</div>`);
+  }
+
+  async generateAISettlement()       {
+    const stat = this.settlementAIStat;
+    if (!stat) return;
+    const startedModal = this.modal;
+    try {
+      const story = await requestGameAI('day_story', this.settlementFacts(stat));
+      if (this.modal !== startedModal) return;
+      const allowed = new Set(this.g.sim.staff.map((staff) => staff.name));
+      story.afterHours = story.afterHours.filter((line) => allowed.has(line.speaker));
+      this.g.sim.econ.aiChronicles = this.g.sim.econ.aiChronicles || [];
+      this.g.sim.econ.aiChronicles.push({ day: stat.day, ...story });
+      if (this.g.sim.econ.aiChronicles.length > 20) this.g.sim.econ.aiChronicles.shift();
+      this.g.save();
+      this.renderSettlement(stat, { story });
+    } catch (err) {
+      if (this.modal === startedModal) this.renderSettlement(stat, { error: err?.message || '未知错误' });
+    }
   }
 
   openFinale()       {

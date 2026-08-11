@@ -195,7 +195,7 @@ export function makeStaff(rng     , id        , isOwner         , app           
     app: a, job: isOwner ? 'greeter' : 'free', roomId: null, prio: isOwner ? 2 : plannedStaffPriority(skills, traits), isOwner,
     x: 0, y: 0, dir: 0, pose: 'idle', animT: 0, path: [], carry: null, task: null, actT: 0, actTotal: 0,
     needs: { stamina: 100, hunger: 0, stress: 10, morale: 70 }, note: '', bubble: null,
-    aff: isOwner ? 100 : Math.round(rng.range(4, 16)), affCd: 0, chats: 0, chatLog: [], hireDay: 1,
+    aff: isOwner ? 100 : Math.round(rng.range(4, 16)), affCd: 0, chats: 0, chatLog: [], aiChatLog: [], background: null, hireDay: 1,
   };
 }
 
@@ -230,6 +230,8 @@ export class Sim {
   scores           = [];
   scoreParts = { quality: [], wait: [], service: [], hygiene: [], comfort: [], spectacle: [] };
   lastStat                 = null;
+  dayReport                 = null;
+  lastEventResolution                 = null;
   sealed = false;
   endingSeen = false;
   toasts                                = [];
@@ -357,7 +359,7 @@ export class Sim {
   }
 
   /** 店主与员工搭话：加好感 + 回士气，40 秒冷却内不重复结算收益 */
-  chatWith(id        )         {
+  chatWith(id        , customLine = '')         {
     const s = this.staff.find((x) => x.id === id);
     if (!s || s.isOwner) return '';
     const lv = this.affLevel(s.aff).i;
@@ -376,7 +378,7 @@ export class Sim {
       this.sounds.push('clean');
       return s.bubble.text;
     }
-    const line = pools[lv][this.rng.int(pools[lv].length)];
+    const line = String(customLine || '').trim().slice(0, 180) || pools[lv][this.rng.int(pools[lv].length)];
     const gain = Math.max(0.8, 4.2 * (1 - s.aff / 115));
     s.aff = clamp(s.aff + gain, 0, 100);
     s.needs.morale = clamp(s.needs.morale + 6, 0, 100);
@@ -672,6 +674,14 @@ export class Sim {
     this.econ.revenue = 0; this.econ.served = 0; this.econ.lost = 0;
     this.scores = [];
     this.scoreParts = { quality: [], wait: [], service: [], hygiene: [], comfort: [], spectacle: [] };
+    this.dayReport = {
+      day: this.econ.day,
+      started: {
+        coins: this.econ.coins, rep: this.econ.rep, stock: { ...this.econ.stock },
+        staff: this.staff.map((s) => ({ id: s.id, name: s.name, job: s.job, skills: { ...s.skills }, needs: { ...s.needs } })),
+      },
+      work: {}, dishSales: {}, facilitySales: {}, stockUsed: {}, lostReasons: {}, events: [], moments: [],
+    };
     // 过夜住宿客保留，开门即按住宿价统一结账送客；其余客人清场
     const lodgers = this.groups.filter((g) => g.overnight);
     this.guests = []; this.groups = []; this.orders = []; this.seatOwner.clear(); this.facOwner.clear();
@@ -758,8 +768,58 @@ export class Sim {
       served: this.econ.served, lost: this.econ.lost, repDelta, avgScore: avg,
       coinsAfter: this.econ.coins, sealed, creditLine, scoreBreakdown, fiveStarReached,
     };
+    stat.report = this.finishDayReport(stat);
     this.lastStat = stat;
     return stat;
+  }
+
+  recordDayWork(s       , task       )       {
+    if (!this.dayReport || !this.dayActive || !s || !task) return;
+    const row = this.dayReport.work[s.id] || { id: s.id, name: s.name, job: s.job, total: 0, tasks: {} };
+    const label = task.label || task.kind || '工作';
+    row.tasks[label] = (row.tasks[label] || 0) + 1;
+    row.total++;
+    this.dayReport.work[s.id] = row;
+  }
+
+  recordDaySale(bucket        , key        , label        , count        , revenue        )       {
+    if (!this.dayReport) return;
+    const table = this.dayReport[bucket];
+    const row = table[key] || { label, count: 0, revenue: 0 };
+    row.count += count;
+    row.revenue += revenue;
+    table[key] = row;
+  }
+
+  finishDayReport(stat       )         {
+    const report = this.dayReport || {
+      day: stat.day, started: { coins: stat.coinsAfter - (stat.revenue - stat.wages - stat.maintenance - stat.restock), rep: this.econ.rep - stat.repDelta, stock: {}, staff: [] },
+      work: {}, dishSales: {}, facilitySales: {}, stockUsed: {}, lostReasons: {}, events: [], moments: [],
+    };
+    const byId = new Map(this.staff.map((s) => [s.id, s]));
+    report.finished = {
+      coins: stat.coinsAfter, rep: this.econ.rep, stock: { ...this.econ.stock },
+      staff: report.started.staff.map((before) => {
+        const after = byId.get(before.id);
+        const work = report.work[before.id] || { id: before.id, name: before.name, job: before.job, total: 0, tasks: {} };
+        return {
+          ...work,
+          needsBefore: before.needs,
+          needsAfter: after ? { ...after.needs } : null,
+          skillDelta: after ? Object.fromEntries(Object.keys(before.skills).map((key) => [key, (after.skills[key] || 0) - (before.skills[key] || 0)]).filter(([, value]) => value)) : {},
+          left: !after,
+        };
+      }),
+    };
+    report.finance = {
+      revenue: stat.revenue, wages: stat.wages, maintenance: stat.maintenance, restock: stat.restock,
+      net: stat.revenue - stat.wages - stat.maintenance - stat.restock,
+      coinsBefore: report.started.coins, coinsAfter: stat.coinsAfter,
+    };
+    report.reputation = { before: report.started.rep, delta: stat.repDelta, after: this.econ.rep };
+    report.guests = { served: stat.served, lost: stat.lost, averageScore: stat.avgScore, scoreBreakdown: stat.scoreBreakdown };
+    this.dayReport = report;
+    return report;
   }
 
   stars()         { return starsOf(this.econ.rep); }
@@ -948,7 +1008,7 @@ export class Sim {
     const dish       = {
       id: 'cus' + this.id(), name, ing: { ...input.ing }, price: st.price, skill: st.skill,
       color: st.color, drink: input.drink, taste: st.taste,
-      flavors: [...input.flavors], custom: true, fun: [...input.fun],
+      flavors: [...input.flavors], custom: true, fun: [...input.fun], description: String(input.description || '').slice(0, 140),
     };
     this.econ.customDishes.push(dish);
     this.sounds.push('powerup');
@@ -1246,6 +1306,7 @@ export class Sim {
     this.releaseFacility(g);
     if (reason !== '') {
       this.econ.lost++;
+      if (this.dayReport) this.dayReport.lostReasons[reason] = (this.dayReport.lostReasons[reason] || 0) + 1;
       this.scores.push(1.2);
       this.recordScoreParts({ wait: 1.2, service: 1.2 });
       this.toast(`一组客人离店：${reason}`);
@@ -1288,7 +1349,7 @@ export class Sim {
     }
   }
 
-          pay(g       )       {
+  pay(g       )       {
     const order = this.orders.find((o) => o.id === g.orderId);
     const dish = order ? this.dishOf(order.dishId) : DISHES[0];
     const table = this.tavern.furnById(g.tableId);
@@ -1297,6 +1358,7 @@ export class Sim {
     this.econ.coins += revenue;
     this.econ.revenue += revenue;
     this.econ.served += g.size;
+    this.recordDaySale('dishSales', dish.id, dish.name, g.size, revenue);
     // 评价 6 项
     const waitPen = clamp(3 + (g.patience / g.maxPatience) * 2.4, 1, 5);
     const taste = clamp((order ? order.quality : 2) * (this.guestLikes(g, dish) ? 1.15 : 1) * (this.econ.markup > 2 ? 0.8 : 1), 1, 5);    const serveScore = clamp(2 + this.bestSkill('serve').value / 30 + (g.greeted ? 0.5 : 0)
@@ -1328,7 +1390,7 @@ export class Sim {
   }
 
   /** 设施型需求结算：住宿/泡汤/台球按人头收费，设施留下需要整理的状态 */
-          payFacility(g       )       {
+  payFacility(g       )       {
     const w = wantById(g.want);
     const f = this.tavern.furnById(g.facId);
     const room = f ? this.tavern.roomOfFurn(f) : null;
@@ -1338,6 +1400,7 @@ export class Sim {
     this.econ.coins += revenue;
     this.econ.revenue += revenue;
     this.econ.served += g.size;
+    this.recordDaySale('facilitySales', g.want, w.name, g.size, revenue);
     const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
     const charm = room ? this.charmIn(room.id) : 0;
     const comfort = clamp(1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm, 1, 5);
@@ -1804,12 +1867,13 @@ export class Sim {
       const g = this.groups.find((x) => x.id === o.groupId);
       const table = g ? this.tavern.furnById(g.tableId) : null;
       const passF = this.tavern.furnById(o.passId);
+      const servedDish = this.dishOf(o.dishId);
       if (!g || !table || !passF) continue;
       const p1 = this.tavern.standTileNear(this.tavern.useTiles(passF));
       const p2 = this.nearStand(table.x, table.y);
       if (!p1 || !p2) continue;
       out.push({
-        kind: 'serve', key, label: '上菜', i: 0,
+        kind: 'serve', key, label: `上菜·${servedDish.name}`, i: 0,
         steps: [
           { tx: p1.x, ty: p1.y },
           { dur: 1.0, label: '取餐', skill: 'carry', done: () => { passF.plates = Math.max(0, (passF.plates || 0) - 1); } },
@@ -1936,7 +2000,13 @@ export class Sim {
       { tx: sShelf.x, ty: sShelf.y },
       {
         dur: 1.6, label: '取料', skill: 'carry', done: () => {
-          for (const k of ING_KEYS) { const need = dish.ing[k] || 0; if (need) this.econ.stock[k] = Math.max(0, this.econ.stock[k] - need); }
+          for (const k of ING_KEYS) {
+            const need = dish.ing[k] || 0;
+            if (need) {
+              this.econ.stock[k] = Math.max(0, this.econ.stock[k] - need);
+              if (this.dayReport) this.dayReport.stockUsed[k] = (this.dayReport.stockUsed[k] || 0) + need;
+            }
+          }
           o.stage = 'carry';
         },
       },
@@ -1969,7 +2039,7 @@ export class Sim {
         this.fx.push({ x: passF.x, y: passF.y, t: 0.5, kind: 'steam' });
       },
     });
-    return { kind: dish.drink ? 'mix' : 'cook', key, label: dish.drink ? '调酒' : '烹饪', i: 0, steps };
+    return { kind: dish.drink ? 'mix' : 'cook', key, label: `${dish.drink ? '调制' : '烹饪'}·${dish.name}`, i: 0, steps };
   }
 
           chooseDish(g       )              {
@@ -2070,7 +2140,7 @@ export class Sim {
         s.bubble = { text: '啊！', t: 1.5 };
       }
       t.i++;
-      if (t.i >= t.steps.length) { s.task = null; s.carry = null; s.pose = 'idle'; s.note = ''; }
+      if (t.i >= t.steps.length) { this.recordDayWork(s, t); s.task = null; s.carry = null; s.pose = 'idle'; s.note = ''; }
       else this.beginStep(s);
     }
   }
@@ -2153,16 +2223,47 @@ export class Sim {
     const card = this.pendingEvent;
     if (!card) return '';
     const c = card.choices[idx];
+    const snapshot = () => ({
+      coins: this.econ.coins, rep: this.econ.rep, stock: { ...this.econ.stock }, dirt: this.tavern.dirt.length,
+      clean: this.tavern.rooms.length ? this.tavern.rooms.reduce((sum, room) => sum + room.clean, 0) / this.tavern.rooms.length : 0,
+      stress: this.staff.length ? this.staff.reduce((sum, staff) => sum + staff.needs.stress, 0) / this.staff.length : 0,
+      morale: this.staff.length ? this.staff.reduce((sum, staff) => sum + staff.needs.morale, 0) / this.staff.length : 0,
+    });
+    const before = snapshot();
     this.pendingEvent = null;
-    if (c.cost && this.econ.coins < c.cost) return '界币不足，只能眼睁睁看着事情发生。';
-    if (c.cost) this.econ.coins -= c.cost;
-    const ctx = this.eventCtx();
-    if (c.skill) {
+    let text = '';
+    let success = true;
+    if (c.cost && this.econ.coins < c.cost) {
+      text = '界币不足，只能眼睁睁看着事情发生。';
+      success = false;
+    } else {
+      if (c.cost) this.econ.coins -= c.cost;
+      const ctx = this.eventCtx();
+      if (c.skill) {
       const chance = this.choiceChance(c);
-      if (this.rng.next() * 100 <= chance) return c.ok(ctx);
-      return c.fail ? c.fail(ctx) : '失败了。';
+        success = this.rng.next() * 100 <= chance;
+        text = success ? c.ok(ctx) : (c.fail ? c.fail(ctx) : '失败了。');
+      } else text = c.ok(ctx);
     }
-    return c.ok(ctx);
+    const after = snapshot();
+    const stock = {};
+    for (const key of Object.keys(after.stock)) {
+      const delta = (after.stock[key] || 0) - (before.stock[key] || 0);
+      if (delta) stock[key] = delta;
+    }
+    const effects = {
+      coins: after.coins - before.coins, rep: after.rep - before.rep, stock,
+      dirt: after.dirt - before.dirt,
+      cleanliness: Math.round((after.clean - before.clean) * 10) / 10,
+      stress: Math.round((after.stress - before.stress) * 10) / 10,
+      morale: Math.round((after.morale - before.morale) * 10) / 10,
+    };
+    this.lastEventResolution = {
+      eventId: card.id, title: card.title, premise: card.text, choice: c.label, choiceNote: c.note,
+      skill: c.skill || '', success, originalResult: text, effects,
+    };
+    if (this.dayReport) this.dayReport.events.push(this.lastEventResolution);
+    return text;
   }
 
   serialize()          {
@@ -2185,13 +2286,14 @@ export class Sim {
     this.econ = data.econ;
     if (!this.econ.menu) this.econ.menu = {};   // 老存档：全部上架
     if (!this.econ.customDishes) this.econ.customDishes = [];   // 老存档：无自创菜
+    if (!this.econ.aiChronicles) this.econ.aiChronicles = [];
     this.rels = data.rels || {};                // 老存档：暂无关系
     const fix = (s       , replan = false)        => ({
       ...s, task: null, path: [], carry: null, bubble: null,
       sex: s.sex === '男' || s.sex === '女' ? s.sex : ((s.id || 0) % 2 ? '女' : '男'),
       aff: s.aff === undefined ? (s.isOwner ? 100 : 10) : s.aff,
       prio: replan || s.prio === undefined ? (s.isOwner ? 2 : plannedStaffPriority(s.skills, s.traits || [])) : s.prio,
-      affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], hireDay: s.hireDay || 1,
+      affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], aiChatLog: s.aiChatLog || [], background: s.background || null, hireDay: s.hireDay || 1,
     });
     this.staff = data.staff.map((s) => fix(s, false));
     this.pool = data.pool.map((s) => fix(s, true));
@@ -2221,7 +2323,7 @@ export function newEcon(seed        )       {
     coins: 1200, rep: 12, day: 1, strikes: 0, markup: 1.5, autoRestock: true,
     stock: { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 },
     menu: {},
-    customDishes: [],
+    customDishes: [], aiChronicles: [],
     revenue: 0, served: 0, lost: 0, seed,
   };
 }
