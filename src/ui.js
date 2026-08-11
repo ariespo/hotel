@@ -73,7 +73,9 @@ const CSS = `
 #ui button:active{transform:translateY(1px);box-shadow:none}
 #ui button.on{background:linear-gradient(rgba(255,255,255,.22), rgba(30,70,20,.18)), #7FB069;color:#FFFBEF;border-color:#5C8749;text-shadow:0 1px 0 rgba(60,40,20,.3);box-shadow:inset 0 2px 4px rgba(40,70,25,.35)}
 #ui button.warn{border-color:#D96A57;color:#C65A48}
+#ui button.purchaseConfirm{background:#D88958;color:#FFF8E6;border-color:#A94E3E;filter:brightness(1.08);animation:purchasePulse .7s steps(2,end) infinite}
 #ui button:disabled{opacity:.45;cursor:not-allowed}
+@keyframes purchasePulse{50%{box-shadow:0 0 0 3px #F3B84B88,inset 0 1px 0 rgba(255,255,255,.5)}}
 #top{position:absolute;left:0;right:0;top:0;min-height:38px;display:flex;align-items:center;gap:10px;padding:0 10px;font-size:14px;border-radius:0 0 14px 14px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;
   background:linear-gradient(rgba(255,235,200,.16), rgba(70,40,18,.22)), #D8AE7C url('assets/ui-wood.png');background-size:auto,340px;
   border-color:#8A5A38;box-shadow:0 3px 10px rgba(90,64,51,.35), inset 0 -2px 0 rgba(90,50,20,.25), inset 0 1px 0 rgba(255,245,220,.5)}
@@ -164,6 +166,8 @@ const ORDER_STAGE                         = {
   queued: '排队', prep: '备餐', cook: '下锅', ready: '待上菜', served: '已上菜', void: '作废',
 };
 
+export const PURCHASE_ACTIONS = Object.freeze(['hire', 'uproom', 'upfurn', 'buy', 'rstyle', 'adpost', 'rdgo']);
+
 function bar(v        , max        , color        )         {
   const pct = Math.max(0, Math.min(100, (v / max) * 100));
   return `<span class="bar" style="display:inline-block;width:64px"><i style="width:${pct}%;background:${color}"></i></span>`;
@@ -192,6 +196,10 @@ export class UI {
           chatterBox             ;
           scrim             ;
           acc = 0;
+          interactionLock = false;
+          interactionRelease = 0;
+          purchaseConfirm = null;
+          panelHTML = new WeakMap();
 
   constructor(g         ) {
     this.g = g;
@@ -234,8 +242,75 @@ export class UI {
       else if (window.innerWidth < 900) this.collapsed = { left: true, right: true };
     } catch (err) { /* 读不到就算了 */ }
     this.renderRails();
+    // 面板每 0.2 秒刷新一次。按压期间锁住重绘，防止 pointerdown 后原按钮被替换、click 丢失。
+    this.root.addEventListener('pointerdown', (e) => {
+      if ((e.target               ).closest?.('[data-act]')) {
+        clearTimeout(this.interactionRelease);
+        this.interactionLock = true;
+      }
+    }, true);
+    const releaseInteraction = () => {
+      clearTimeout(this.interactionRelease);
+      this.interactionRelease = setTimeout(() => { this.interactionLock = false; this.render(false); }, 0);
+    };
+    window.addEventListener('pointerup', releaseInteraction, true);
+    window.addEventListener('pointercancel', releaseInteraction, true);
     this.root.addEventListener('click', (e) => this.onClick(e));
     this.root.addEventListener('change', (e) => this.onChange(e));
+  }
+
+  setPanelHTML(node        , html        )       {
+    if (this.panelHTML.get(node) === html) return;
+    const top = node.scrollTop, left = node.scrollLeft;
+    node.innerHTML = html;
+    node.scrollTop = top; node.scrollLeft = left;
+    this.panelHTML.set(node, html);
+  }
+
+  purchaseKey(t       , act        )         {
+    return [act, t.dataset.v || '', t.dataset.n || '', t.dataset.id || '', t.dataset.s || ''].join('|');
+  }
+
+  needsPurchaseConfirmation(act        , t       )          {
+    if (act === 'rstyle') {
+      const room = this.g.tavern.roomById(parseInt(t.dataset.v || '0', 10));
+      const style = STYLES.find((item) => item.id === t.dataset.s);
+      return !!(room && style && style.cost > 0 && this.g.tavern.roomStyle(room) !== style.id);
+    }
+    return PURCHASE_ACTIONS.includes(act);
+  }
+
+  clearPurchaseConfirmation(refresh = false)       {
+    const pending = this.purchaseConfirm;
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    if (pending.element?.isConnected) {
+      pending.element.innerHTML = pending.originalHTML;
+      pending.element.classList.remove('purchaseConfirm');
+      pending.element.removeAttribute('aria-label');
+    }
+    this.purchaseConfirm = null;
+    if (refresh) this.render(true);
+  }
+
+  confirmPurchase(t       , act        )          {
+    const key = this.purchaseKey(t, act);
+    const now = performance.now();
+    if (this.purchaseConfirm?.key === key && now < this.purchaseConfirm.expires) {
+      this.clearPurchaseConfirmation(false);
+      return true;
+    }
+    this.clearPurchaseConfirmation(false);
+    const originalHTML = t.innerHTML;
+    t.textContent = `确认购买？ ${t.textContent.trim()}`;
+    t.classList.add('purchaseConfirm');
+    t.setAttribute('aria-label', '再次点击确认购买；双击可直接购买');
+    const pending = { key, element: t, originalHTML, expires: now + 6500, timer: 0 };
+    pending.timer = setTimeout(() => this.clearPurchaseConfirmation(true), 6500);
+    this.purchaseConfirm = pending;
+    this.g.sim.toast('再次单击确认购买；双击可直接购买');
+    this.renderToasts();
+    return false;
   }
 
           renderRails()       {
@@ -260,6 +335,9 @@ export class UI {
     const act = t.dataset.act          ;
     const v = t.dataset.v || '';
     const g = this.g;
+    if (this.needsPurchaseConfirmation(act, t)) {
+      if (!this.confirmPurchase(t, act)) return;
+    } else this.clearPurchaseConfirmation(false);
     if (act === 'pause') g.setPaused(!g.paused);
     else if (act === 'speed') g.setSpeed(parseInt(v, 10));
     else if (act === 'ltab') { this.leftTab = v; this.render(true); }
@@ -409,6 +487,7 @@ export class UI {
   }
 
   render(force         )       {
+    if (!force && (this.interactionLock || this.purchaseConfirm)) return;
     this.renderTop();
     this.renderLeft();
     this.renderRight();
@@ -423,7 +502,7 @@ export class UI {
     const nextTh = STAR_THRESHOLDS[Math.min(5, stars + 1)];
     const timePct = s.dayActive ? (s.dayT / 300) * 100 : 0;
     const lowStock = ING_KEYS.filter((k) => e.stock[k] < 10);
-    this.top.innerHTML = `
+    this.setPanelHTML(this.top, `
       <b>多元便携旅店</b>
       <span class="sep"></span>第 ${e.day} 天
       <span>${s.dayActive ? `<span class="hi">营业中·${this.phase()}</span> <span class="bar" style="display:inline-block;width:90px"><i style="width:${timePct}%;background:#F3B84B"></i></span>` : '<span class="dim">收盘规划</span>'}</span>
@@ -440,7 +519,7 @@ export class UI {
       <button data-act="home">回店</button>
       ${s.dayActive ? '' : '<button data-act="open">开门营业</button>'}
       <button data-act="help">帮助</button>
-      <button data-act="settings">⚙ 设置</button>`;
+      <button data-act="settings">⚙ 设置</button>`);
   }
 
           phase()         {
@@ -523,10 +602,10 @@ export class UI {
            <h3 style="margin-top:8px">热图</h3>
            <div class="row">${['off', 'clean', 'traffic'].map((h) => `<button data-act="heat" data-v="${h}" class="${g.heat === h ? 'on' : ''}">${h === 'off' ? '关闭' : h === 'clean' ? '卫生' : '拥堵'}</button>`).join('')}</div>`;
     }
-    this.left.innerHTML = `<div class="tabs">
+    this.setPanelHTML(this.left, `<div class="tabs">
       ${[['room', '房间', 'ic-room'], ['furn', '家具', 'ic-furn'], ['menu', '菜单', 'ic-menu'], ['econ', '经营', 'ic-econ']].map(([k, n, ic]) => `<button data-act="ltab" data-v="${k}" class="${this.leftTab === k ? 'on' : ''}"><img class="tic" src="assets/${ic}.png" alt="">${n}</button>`).join('')}<button class="fold" data-act="collapse" data-v="left" title="收起左栏">❮</button>
       </div>${body}
-      ${g.buildBp || g.buildFurn ? `<div class="row" style="margin-top:6px"><button data-act="rotate">R 旋转</button><button data-act="cancelbuild" class="warn">取消</button></div>` : ''}`;
+      ${g.buildBp || g.buildFurn ? `<div class="row" style="margin-top:6px"><button data-act="rotate">R 旋转</button><button data-act="cancelbuild" class="warn">取消</button></div>` : ''}`);
   }
 
           renderRight()       {
@@ -578,9 +657,9 @@ export class UI {
     } else {
       body = s.log.length ? s.log.slice(0, 24).map((l) => `<div class="dim">· ${l}</div>`).join('') : '<div class="dim">暂无记录。</div>';
     }
-    this.right.innerHTML = `<div class="tabs">
+    this.setPanelHTML(this.right, `<div class="tabs">
       ${[['staff', '员工', 'ic-staff'], ['guest', '客人', 'ic-guest'], ['task', '工作', 'ic-econ'], ['log', '日志', 'ic-log']].map(([k, n, ic]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}"><img class="tic" src="assets/${ic}.png" alt="">${n}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏">❯</button>
-      </div>${body}`;
+      </div>${body}`);
   }
 
           candCard(p       )         {
@@ -629,38 +708,38 @@ export class UI {
     const sel = g.selection;
     if (g.moveRoomId !== null) {
       const room = g.tavern.roomById(g.moveRoomId);
-      this.bottom.innerHTML = `<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
+      this.setPanelHTML(this.bottom, `<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
         <div class="dim">房间、家具、污渍与房内角色会整体平移；绿色=可放，红色=重叠、断开或没有门位。</div>
-        <div class="row"><button data-act="moveroom" data-v="${g.moveRoomId}" class="warn">取消移动</button></div>`;
+        <div class="row"><button data-act="moveroom" data-v="${g.moveRoomId}" class="warn">取消移动</button></div>`);
       return;
     }
     if (g.buildBp) {
       const b = BLUEPRINTS.find((x) => x.id === g.buildBp);
-      this.bottom.innerHTML = `<b class="hi">建造：${b?.name}</b> ${b?.w}×${b?.h}（旋转 ${g.buildRot ? '是' : '否'}）
-        <div class="dim">绿色=可建，红色=不可建。必须与已有房间贴边，系统会在共享边中点自动开门。</div>`;
+      this.setPanelHTML(this.bottom, `<b class="hi">建造：${b?.name}</b> ${b?.w}×${b?.h}（旋转 ${g.buildRot ? '是' : '否'}）
+        <div class="dim">绿色=可建，红色=不可建。必须与已有房间贴边，系统会在共享边中点自动开门。</div>`);
       return;
     }
     if (g.buildFurn) {
       const d = furnDef(g.buildFurn);
-      this.bottom.innerHTML = `<b class="hi">放置：${d.name} ${'I'.repeat(g.buildQuality)}</b> ${d.note}
-        <div class="dim">R 旋转朝向（黄色箭头=使用面，必须留出通道）。椅子必须朝向餐桌。</div>`;
+      this.setPanelHTML(this.bottom, `<b class="hi">放置：${d.name} ${'I'.repeat(g.buildQuality)}</b> ${d.note}
+        <div class="dim">R 旋转朝向（黄色箭头=使用面，必须留出通道）。椅子必须朝向餐桌。</div>`);
       return;
     }
     if (!sel) {
-      this.bottom.innerHTML = `<div class="dim">左键选择房间/家具/角色；中键或 WASD 平移，滚轮缩放，空格暂停，B 建造，R 旋转，Delete 拆除。</div>`;
+      this.setPanelHTML(this.bottom, `<div class="dim">左键选择房间/家具/角色；中键或 WASD 平移，滚轮缩放，空格暂停，B 建造，R 旋转，Delete 拆除。</div>`);
       return;
     }
-    if (sel.kind === 'staff') { this.bottom.innerHTML = this.staffDetail(sel.id); return; }
-    if (sel.kind === 'room') { this.bottom.innerHTML = this.roomDetail(sel.id); return; }
-    if (sel.kind === 'furn') { this.bottom.innerHTML = this.furnDetail(sel.id); return; }
+    if (sel.kind === 'staff') { this.setPanelHTML(this.bottom, this.staffDetail(sel.id)); return; }
+    if (sel.kind === 'room') { this.setPanelHTML(this.bottom, this.roomDetail(sel.id)); return; }
+    if (sel.kind === 'furn') { this.setPanelHTML(this.bottom, this.furnDetail(sel.id)); return; }
     if (sel.kind === 'guest') {
       const gu = this.g.sim.guests.find((x) => x.id === sel.id);
-      if (!gu) { this.bottom.innerHTML = '<div class="dim">客人已离店。</div>'; return; }
+      if (!gu) { this.setPanelHTML(this.bottom, '<div class="dim">客人已离店。</div>'); return; }
       const gr = this.g.sim.groups.find((x) => x.id === gu.groupId);
-      this.bottom.innerHTML = `<div class="row"><img class="av" src="${avatarURL(gu.app)}" width="64" height="64">
+      this.setPanelHTML(this.bottom, `<div class="row"><img class="av" src="${avatarURL(gu.app)}" width="64" height="64">
         <div style="flex:1"><b>${gu.name}</b> <span class="dim">${gu.race}</span>
         <div class="dim">${gr ? `同行 ${gr.size} 人 · 状态 ${gr.state} · 耐心 ${Math.round(gr.patience)}s · 预算 ${gr.budget}` : ''}</div>
-        <div class="dim">口味偏好：${gr ? gr.taste.map((t) => g.sim.dishOf(t).name).join('、') : ''}${gr && gr.flavors && gr.flavors.length ? `（${gr.flavors.map((f) => FLAVOR_LABEL[f] || f).join('/')}党）` : ''}</div></div></div>`;
+        <div class="dim">口味偏好：${gr ? gr.taste.map((t) => g.sim.dishOf(t).name).join('、') : ''}${gr && gr.flavors && gr.flavors.length ? `（${gr.flavors.map((f) => FLAVOR_LABEL[f] || f).join('/')}党）` : ''}</div></div></div>`);
     }
   }
 

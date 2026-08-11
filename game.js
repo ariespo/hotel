@@ -571,7 +571,9 @@ class Game                    {
       this.drag = null;
       if (moved) return;
       const t = this.screenToTile(e.clientX, e.clientY);
+      const editMode = !!(this.buildBp || this.buildFurn || this.moveRoomId !== null || this.moveFurnId !== null);
       this.click(t.x, t.y, e.button === 2);
+      if (editMode) { this.lastTap = null; return; }
       // 双击同一格上的员工 → 详情页
       const now = performance.now();
       if (this.lastTap && now - this.lastTap.t < 420 && Math.abs(this.lastTap.x - t.x) <= 1 && Math.abs(this.lastTap.y - t.y) <= 1) {
@@ -581,6 +583,7 @@ class Game                    {
     });
     cv.addEventListener('pointercancel', (e) => { this.pointers.delete(e.pointerId); this.drag = null; });
     cv.addEventListener('dblclick', (e) => {
+      if (this.buildBp || this.buildFurn || this.moveRoomId !== null || this.moveFurnId !== null) return;
       const t = this.screenToTile(e.clientX, e.clientY);
       this.openDetailAt(t.x, t.y);
     });
@@ -731,12 +734,37 @@ class Game                    {
 
   moveRoomId                = null;
   moveFurnId                = null;
+  placementConfirm = null;
+
+  placementKey(type        , item        , x        , y        , rot        , quality = 0)         {
+    return [type, item, x, y, rot, quality].join('|');
+  }
+
+  clearPlacementConfirmation()       {
+    if (this.placementConfirm?.timer) clearTimeout(this.placementConfirm.timer);
+    this.placementConfirm = null;
+  }
+
+  confirmPlacement(key        , message        )          {
+    const now = performance.now();
+    if (this.placementConfirm?.key === key && now < this.placementConfirm.expires) {
+      this.clearPlacementConfirmation();
+      return true;
+    }
+    this.clearPlacementConfirmation();
+    const pending = { key, expires: now + 6500, timer: 0 };
+    pending.timer = setTimeout(() => { if (this.placementConfirm?.key === key) this.placementConfirm = null; }, 6500);
+    this.placementConfirm = pending;
+    this.sim.toast(message);
+    return false;
+  }
 
   startMoveRoom(id        )       {
     if (this.sim.dayActive) { this.sim.toast('营业中不能移动房间，先完成今天'); this.audio.play('error'); return; }
     if (this.moveRoomId === id) { this.cancelBuild(); return; }
     const room = this.tavern.roomById(id);
     if (!room) return;
+    this.clearPlacementConfirmation();
     this.buildBp = null; this.buildFurn = null; this.moveFurnId = null;
     this.moveRoomId = id;
     this.sim.toast('移动房间：点击新位置整体放下（家具与房内角色会一起移动，右键或 Esc 取消）');
@@ -771,6 +799,7 @@ class Game                    {
   startMoveFurn(id        )       {
     const f = this.tavern.furnById(id);
     if (!f) return;
+    this.clearPlacementConfirmation();
     this.buildBp = null; this.buildFurn = null; this.moveRoomId = null;
     this.moveFurnId = id;
     this.buildRot = f.dir;
@@ -803,6 +832,7 @@ class Game                    {
 
   startBuildRoom(id        )       {
     if (this.sim.dayActive) { this.sim.toast('营业中不能建造，先完成今天'); this.audio.play('error'); return; }
+    this.clearPlacementConfirmation();
     this.buildBp = id; this.buildFurn = null; this.moveRoomId = null; this.moveFurnId = null; this.buildRot = 0;
   }
   startBuildFurn(kind        , q        )       {
@@ -813,15 +843,18 @@ class Game                    {
     const needStar = furnQualityUnlock(kind, q);
     if (this.sim.stars() < needStar) { this.sim.toast(`家具品质 ${'I'.repeat(q)} 需要 ★${needStar}`); this.audio.play('error'); return; }
     if (!room || room.quality < q) { this.sim.toast(`先把当前房间升级到品质 ${'I'.repeat(q)}`); this.audio.play('error'); return; }
+    this.clearPlacementConfirmation();
     this.buildFurn = kind; this.buildQuality = q; this.buildBp = null; this.moveRoomId = null; this.moveFurnId = null; this.buildRot = 0;
   }
   cancelBuild()       {
+    this.clearPlacementConfirmation();
     if (this.moveRoomId !== null) { this.moveRoomId = null; this.sim.toast('取消移动房间'); }
     if (this.moveFurnId !== null) { this.moveFurnId = null; this.sim.toast('取消搬动'); }
     this.buildBp = null; this.buildFurn = null;
   }
 
   rotateBuild()       {
+    this.clearPlacementConfirmation();
     if (this.moveFurnId !== null) this.buildRot = (this.buildRot + 1) % 4;
     else if (this.buildBp) this.buildRot = this.buildRot ? 0 : 1;
     else if (this.buildFurn) this.buildRot = (this.buildRot + 1) % 4;
@@ -833,6 +866,8 @@ class Game                    {
     const check = this.tavern.canPlaceRoom(bp, x, y, this.buildRot);
     if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error'); return; }
     if (this.sim.econ.coins < bp.cost) { this.sim.toast('界币不足'); this.audio.play('error'); return; }
+    const purchaseKey = this.placementKey('room', bp.id, x, y, this.buildRot);
+    if (!this.confirmPlacement(purchaseKey, `是否购买并建造${bp.name}（-${bp.cost}）？再次单击确认，双击直接购买`)) return;
     this.sim.econ.coins -= bp.cost;
     const room = this.tavern.placeRoom(bp, x, y, this.buildRot);
     this.sim.toast(`${ROOM_LABEL[bp.kind]}落位（-${bp.cost}）`);
@@ -849,6 +884,8 @@ class Game                    {
     const check = this.tavern.canPlaceFurn(kind, x, y, this.buildRot);
     if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error'); return; }
     if (this.sim.econ.coins < cost) { this.sim.toast('界币不足'); this.audio.play('error'); return; }
+    const purchaseKey = this.placementKey('furn', kind, x, y, this.buildRot, this.buildQuality);
+    if (!this.confirmPlacement(purchaseKey, `是否购买并放置${def.name}（-${cost}）？再次单击确认，双击直接购买`)) return;
     this.sim.econ.coins -= cost;
     const f = this.tavern.placeFurn(kind, x, y, this.buildRot, this.buildQuality);
     this.audio.play('place');
@@ -1630,7 +1667,10 @@ class Game                    {
       const col = chk.ok ? hexToNum(PAL.acid) : hexToNum(PAL.coral);
       g.rect(this.hover.x * T, this.hover.y * T, w * T, h * T).fill({ color: col, alpha: 0.28 }).stroke({ width: 2, color: col });
       if (!chk.ok) label(chk.reason, this.hover.x * T, this.hover.y * T - 14, 0xff6b5a);
-      else label(`${bp.name} -${bp.cost}`, this.hover.x * T, this.hover.y * T - 14, 0x8ddb4a);
+      else {
+        const armed = this.placementConfirm?.key === this.placementKey('room', bp.id, this.hover.x, this.hover.y, this.buildRot);
+        label(armed ? `再次点击确认购买 ${bp.name}` : `${bp.name} -${bp.cost}`, this.hover.x * T, this.hover.y * T - 14, 0x8ddb4a);
+      }
     }
     if (this.moveRoomId !== null) {
       const room = this.tavern.roomById(this.moveRoomId);
@@ -1667,6 +1707,10 @@ class Game                    {
       const [dx, dy] = dirDelta(this.buildRot);
       g.rect((this.hover.x + dx) * T + 8, (this.hover.y + dy) * T + 8, T - 16, T - 16).fill({ color: hexToNum(PAL.hi), alpha: 0.5 });
       if (!chk.ok) label(chk.reason, this.hover.x * T, this.hover.y * T - 14, 0xff6b5a);
+      else {
+        const armed = this.placementConfirm?.key === this.placementKey('furn', this.buildFurn, this.hover.x, this.hover.y, this.buildRot, this.buildQuality);
+        if (armed) label('再次点击确认购买', this.hover.x * T, this.hover.y * T - 14, 0x8ddb4a);
+      }
     }
 
     // 选中
