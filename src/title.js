@@ -32,7 +32,114 @@ const TITLE_CSS = `
 .title-ember{position:absolute;z-index:3;bottom:-20px;width:4px;height:4px;background:#FFD56B;box-shadow:0 0 8px #F3A34B;animation:titleEmber var(--d) linear infinite;animation-delay:var(--delay);left:var(--x)}
 #game-title-screen.leaving .title-door:before{animation:titleEnter .58s ease-in forwards}#game-title-screen.leaving .title-content{animation:titleFade .58s ease-in forwards}#game-title-screen.leaving .title-building{animation:titleBuilding .58s ease-in forwards}
 @keyframes titleStars{50%{opacity:.82}}@keyframes titleWindow{50%{filter:brightness(1.17)}}@keyframes titlePortal{50%{transform:translateX(-50%) scale(.88);filter:blur(4px) hue-rotate(25deg)}}@keyframes titleKnob{50%{opacity:.35}}@keyframes titleLamp{50%{filter:brightness(1.25);transform:translateX(-50%) scale(.9)}}@keyframes titleFloat{50%{transform:translateY(-5px)}}@keyframes titleSpark{50%{opacity:.35;transform:translateY(-50%) scale(.75)}}@keyframes titleEmber{0%{transform:translate(0,0);opacity:0}12%{opacity:1}100%{transform:translate(35px,-78vh);opacity:0}}@keyframes titleEnter{to{transform:translateX(-50%) scale(12);opacity:0}}@keyframes titleFade{to{opacity:0;transform:scale(1.04)}}@keyframes titleBuilding{to{filter:brightness(1.8);transform:translateX(-50%) scale(1.03)}}
-@media(max-width:650px){.title-building{bottom:14%;height:47vh}.title-window{width:58px;height:75px}.title-door{width:110px;height:170px}.title-logo{padding:15px 25px 12px}.title-logo h1{letter-spacing:.06em}.title-tagline{margin:16px 0 14px}.title-button{min-height:46px;font-size:16px}.title-moon{width:48px;height:48px}.title-lamp{display:none}}
+/* Premium title visual pass: layered lacquer, aged brass, glass and soft volumetric light. */
+#game-title-screen{--ink:#0b0811;--wine:#3e1f35;--plum:#6c3654;--brass:#d39a4d;--gold:#ffe7a3;--cyan:#7ce0db;background:#090711;overflow:clip}
+.title-sky{background:
+  radial-gradient(ellipse at 50% 54%,#8b50604d 0 10%,transparent 38%),
+  radial-gradient(circle at 50% 18%,#49305e 0,#23172f 35%,#100d18 68%,#08070d 100%)}
+.title-sky:before{opacity:.62;background-image:
+  radial-gradient(circle,#fff2c9 0 1px,transparent 1.35px),
+  radial-gradient(circle,#88ddd9 0 1px,transparent 1.4px),
+  radial-gradient(circle,#d99ab8 0 1px,transparent 1.3px);
+  background-size:79px 79px,131px 131px,173px 173px;background-position:17px 23px,47px 71px,96px 11px;
+  filter:drop-shadow(0 0 3px #fff1b7);animation:titleStars 5s steps(3,end) infinite,titleSkyDrift 34s linear infinite}
+.title-sky:after{content:"";position:absolute;inset:-15%;background:
+  radial-gradient(ellipse at 50% 62%,#e6a25717 0 8%,transparent 36%),
+  linear-gradient(112deg,transparent 20%,#8c5cd00c 39%,#78e0d70d 48%,transparent 63%);
+  filter:blur(18px);mix-blend-mode:screen;animation:titleAurora 9s ease-in-out infinite alternate}
+.title-moon{left:10%;top:9%;width:78px;height:78px;border-width:7px;border-color:#f6d478;border-right-color:transparent;
+  box-shadow:inset 4px 0 4px #fff6c3,0 0 0 1px #9c643b,0 0 25px #f4c86c99,0 0 75px #d8a85c38;
+  filter:none;animation:titleMoonBreathe 5.5s ease-in-out infinite}
+.title-moon:before{content:"";position:absolute;inset:-28px;border-radius:50%;background:radial-gradient(circle,#f9d88625,transparent 66%);filter:blur(6px)}
+.title-moon:after{content:"";position:absolute;right:-28px;top:14px;width:3px;height:3px;background:#fff5c4;box-shadow:0 0 8px 2px #ffe9a7,19px 25px 0 #9be1dc,-12px 48px 0 #fff1ba;animation:titleSparkle 2.8s steps(2,end) infinite}
+.title-building{bottom:12%;width:min(780px,86vw);height:min(438px,56vh);border:1px solid #8c5d55;
+  background:
+    linear-gradient(90deg,transparent 0 7%,#fff5db0a 7% 7.4%,transparent 7.4% 92.6%,#fff5db0a 92.6% 93%,transparent 93%),
+    repeating-linear-gradient(0deg,#392638 0 3px,#342233 3px 31px,#422a3d 31px 33px),
+    linear-gradient(90deg,#2b1c2d,#4b2e42 50%,#2b1c2d);
+  box-shadow:0 -9px 0 #1a111d,0 -12px 0 #774550,0 0 0 5px #140f18,0 28px 75px #050308dd,0 -4px 75px #e9a45d1f,inset 0 1px 0 #d79d8066,inset 0 0 70px #130d17cc}
+.title-building:before{left:-6%;right:-6%;top:-76px;height:84px;
+  background:
+    linear-gradient(180deg,#9e6057 0 3px,#3d2235 4px 38%,#5e3046 39% 72%,#251522 73%),
+    repeating-linear-gradient(90deg,transparent 0 30px,#d38e7255 30px 32px);
+  clip-path:polygon(0 100%,8% 58%,34% 58%,50% 0,66% 58%,92% 58%,100% 100%);
+  border-bottom:0;filter:drop-shadow(0 -3px 0 #ba755c) drop-shadow(0 8px 0 #110c15) drop-shadow(0 15px 22px #08050baa)}
+.title-building:after{left:-12%;right:-12%;bottom:-112px;height:185px;opacity:.86;
+  background:
+    linear-gradient(90deg,transparent,#d5946b12 50%,transparent),
+    repeating-linear-gradient(90deg,#241a2b 0 52px,#4b3043 52px 54px),
+    repeating-linear-gradient(0deg,transparent 0 48px,#74504e 48px 50px);
+  transform:perspective(210px) rotateX(51deg);box-shadow:inset 0 24px 45px #05040aaa}
+.title-sign{top:-43px;padding:8px 30px 9px;border:1px solid #efbd73;background:
+  linear-gradient(100deg,transparent 0 35%,#fff5d12e 48%,transparent 61%),
+  repeating-linear-gradient(0deg,#5f303b 0 2px,#683743 2px 8px);
+  box-shadow:0 0 0 4px #24131e,0 0 0 6px #a65f4d,inset 0 0 0 2px #e2a15d,inset 0 0 20px #28111acc,0 9px 22px #09050baa;
+  color:#ffe2a0;text-shadow:0 1px #fff3c4,2px 3px #3b1724,0 0 12px #ffc87388;letter-spacing:.48em}
+.title-window{top:84px;width:88px;height:108px;border:1px solid #bb7960;background:
+  linear-gradient(115deg,#fff7cbb8 0 7%,transparent 7% 28%,#fff4ba33 28% 33%,transparent 33%),
+  linear-gradient(180deg,#ffdd7d,#eaa45d 58%,#9e5460);
+  box-shadow:0 0 0 6px #1b111b,0 0 0 9px #73434a,inset 0 0 0 5px #b46750,inset 0 -22px 28px #b8546c88,0 0 32px #ffba5d66,0 0 70px #ffb55a1f;
+  animation:titleWindow 4.2s ease-in-out infinite}
+.title-window:before,.title-window:after{background:linear-gradient(90deg,#6d3d43,#c07855,#6d3d43);box-shadow:0 0 1px #1a1018}
+.title-window:before{left:calc(50% - 2px);width:4px}.title-window:after{top:46%;height:4px;background:linear-gradient(#6d3d43,#c07855,#6d3d43)}
+.title-window.w1{left:9%}.title-window.w2{right:9%}
+.title-door{width:154px;height:218px;border:1px solid #b47869;border-bottom:0;border-radius:76px 76px 0 0;
+  background:
+    linear-gradient(90deg,#1f172a 0 6%,#67405e 7% 12%,#32213c 13% 46%,#74485f 49%,#32213c 53% 88%,#67405e 89% 94%,#1f172a 95%),
+    repeating-linear-gradient(0deg,#3b2843 0 8px,#2b1d35 8px 10px);
+  box-shadow:0 0 0 7px #17101b,0 0 0 10px #794854,0 0 0 11px #d48a67,inset 0 0 28px #e6a85d70,0 0 25px #d35cc96b,0 0 70px #a65cc53d;overflow:visible}
+.title-door:before{left:50%;top:21px;width:104px;height:174px;border-radius:52% 52% 12% 12%;
+  background:
+    radial-gradient(ellipse at 55% 42%,#fffbd4 0 3%,#95ede7 13%,#8766c7 31%,#d66ba9 49%,#35224f 68%,transparent 71%),
+    conic-gradient(from 30deg,#85ebe0,#d77ab1,#f7cf79,#7770d4,#85ebe0);
+  box-shadow:inset 0 0 17px #fffbd8,0 0 12px #8ee8e2,0 0 34px #c35cc6aa;filter:blur(.7px) saturate(1.12);animation:titlePortal 3.1s ease-in-out infinite}
+.title-door:after{right:21px;left:auto;bottom:91px;width:7px;height:7px;border-radius:50%;background:#fff0a5;box-shadow:0 0 0 2px #6d423b,0 0 12px 3px #ffe59b;animation:titleKnob 1.8s ease-in-out infinite}
+.title-counter{bottom:0;height:17%;border-top:1px solid #c38362;background:
+  linear-gradient(180deg,#8a574855 0 2px,transparent 3px),
+  repeating-linear-gradient(90deg,#281b29 0 72px,#563646 72px 74px,#2c1d2d 74px 145px),
+  linear-gradient(#412b38,#17111c);
+  box-shadow:0 -6px 0 #21131d,0 -8px 0 #8d594b,0 -22px 70px #050309dd,inset 0 12px 35px #b66c4a16}
+.title-counter:before{content:"";position:absolute;left:0;right:0;top:-70px;height:78px;background:linear-gradient(180deg,transparent,#e7a2670c 55%,#ffc67c1c);filter:blur(10px);pointer-events:none}
+.title-counter:after{content:"";position:absolute;inset:8px 0 auto;height:1px;background:linear-gradient(90deg,transparent,#e2a87888 30%,#fff0c7aa 50%,#e2a87888 70%,transparent)}
+.title-lamp{width:3px;height:17vh;background:linear-gradient(90deg,#0f0b12,#6f4750,#0f0b12);box-shadow:0 0 4px #09060b}.title-lamp.l1{left:7.5%}.title-lamp.l2{right:7.5%}
+.title-lamp:before{bottom:-27px;width:58px;height:41px;background:linear-gradient(90deg,#3c202b,#825044 50%,#3c202b);border-bottom:2px solid #d28c5b;filter:drop-shadow(0 5px 4px #08050a)}
+.title-lamp:after{bottom:-55px;width:15px;height:18px;border-radius:45%;background:#fff1a8;box-shadow:0 0 8px 3px #ffe58d,0 0 27px 12px #f3b84b77,0 20px 80px 32px #f0ac5233;animation:titleLamp 3.2s ease-in-out infinite}
+.title-content{justify-content:flex-start;padding:clamp(68px,11vh,118px) 20px 32px;background:
+  radial-gradient(ellipse at 50% 45%,transparent 0 26%,#0a07102e 58%,#06040aaa 100%),
+  linear-gradient(90deg,#08060dcc 0,transparent 18%,transparent 82%,#08060dcc 100%)}
+.title-content:before{content:"";position:absolute;z-index:-1;left:50%;top:13%;width:min(820px,92vw);height:58%;transform:translateX(-50%);background:radial-gradient(ellipse,#e99a6123,transparent 66%);filter:blur(18px);pointer-events:none}
+.title-logo{margin:0;width:min(640px,86vw);padding:20px 38px 17px;border:1px solid #f1bf78;background:
+  linear-gradient(112deg,transparent 0 30%,#fff7d51c 43%,#fff7d53b 49%,transparent 61%),
+  repeating-linear-gradient(0deg,#2e1d30f2 0 3px,#352238f2 3px 10px);
+  box-shadow:0 0 0 4px #1a101b,0 0 0 7px #875044,0 0 0 8px #e6a168,0 10px 0 #130c15,0 22px 45px #060309dd,inset 0 1px 0 #fff2c866,inset 0 0 38px #110b16;
+  animation:titleFloat 4.2s ease-in-out infinite,titleSignGlow 6s ease-in-out infinite}
+.title-logo:before,.title-logo:after{top:50%;color:#8de4dd;font-size:17px;text-shadow:0 0 9px #76e4de;animation:titleSpark 2.4s steps(3,end) infinite}.title-logo:before{left:14px}.title-logo:after{right:14px}
+.title-logo h1{background:linear-gradient(180deg,#fff8ca 0,#ffe79a 35%,#e8ad5e 76%,#fff0ad 100%);-webkit-background-clip:text;background-clip:text;color:transparent;
+  font-size:clamp(38px,5.5vw,70px);letter-spacing:.11em;text-shadow:0 3px 0 #7c3448,0 6px 0 #2a1522,0 0 20px #f6c96a66;filter:drop-shadow(0 1px 0 #fff9d0)}
+.title-logo .en{margin-top:9px;color:#8ce3de;font-size:clamp(9px,1.2vw,13px);letter-spacing:.44em;text-shadow:0 0 10px #64dcd5aa}
+.title-tagline{margin:18px 0 15px;padding:8px 22px;border:1px solid #8d605b;background:linear-gradient(90deg,transparent,#1a121cdd 12% 88%,transparent);color:#eee0c8;letter-spacing:.14em;box-shadow:inset 0 1px #fff2d316;text-shadow:0 2px 2px #120b14,0 0 12px #eaa15d33}
+.title-menu{gap:11px;width:min(356px,84vw)}
+.title-button{min-height:52px;border:1px solid #e0a266;background:
+  linear-gradient(110deg,transparent 0 34%,#fff1c51c 45%,transparent 58%),
+  linear-gradient(180deg,#794452,#522c3c 48%,#3d2231 52%,#5b3141 100%);
+  box-shadow:0 0 0 4px #1a111a,0 0 0 5px #7e4c47,0 6px 0 #100a11,0 11px 22px #08050aaa,inset 0 1px 0 #ffe7b766,inset 0 -8px 15px #210f1b66;
+  color:#fff0c5;text-shadow:0 2px #29121d,0 0 10px #ffd47b44;transition:transform .18s ease,filter .18s ease,box-shadow .18s ease,letter-spacing .18s ease}
+.title-button:before{inset:1px auto 1px -38%;width:25%;background:linear-gradient(90deg,transparent,#fff4d54d,transparent);transform:skewX(-20deg);transition:left .45s ease}
+.title-menu>.title-button:not(.title-slot):after{content:"◆";position:absolute;left:17px;top:50%;transform:translateY(-50%) scale(.72);color:#d9a15c;text-shadow:0 0 8px #ffd681;transition:transform .18s,color .18s}
+.title-button:hover:not(:disabled),.title-button:focus-visible{transform:translateY(-3px);filter:brightness(1.12) saturate(1.08);letter-spacing:.21em;outline:1px solid #8be2dc;outline-offset:5px;box-shadow:0 0 0 4px #1a111a,0 0 0 5px #d39561,0 9px 0 #100a11,0 16px 30px #08050acc,inset 0 1px 0 #fff4c9aa,inset 0 -8px 15px #210f1b66}
+.title-button:hover:not(:disabled):after{transform:translateY(-50%) scale(.9) rotate(45deg);color:#9be4dc}.title-button:active:not(:disabled){transform:translateY(4px);box-shadow:0 0 0 4px #1a111a,0 0 0 5px #7e4c47,0 1px 0 #100a11,inset 0 1px 0 #ffe7b766}
+.title-button.primary{background:
+  linear-gradient(110deg,transparent 0 34%,#fff5d52c 45%,transparent 58%),
+  linear-gradient(180deg,#a35e57,#744044 48%,#572d38 52%,#7a4145 100%);
+  box-shadow:0 0 0 4px #1a111a,0 0 0 5px #c57958,0 6px 0 #100a11,0 11px 25px #08050aaa,inset 0 1px 0 #fff1bb99,inset 0 -8px 15px #2b111b66}
+.title-button:disabled{border-color:#68504d;background:linear-gradient(#49383d,#30262d);box-shadow:0 0 0 4px #171118,0 4px 0 #0d090e;color:#9e9189;filter:saturate(.4) brightness(.72)}
+.title-slots{border:1px solid #9d6958;background:#160f19e8;box-shadow:0 0 0 4px #120c14,0 12px 30px #060409cc,inset 0 0 30px #5e344344}.title-slot{box-shadow:0 0 0 3px #170f17,0 4px 0 #0e090f,inset 0 1px #fff1c333}.title-slot small{color:#d7bc8e}
+.slot-mode .title-menu>[data-title-action="newmenu"],.slot-mode .title-menu>[data-title-action="continuemenu"]{display:none}.slot-mode .title-slots{max-height:min(330px,46vh)}.title-back{min-height:40px;font-size:14px;text-align:center}.title-back:after{display:none}
+.title-status{margin-top:3px;color:#e8c982;text-shadow:0 2px #160e16,0 0 9px #efa95455}.title-author{bottom:19px;padding:7px 18px;border-top:1px solid #7c544c;color:#cabcae;background:linear-gradient(90deg,transparent,#130e17cc,transparent);text-shadow:0 2px #120b13}.title-author b{color:#ffe3a0;text-shadow:0 0 10px #f0b75e77}
+.title-ember{width:3px;height:3px;border-radius:50%;background:#ffe593;box-shadow:0 0 6px 2px #efa84e;animation:titleEmber var(--d) cubic-bezier(.2,.5,.4,1) infinite;animation-delay:var(--delay)}
+@keyframes titleSkyDrift{to{background-position:96px 23px,-84px 71px,269px 11px}}@keyframes titleAurora{to{transform:translate3d(3%,-2%,0) scale(1.08);opacity:.72}}@keyframes titleMoonBreathe{50%{box-shadow:inset 4px 0 4px #fff6c3,0 0 0 1px #9c643b,0 0 34px #f4c86cbb,0 0 90px #d8a85c4c}}@keyframes titleSparkle{50%{opacity:.38;transform:scale(.75)}}@keyframes titleSignGlow{50%{filter:brightness(1.055)}}
+@media(max-width:650px){.title-content{padding-top:8vh}.title-building{bottom:14%;width:94vw;height:48vh}.title-building:before{top:-54px;height:62px}.title-window{top:72px;width:58px;height:76px}.title-window.w1{left:7%}.title-window.w2{right:7%}.title-door{width:112px;height:174px}.title-door:before{width:76px;height:137px}.title-logo{width:91vw;padding:16px 25px 14px}.title-logo h1{letter-spacing:.055em}.title-tagline{margin:15px 0 13px;padding:7px 12px;font-size:12px}.title-button{min-height:46px;font-size:16px}.title-moon{width:50px;height:50px}.title-lamp{display:none}.title-author{bottom:11px;font-size:12px}}
+@media(max-height:620px){.title-content{padding-top:34px}.title-logo{padding-top:13px;padding-bottom:11px}.title-logo h1{font-size:clamp(34px,7vh,55px)}.title-tagline{margin:12px 0 10px}.title-button{min-height:43px}.title-building{height:52vh}.title-author{bottom:8px}}
 @media(prefers-reduced-motion:reduce){#game-title-screen *{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}.title-button{transition:none}}
 `;
 
@@ -102,7 +209,7 @@ export class TitleScreen {
     if (resume && this.hasSave) resume.classList.add('primary');
     else if (fresh) fresh.classList.add('primary');
     this.status(this.hasSave ? '检测到旅店存档，可以继续上次营业。' : '尚无存档，请从新旅店开始。');
-    setTimeout(() => (this.hasSave ? resume : fresh)?.focus(), 80);
+    setTimeout(() => (this.hasSave ? resume : fresh)?.focus({ preventScroll: true }), 80);
   }
 
   status(message) {
@@ -121,10 +228,17 @@ export class TitleScreen {
         : `档位 ${slot.slot} · 继续游戏`;
       const detail = slot.valid ? `${slot.ownerName} · 第 ${slot.day} 天 · ${'★'.repeat(slot.stars || 0) || '无星'} · ${slot.coins} 界币` : '空档位';
       return `<button class="title-button title-slot" data-title-action="${action}" data-slot="${slot.slot}">${title}<small>${detail}</small></button>`;
-    }).join('');
+    }).join('') + '<button class="title-button title-back" data-title-action="back">← 返回主菜单</button>';
+    this.root.classList.add('slot-mode');
     host.classList.add('on');
     this.status(mode === 'new' ? '选择新游戏要使用的档位。已有档位需要再次确认覆盖。' : '选择要继续的旅店档位。');
-    host.querySelector('button')?.focus();
+    this.root.scrollTop = 0;
+    requestAnimationFrame(() => { if (this.root) this.root.scrollTop = 0; });
+    setTimeout(() => {
+      if (!this.root) return;
+      if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+      this.root.scrollTop = 0;
+    }, 0);
   }
 
   async handleClick(event) {
@@ -132,6 +246,17 @@ export class TitleScreen {
     if (!button || button.disabled || !this.ready || this.root?.classList.contains('leaving')) return;
     this.onInteract?.();
     const action = button.dataset.titleAction;
+    if (action === 'back') {
+      const host = this.root.querySelector('[data-title-slots]');
+      this.root.classList.remove('slot-mode');
+      host?.classList.remove('on');
+      if (host) host.innerHTML = '';
+      this.root.scrollTop = 0;
+      this.status(this.hasSave ? '检测到旅店存档，可以继续上次营业。' : '尚无存档，请从新旅店开始。');
+      const target = this.root.querySelector(this.hasSave ? '[data-title-action="continuemenu"]' : '[data-title-action="newmenu"]');
+      target?.focus({ preventScroll: true });
+      return;
+    }
     if (action === 'newmenu' || action === 'continuemenu') {
       this.renderSlotMenu(action === 'newmenu' ? 'new' : 'continue');
       return;
