@@ -7,6 +7,7 @@ import {
 import { Rng } from './pix.js';
 import { AI_PRESETS, loadAIConfig, presetById, refreshAIModels, saveAIConfig } from './ai.js';
 import { aiConfigured, requestGameAI } from './ai-game.js';
+import { canPersistSim } from './save-policy.js';
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
@@ -167,6 +168,13 @@ const ORDER_STAGE                         = {
 };
 
 export const PURCHASE_ACTIONS = Object.freeze(['hire', 'uproom', 'upfurn', 'buy', 'rstyle', 'adpost', 'rdgo']);
+
+export function nightInteractionAction(sim       , kind                   , owner       , target       , group        )            {
+  if (!sim || sim.dayActive || !owner || !target) return '';
+  if (kind === 'guest') return group?.overnight ? 'raid' : '';
+  if (kind === 'staff' && target.aff >= 80 && target.age >= 18 && owner.age >= 18) return 'romance';
+  return '';
+}
 
 function bar(v        , max        , color        )         {
   const pct = Math.max(0, Math.min(100, (v / max) * 100));
@@ -419,6 +427,10 @@ export class UI {
     else if (act === 'closemodal') { this.closeModal(); if (!this.g.sim.dayActive) { this.g.audio.playTrack('bgm-plan'); this.g.audio.playAmb('amb-night'); } }
     else if (act === 'newgame') g.newGame();
     else if (act === 'loadmorning') g.loadMorning();
+    else if (act === 'savemenu') this.openSaveManager();
+    else if (act === 'saveslot') { g.saveToSlot(parseInt(v, 10)); this.openSaveManager(); }
+    else if (act === 'loadslot') this.openLoadSlotConfirm(parseInt(v, 10));
+    else if (act === 'loadslotgo') g.loadSlot(parseInt(v, 10));
     else if (act === 'help') this.openHelp();
     else if (act === 'settings') this.openSettings();
     else if (act === 'aipreset') {
@@ -442,6 +454,19 @@ export class UI {
       else { g.sim.chatWith(this.detailId); this.openStaffDetail(this.detailId); }
     }
     else if (act === 'iact') this.runInteract(v, parseInt(t.dataset.id          , 10), t.dataset.k          );
+    else if (act === 'nightlocal') this.startNightScene(false);
+    else if (act === 'nightai') this.startNightScene(true);
+    else if (act === 'nightchoice') {
+      const choice = this.nightStoryContext?.result?.choices?.[parseInt(v, 10)];
+      if (choice) this.continueNightStory(`${choice.label}（意图：${choice.intent}）`);
+    }
+    else if (act === 'nightcustom') {
+      const input = this.modal?.querySelector('[data-night-input]')                    ;
+      const line = input?.value.trim() || '';
+      if (line) this.continueNightStory(line); else input?.focus();
+    }
+    else if (act === 'nightretry') this.continueNightStory(this.nightStoryContext?.lastAction || '继续当前场景');
+    else if (act === 'nightexit') { this.nightStoryContext = null; this.closeModal(); }
     else if (act === 'adopen') this.openAdPanel(parseInt(v, 10), true);
     else if (act === 'adtier') { this.adSpec.tier = v; this.openAdPanel(this.adSlot); }
     else if (act === 'adsex') { this.adSpec.sex = v; this.openAdPanel(this.adSlot); }
@@ -518,6 +543,7 @@ export class UI {
       <span style="flex:1"></span>
       <button data-act="home">回店</button>
       ${s.dayActive ? '' : '<button data-act="open">开门营业</button>'}
+      <button data-act="savemenu">💾 档位 ${this.g.currentSlot}</button>
       <button data-act="help">帮助</button>
       <button data-act="settings">⚙ 设置</button>`);
   }
@@ -709,8 +735,8 @@ export class UI {
     if (g.moveRoomId !== null) {
       const room = g.tavern.roomById(g.moveRoomId);
       this.setPanelHTML(this.bottom, `<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
-        <div class="dim">房间、家具、污渍与房内角色会整体平移；绿色=可放，红色=重叠、断开或没有门位。</div>
-        <div class="row"><button data-act="moveroom" data-v="${g.moveRoomId}" class="warn">取消移动</button></div>`);
+        <div class="dim">R 旋转 ${g.buildRot * 90}°；房间、家具、污渍与房内角色会整体转向；绿色=可放，红色=重叠、断开或没有门位。</div>
+        <div class="row"><button data-act="rotate">R 旋转</button><button data-act="moveroom" data-v="${g.moveRoomId}" class="warn">取消移动</button></div>`);
       return;
     }
     if (g.buildBp) {
@@ -860,6 +886,8 @@ export class UI {
       <div>3. 设备只有<b>使用面可达</b>时才能工作（黄色箭头），椅子必须朝向餐桌。</div>
       <div>4. 一天 5 分钟，可 1×/2×/4× 或暂停。结算支付工资、维护与补货；连续 3 次低于信用线会被位面房东封印。</div>
       <div>5. 声望升星解锁酒吧、休息室与更大房型。</div>
+      <div>6. 顶栏“💾 档位”提供 3 个独立档位与主动保存；营业现场不会写入常规档，完成营业后再保存。</div>
+      <div>7. 收盘规划时靠近睡着的住店客可进行夜间突袭；员工好感达到至交且双方成年后可发出共度春宵邀请。接入 AI 后可连续推演选项剧情。</div>
       <div>6. 「菜单」页签管理上下架：菜品消耗储备室食材，越贵的菜对厨师的厨艺/调酒要求越高，厨艺不足或缺料时做不出来。</div>
       <div>7. 收盘规划时点击厨房的灶台可以研发新菜：自定配方用量、指派厨师、复合口味与趣味选项，成功后自动上架。</div>
       <div>8. 住宿客入夜后会留在客房过夜（不占用收盘），次日开门统一按住宿价结账离店。</div>
@@ -1127,8 +1155,10 @@ export class UI {
       if (!st || st.isOwner) return;
       const d = own ? Math.hypot(own.x - st.x, own.y - st.y) : 99;
       const near = d < 2.8;
+      const sameRoom = !!own && this.g.tavern.roomAt(Math.round(own.x), Math.round(own.y))?.id === this.g.tavern.roomAt(Math.round(st.x), Math.round(st.y))?.id;
       const lv = sim.affLevel(st.aff);
       const acts                     = [['chat2', '聊两句'], ['praise', '称赞'], ['urge', '催一催'], ['scold', '贬低']];
+      if (sameRoom && nightInteractionAction(sim, 'staff', own, st) === 'romance') acts.push(['romance', '邀请共度春宵']);
       this.showModal(`<div class="row"><img class="av" src="${avatarURL(st.app)}" width="64" height="64">
           <div style="flex:1"><h3 style="margin:0">${st.name}</h3>
             <div class="dim">${st.race}·${JOB_LABEL[st.job]}｜<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>
@@ -1150,10 +1180,12 @@ export class UI {
     if (!gu || !gr) return;
     const d = own ? Math.hypot(own.x - gu.x, own.y - gu.y) : 99;
     const near = d < 2.8;
+    const sameRoom = !!own && this.g.tavern.roomAt(Math.round(own.x), Math.round(own.y))?.id === this.g.tavern.roomAt(Math.round(gu.x), Math.round(gu.y))?.id;
     const w = wantById(gr.want);
     const pct = Math.round((gr.patience / gr.maxPatience) * 100);
     const cost = 12 + gr.size * 6;
     const acts                     = [['gpraise', '称赞'], ['treat', `请一杯 -${cost}`], ['gmock', '贬低']];
+    if (sameRoom && nightInteractionAction(sim, 'guest', own, gu, gr) === 'raid') acts.push(['raid', '进行突袭']);
     this.showModal(`<div class="row"><img class="av" src="${avatarURL(gu.app)}" width="64" height="64">
         <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
           <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}</div>
@@ -1182,10 +1214,11 @@ export class UI {
     }, 260);
   }
 
-          runInteract(action        , id        , kind        )       {
+  runInteract(action        , id        , kind        )       {
     const sim = this.g.sim;
     let msg = '';
     if (kind === 'staff') {
+      if (action === 'romance') { window.clearInterval(this.interactTimer); this.openNightPrompt('romance', 'staff', id); return; }
       if (action === 'chat2') {
         if (aiConfigured()) { window.clearInterval(this.interactTimer); this.openAIStaffChat(id); return; }
         msg = sim.chatWith(id) || '（他正忙着，没接话）';
@@ -1198,10 +1231,111 @@ export class UI {
     }
     const gr = sim.groupOfGuest(id);
     if (!gr) { this.closeModal(); return; }
+    if (action === 'raid') { window.clearInterval(this.interactTimer); this.openNightPrompt('raid', 'guest', id); return; }
     if (action === 'gpraise') msg = sim.praiseGuest(gr.id);
     else if (action === 'gmock') msg = sim.mockGuest(gr.id);
     else if (action === 'treat') msg = sim.treatGuest(gr.id);
     this.openInteract('guest', id, msg);
+  }
+
+  nightStoryContext                 = null;
+
+  nightTarget(ctx       )             {
+    return ctx?.kind === 'staff'
+      ? this.g.sim.staff.find((person) => person.id === ctx.id)
+      : this.g.sim.guests.find((person) => person.id === ctx?.id);
+  }
+
+  openNightPrompt(scene                   , kind                   , id        )       {
+    const sim = this.g.sim;
+    const owner = sim.staff.find((person) => person.isOwner);
+    const target = kind === 'staff' ? sim.staff.find((person) => person.id === id) : sim.guests.find((person) => person.id === id);
+    const group = kind === 'guest' ? sim.groupOfGuest(id) : null;
+    const ownerRoom = owner ? this.g.tavern.roomAt(Math.round(owner.x), Math.round(owner.y)) : null;
+    const targetRoom = target ? this.g.tavern.roomAt(Math.round(target.x), Math.round(target.y)) : null;
+    if (sim.dayActive || !owner || !target || !ownerRoom || ownerRoom.id !== targetRoom?.id || Math.hypot(owner.x - target.x, owner.y - target.y) >= 2.8) {
+      sim.toast('只能在收盘规划时靠近目标展开夜间互动'); return;
+    }
+    if (scene === 'raid' && !group?.overnight) { sim.toast('只有已经入睡的住店客可以触发夜间突袭'); return; }
+    if (scene === 'romance' && (target.age < 18 || owner.age < 18 || target.aff < 80)) { sim.toast('双方必须成年，且员工好感达到至交后才能发出邀请'); return; }
+    this.nightStoryContext = { scene, kind, id, targetName: target.name, turns: [], result: null, lastAction: '' };
+    const title = scene === 'raid' ? `夜间突袭 · ${target.name}` : `邀请共度春宵 · ${target.name}`;
+    const note = scene === 'raid'
+      ? '你准备突然拜访正在客房休息的住店客。对方可能受惊、质问或拒绝交流。'
+      : '这是一项私密邀请，而不是命令。只有对方明确接受，剧情才会继续；亲密内容会含蓄带过。';
+    this.showModal(`<h3>🌙 ${htmlText(title)}</h3><div>${htmlText(note)}</div>
+      <div class="card" style="margin-top:9px"><b>剧情边界</b><div class="dim">所有角色均为成年人；尊重拒绝和边界；不改变经营数值；不描写露骨色情内容。</div></div>
+      <div class="row" style="margin-top:10px"><button data-act="nightlocal">使用本地简短演出</button>${aiConfigured() ? '<button data-act="nightai">使用 AI 推演剧情</button>' : '<button data-act="settings">设置 AI 后推演</button>'}<button data-act="nightexit">取消</button></div>`);
+  }
+
+  startNightScene(useAI         )       {
+    const ctx = this.nightStoryContext;
+    const target = this.nightTarget(ctx);
+    if (!ctx || !target) { this.closeModal(); return; }
+    if (useAI) {
+      const action = ctx.scene === 'raid' ? '店主在深夜靠近客房，敲门后表明身份，准备进行一次突然查房。' : `店主私下询问${target.name}是否愿意共度一个亲密而安静的夜晚，并明确表示拒绝也完全没关系。`;
+      this.continueNightStory(action);
+      return;
+    }
+    const narrative = ctx.scene === 'raid'
+      ? `敲门声惊醒了${target.name}。店主说明来意后，对方裹紧被子，带着戒备确认门锁与房间状况。短暂的查房没有发现异常，店主道歉并退出客房，把安静还给了住店客。`
+      : `店主把邀请说出口，也把拒绝的余地完整留给了${target.name}。对方沉默片刻，确认这不是工作命令后才给出自己的回答。两人约定尊重彼此的边界；灯火渐暗，镜头停在门外，只留下低声交谈与温暖的夜色。`;
+    this.showModal(`<h3>🌙 ${htmlText(ctx.scene === 'raid' ? '深夜查房' : '灯火之后')}</h3><div style="max-width:720px;white-space:pre-wrap;line-height:1.8">${htmlText(narrative)}</div><div class="row" style="margin-top:10px"><button data-act="nightexit">结束剧情</button></div>`);
+  }
+
+  nightStoryFacts(ctx       , action        )       {
+    const sim = this.g.sim;
+    const owner = sim.staff.find((person) => person.isOwner);
+    const target = this.nightTarget(ctx);
+    const group = ctx.kind === 'guest' ? sim.groupOfGuest(ctx.id) : null;
+    const traits = (person       ) => (person?.traits || []).map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name);
+    return {
+      scene: ctx.scene,
+      sceneMeaning: ctx.scene === 'raid' ? '夜间突然拜访或查房；不是性行为，也不是暴力袭击' : '成年人之间可拒绝的私密邀请；亲密内容淡出处理',
+      location: ctx.kind === 'guest' ? '住店客正在休息的客房' : `${target?.name || '员工'}的员工休息室附近`,
+      day: sim.econ.day,
+      owner: { name: owner?.name || '店主', adult: (owner?.age || 0) >= 18, age: owner?.age, race: owner?.race, traits: traits(owner) },
+      target: ctx.kind === 'staff'
+        ? { type: '员工', name: target?.name, adult: (target?.age || 0) >= 18, age: target?.age, sex: target?.sex, race: target?.race, affinity: target?.aff, affinityLevel: sim.affLevel(target?.aff || 0).name, traits: traits(target), background: target?.background || null }
+        : { type: '住店客', name: target?.name, adult: true, race: target?.race, sleeping: !!group?.overnight, partySize: group?.size || 1 },
+      history: ctx.turns.slice(-8).map((turn) => ({ playerAction: turn.player, summary: turn.summary })),
+      playerAction: String(action).slice(0, 240),
+      immutable: '本剧情不改变任何经营数值、角色属性或既有事实。',
+    };
+  }
+
+  renderNightStory(state = {})       {
+    const ctx = this.nightStoryContext;
+    if (!ctx) return null;
+    const result = state.result || ctx.result;
+    const history = ctx.turns.length > 1 ? `<details class="card" style="margin-top:8px"><summary>前情摘要（${ctx.turns.length - 1} 段）</summary>${ctx.turns.slice(0, -1).map((turn) => `<div class="dim" style="margin-top:5px">${htmlText(turn.summary)}</div>`).join('')}</details>` : '';
+    const body = state.loading ? '<div class="card hi">AI 正在推演下一段剧情，请稍候…</div>'
+      : state.error ? `<div class="card"><div class="bad">AI 剧情生成失败：${htmlText(state.error)}</div><button data-act="nightretry">重试本段</button></div>`
+        : result ? `<div class="card" style="border-left-color:#7A4BE0"><h3>📖 ${htmlText(result.title)}</h3><div style="white-space:pre-wrap;line-height:1.85;max-width:760px">${htmlText(result.narrative)}</div></div>${history}
+          <h3 style="margin-top:10px">接下来怎么做？</h3><div class="row" style="flex-wrap:wrap;justify-content:flex-start">${result.choices.map((choice, i) => `<button data-act="nightchoice" data-v="${i}" title="${htmlText(choice.intent)}">${htmlText(choice.label)}</button>`).join('')}</div>
+          <textarea data-night-input maxlength="240" rows="3" placeholder="也可以输入自定义行动或台词……" style="width:100%;box-sizing:border-box;margin-top:8px"></textarea>
+          <div class="row" style="margin-top:7px"><span class="dim">选择或输入内容后，AI 会继续保持当前剧情。</span><button data-act="nightcustom">继续自定义剧情</button></div>` : '';
+    return this.showModal(`<h3>🌙 ${htmlText(ctx.scene === 'raid' ? '夜间突袭' : '共度春宵邀请')} · ${htmlText(ctx.targetName)}</h3>${body}<div class="row" style="margin-top:10px"><button data-act="nightexit">结束并返回收盘规划</button></div>`);
+  }
+
+  async continueNightStory(action        )       {
+    const ctx = this.nightStoryContext;
+    if (!ctx || !aiConfigured()) { this.startNightScene(false); return; }
+    ctx.lastAction = String(action).slice(0, 240);
+    const waitingModal = this.renderNightStory({ loading: true });
+    try {
+      const result = await requestGameAI('night_story', this.nightStoryFacts(ctx, ctx.lastAction));
+      if (this.nightStoryContext !== ctx || this.modal !== waitingModal) return;
+      ctx.result = result;
+      ctx.turns.push({ player: ctx.lastAction, summary: result.summary });
+      const records = this.g.sim.econ.aiNightStories = this.g.sim.econ.aiNightStories || [];
+      records.push({ day: this.g.sim.econ.day, scene: ctx.scene, target: ctx.targetName, title: result.title, summary: result.summary });
+      if (records.length > 24) records.splice(0, records.length - 24);
+      this.g.save();
+      this.renderNightStory({ result });
+    } catch (err) {
+      if (this.nightStoryContext === ctx && this.modal === waitingModal) this.renderNightStory({ error: err?.message || '未知错误' });
+    }
   }
 
           adSlot = 0;
@@ -1373,6 +1507,29 @@ export class UI {
       </div>`);
   }
 
+  openSaveManager()       {
+    const slots = this.g.saveSlots();
+    const canSave = canPersistSim(this.g.sim);
+    const rows = slots.map((slot) => `<div class="card" style="margin-top:7px;border-left-color:${slot.slot === this.g.currentSlot ? '#7FB069' : '#B0895E'}">
+      <div class="row"><b>档位 ${slot.slot}${slot.slot === this.g.currentSlot ? ' · 当前' : ''}</b><span class="${slot.valid ? 'hi' : 'dim'}">${slot.valid ? `第 ${slot.day} 天 · ${'★'.repeat(slot.stars) || '无星'}` : '空档位'}</span></div>
+      <div class="dim">${slot.valid ? `${htmlText(slot.ownerName)} · ${slot.coins} 界币${slot.savedAt ? ` · ${new Date(slot.savedAt).toLocaleString()}` : ''}` : '可以把当前旅店保存到这里。'}</div>
+      <div class="row" style="margin-top:6px"><button data-act="saveslot" data-v="${slot.slot}" ${canSave ? '' : 'disabled'}>${slot.valid ? '覆盖保存' : '保存到此档位'}</button>${slot.valid ? `<button data-act="loadslot" data-v="${slot.slot}">读取</button>` : ''}</div>
+    </div>`).join('');
+    this.showModal(`<h3>💾 存档管理</h3>
+      <div class="dim">自动存档写入当前档位；主动保存会把当前档位切换到所选位置。营业过程中的订单和客人属于实时状态，只能在收盘规划期主动存档。</div>
+      ${!canSave ? '<div class="bad" style="margin-top:7px">正在营业：完成今日营业后才能主动保存。</div>' : ''}
+      ${rows}<div class="row" style="margin-top:10px"><button data-act="closemodal">关闭</button></div>`);
+  }
+
+  openLoadSlotConfirm(slot        )       {
+    const info = this.g.saveSlots().find((item) => item.slot === slot);
+    if (!info?.valid) { this.openSaveManager(); return; }
+    this.showModal(`<h3>读取档位 ${slot}？</h3>
+      <div>将切换到 <b>${htmlText(info.ownerName)}</b> 的第 ${info.day} 天旅店进度。</div>
+      <div class="dim">当前档位已经自动保存；若正在营业，读取后会离开当前营业现场。</div>
+      <div class="row" style="margin-top:10px"><button data-act="loadslotgo" data-v="${slot}">确认读取</button><button data-act="savemenu">取消</button></div>`);
+  }
+
   openSettings()       {
     const manual = this.g.sim.manualOwner;
     const vols = this.g.audio.curVolumes();
@@ -1456,7 +1613,7 @@ export class UI {
 
   openConfirmRestart()       {
     this.showModal(`<h3 class="bad">重新游戏？</h3>
-      <div>当前酒馆的进度、房间、员工与存档都会被清空，然后从捏店主开始重来。</div>
+      <div>当前酒馆的进度、房间、员工与档位 ${this.g.currentSlot} 存档都会被清空；其他档位不受影响，然后从捏店主开始重来。</div>
       <div class="row" style="margin-top:12px">
         <button data-act="newgame" style="border-color:#B33C4E">确认重来</button>
         <button data-act="settings">返回设置</button>

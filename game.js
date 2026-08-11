@@ -6,16 +6,20 @@ const ACTOR_S = 0.5;          // 世界里的小人按 50% 画（美术画布 64
 import { FLOOR_VARIANTS, floorVariant, glowPix, rugTile, wallDecoPix } from './src/floor.js';
 import { hexToNum, mix, PAL, Rng } from './src/pix.js';
 import {
-  BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, styleById, wantById,
+  BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById,
 } from './src/data.js';
 import { DAY_LEN,            makeStaff, newEcon, Sim,            } from './src/sim.js';
 import { canPersistSim } from './src/save-policy.js';
-import { bpById, dirDelta,            furnFootprint,            Tavern } from './src/world.js';
+import { bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern } from './src/world.js';
 import {               UI } from './src/ui.js';
 import { TitleScreen, validGameSave } from './src/title.js';
 
 const SAVE_KEY = 'wjbdy.save.v1';
 const MORNING_KEY = 'wjbdy.morning.v1';
+const ACTIVE_SLOT_KEY = 'wjbdy.save.active.v1';
+const SAVE_SLOT_COUNT = 3;
+const saveKeyFor = (slot        ) => slot === 1 ? SAVE_KEY : `wjbdy.save.v2.slot.${slot}`;
+const morningKeyFor = (slot        ) => slot === 1 ? MORNING_KEY : `wjbdy.morning.v2.slot.${slot}`;
 // 只列出 assets/ 里确实存在的音轨：抓不到的文件会在控制台刷 CORS/404 噪音。
 // 补上 bgm-tavern / bgm-plan / bgm-night 后，把对应行加回来即可分阶段切换。
 const BGM_MANIFEST                     = [];
@@ -269,6 +273,7 @@ class Game                    {
   pixTex = new Map                      ();
   wallSprites = new PIXI.Container();
   ownerName = '店主';
+  currentSlot = 1;
   static MANUAL_KEY = 'wjbdy.manual.v1';
           lastW = 0;
           lastH = 0;
@@ -316,11 +321,16 @@ class Game                    {
     this.ui.root.style.visibility = 'hidden';
     this.bindInput();
     this.creatorPending = false;
-    const saved = localStorage.getItem(SAVE_KEY);
+    this.currentSlot = this.readActiveSlot();
+    const slots = this.saveSlots();
+    if (!slots.some((slot) => slot.slot === this.currentSlot && slot.valid)) {
+      this.currentSlot = slots.find((slot) => slot.valid)?.slot || this.currentSlot;
+    }
     this.titleScreen.activate({
-      hasSave: validGameSave(saved),
+      hasSave: slots.some((slot) => slot.valid),
+      slots,
       onInteract: () => this.audio.unlock(),
-      onChoose: (action) => this.chooseTitleAction(action),
+      onChoose: (action, slot) => this.chooseTitleAction(action, slot),
     });
 
     this.app.ticker.add((tk) => {
@@ -344,17 +354,19 @@ class Game                    {
     };
   }
 
-  chooseTitleAction(action        )          {
+  chooseTitleAction(action        , slot = this.currentSlot)          {
     this.audio.play('chime', 0.7);
+    this.currentSlot = this.normalizeSlot(slot);
+    this.rememberActiveSlot();
     if (action === 'continue') {
-      const saved = localStorage.getItem(SAVE_KEY);
+      const saved = localStorage.getItem(saveKeyFor(this.currentSlot));
       if (!validGameSave(saved)) return false;
       try {
         this.loadFrom(saved);
         this.sim.manualOwner = this.manualPref();
         this.creatorPending = false;
       } catch (err) {
-        localStorage.removeItem(SAVE_KEY);
+        localStorage.removeItem(saveKeyFor(this.currentSlot));
         return false;
       }
       this.titleActive = false;
@@ -370,7 +382,7 @@ class Game                    {
     this.ui.root.inert = false;
     this.ui.root.removeAttribute('aria-hidden');
     this.ui.root.style.visibility = '';
-    this.newGame();
+    this.newGame(this.currentSlot);
     return true;
   }
 
@@ -456,20 +468,80 @@ class Game                    {
   }
 
   // ---------- 存档 ----------
-  save()       {
+  normalizeSlot(slot        )         { return Math.max(1, Math.min(SAVE_SLOT_COUNT, Math.round(Number(slot) || 1))); }
+
+  readActiveSlot()         {
+    try { return this.normalizeSlot(localStorage.getItem(ACTIVE_SLOT_KEY)); } catch (e) { return 1; }
+  }
+
+  rememberActiveSlot()       {
+    try { localStorage.setItem(ACTIVE_SLOT_KEY, String(this.currentSlot)); } catch (e) { /* ignore */ }
+  }
+
+  saveSlots()       {
+    const out = [];
+    for (let slot = 1; slot <= SAVE_SLOT_COUNT; slot++) {
+      const raw = localStorage.getItem(saveKeyFor(slot));
+      let data = null;
+      try { data = raw ? JSON.parse(raw) : null; } catch (e) { /* invalid */ }
+      const valid = validGameSave(raw);
+      out.push({
+        slot, valid,
+        ownerName: valid ? (data.ownerName || '店主') : '',
+        day: valid ? (data.sim?.econ?.day || 1) : 0,
+        coins: valid ? Math.round(data.sim?.econ?.coins || 0) : 0,
+        stars: valid ? Math.max(0, Math.min(5, STAR_THRESHOLDS.filter((need) => (data.sim?.econ?.rep || 0) >= need).length - 1)) : 0,
+        savedAt: valid ? (data.meta?.savedAt || 0) : 0,
+      });
+    }
+    return out;
+  }
+
+  save(slot = this.currentSlot, manual = false)       {
     // 营业中的客人、订单、路径和计时是瞬时状态，当前存档格式有意不保存它们。
     // 因此营业中不覆盖稳定的收盘规划存档；刷新/重开会回到开门前检查点。
     if (!canPersistSim(this.sim)) return false;
+    slot = this.normalizeSlot(slot);
     const data = {
       tavern: this.tavern.serialize(), sim: this.sim.serialize(), ownerName: this.ownerName, cam: this.cam, zoom: this.zoom,
+      meta: { version: 2, slot, savedAt: Date.now(), manual: !!manual },
     };
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify(data)); } catch (e) { /* 存储不可用时忽略 */ }
+    try { localStorage.setItem(saveKeyFor(slot), JSON.stringify(data)); } catch (e) { return false; }
     return true;
   }
-  saveMorning()       {
-    try { localStorage.setItem(MORNING_KEY, localStorage.getItem(SAVE_KEY) || JSON.stringify({ tavern: this.tavern.serialize(), sim: this.sim.serialize(), ownerName: this.ownerName })); } catch (e) { /* ignore */ }
+
+  saveToSlot(slot        )          {
+    if (!canPersistSim(this.sim)) { this.sim.toast('营业中不能主动存档：请先完成今日营业'); this.audio.play('error'); return false; }
+    this.currentSlot = this.normalizeSlot(slot);
+    this.rememberActiveSlot();
+    const ok = this.save(this.currentSlot, true);
+    if (ok) { this.sim.toast(`已主动保存到档位 ${this.currentSlot}`); this.audio.play('chime', 0.7); }
+    return ok;
   }
-  hasMorningSave()          { return !!localStorage.getItem(MORNING_KEY); }
+
+  loadSlot(slot        )          {
+    slot = this.normalizeSlot(slot);
+    const raw = localStorage.getItem(saveKeyFor(slot));
+    if (!validGameSave(raw)) { this.sim.toast(`档位 ${slot} 没有可读取的存档`); this.audio.play('error'); return false; }
+    try {
+      this.loadFrom(raw);
+      this.currentSlot = slot;
+      this.rememberActiveSlot();
+      this.creatorPending = false;
+      this.ui.closeModal();
+      this.audio.playTrack(this.sim.dayActive ? 'bgm' : 'bgm-plan');
+      this.audio.playAmb(this.sim.dayActive ? 'amb' : 'amb-night');
+      this.sim.toast(`已读取档位 ${slot}`);
+      this.ui.render(true);
+      return true;
+    } catch (e) { this.sim.toast(`档位 ${slot} 读取失败`); this.audio.play('error'); return false; }
+  }
+
+  saveMorning()       {
+    const saveKey = saveKeyFor(this.currentSlot);
+    try { localStorage.setItem(morningKeyFor(this.currentSlot), localStorage.getItem(saveKey) || JSON.stringify({ tavern: this.tavern.serialize(), sim: this.sim.serialize(), ownerName: this.ownerName })); } catch (e) { /* ignore */ }
+  }
+  hasMorningSave()          { return !!localStorage.getItem(morningKeyFor(this.currentSlot)); }
 
   setManualOwner(v         )       {
     this.sim.manualOwner = v;
@@ -502,11 +574,15 @@ class Game                    {
     if (this.ui.compact) this.fitView();
     this.staticVersion = -1;
     this.selection = null;
+    this.buildBp = null; this.buildFurn = null; this.moveRoomId = null; this.moveFurnId = null;
+    this.clearPlacementConfirmation();
   }
 
-  newGame()       {
-    localStorage.removeItem(SAVE_KEY);
-    localStorage.removeItem(MORNING_KEY);
+  newGame(slot = this.currentSlot)       {
+    this.currentSlot = this.normalizeSlot(slot);
+    this.rememberActiveSlot();
+    localStorage.removeItem(saveKeyFor(this.currentSlot));
+    localStorage.removeItem(morningKeyFor(this.currentSlot));
     this.ui.closeModal();
     this.tavern = new Tavern();
     this.sim = new Sim(this.tavern, newEcon(Math.floor(Math.random() * 1e9)));
@@ -515,7 +591,7 @@ class Game                    {
   }
 
   loadMorning()       {
-    const m = localStorage.getItem(MORNING_KEY);
+    const m = localStorage.getItem(morningKeyFor(this.currentSlot));
     if (!m) return;
     this.loadFrom(m);
     this.sim.sealed = false;
@@ -767,7 +843,8 @@ class Game                    {
     this.clearPlacementConfirmation();
     this.buildBp = null; this.buildFurn = null; this.moveFurnId = null;
     this.moveRoomId = id;
-    this.sim.toast('移动房间：点击新位置整体放下（家具与房内角色会一起移动，右键或 Esc 取消）');
+    this.buildRot = 0;
+    this.sim.toast('移动房间：点击新位置整体放下（R 旋转，家具与房内角色会一起转向；右键或 Esc 取消）');
     this.ui.render(true);
   }
 
@@ -776,13 +853,18 @@ class Game                    {
     if (id === null) return;
     const room = this.tavern.roomById(id);
     if (!room) { this.moveRoomId = null; return; }
-    const check = this.tavern.canMoveRoom(id, x, y);
+    const check = this.tavern.canMoveRoom(id, x, y, this.buildRot);
     if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error', 0.5); return; }
     const inside = (person      ) => this.tavern.roomAt(Math.round(person.x), Math.round(person.y))?.id === id;
     const actors = [...this.sim.staff, ...this.sim.guests].filter(inside);
-    const moved = this.tavern.moveRoom(id, x, y);
+    const moved = this.tavern.moveRoom(id, x, y, this.buildRot);
     if (!moved) { this.sim.toast('房间无法移动到这里'); this.audio.play('error', 0.5); return; }
-    for (const person of actors) { person.x += moved.dx; person.y += moved.dy; person.path = []; }
+    for (const person of actors) {
+      const p = rotateRoomPoint(person.x - moved.old.x, person.y - moved.old.y, moved.old.w, moved.old.h, moved.turns);
+      person.x = moved.room.x + p.x; person.y = moved.room.y + p.y;
+      person.dir = ((person.dir || 0) + moved.turns) % 4;
+      person.path = [];
+    }
     for (const s of this.sim.staff) { s.task = null; s.path = []; s.carry = null; s.free = null; }
     for (const guest of this.sim.guests) guest.path = [];
     this.sim.fx.length = 0;
@@ -792,7 +874,7 @@ class Game                    {
     this.selection = { kind: 'room', id };
     this.focusOn(moved.room.x + moved.room.w / 2, moved.room.y + moved.room.h / 2);
     this.audio.play('place', 0.8);
-    this.sim.toast(`${ROOM_LABEL[moved.room.kind]}已整体移动`);
+    this.sim.toast(`${ROOM_LABEL[moved.room.kind]}已整体${moved.turns ? `旋转 ${moved.turns * 90}°并` : ''}移动`);
     this.save();
   }
 
@@ -855,7 +937,8 @@ class Game                    {
 
   rotateBuild()       {
     this.clearPlacementConfirmation();
-    if (this.moveFurnId !== null) this.buildRot = (this.buildRot + 1) % 4;
+    if (this.moveRoomId !== null) this.buildRot = (this.buildRot + 1) % 4;
+    else if (this.moveFurnId !== null) this.buildRot = (this.buildRot + 1) % 4;
     else if (this.buildBp) this.buildRot = this.buildRot ? 0 : 1;
     else if (this.buildFurn) this.buildRot = (this.buildRot + 1) % 4;
     else if (this.selection && this.selection.kind === 'furn') this.rotateFurn(this.selection.id);
@@ -1675,11 +1758,12 @@ class Game                    {
     if (this.moveRoomId !== null) {
       const room = this.tavern.roomById(this.moveRoomId);
       if (room) {
-        const chk = this.tavern.canMoveRoom(room.id, this.hover.x, this.hover.y);
+        const rw = this.buildRot % 2 ? room.h : room.w, rh = this.buildRot % 2 ? room.w : room.h;
+        const chk = this.tavern.canMoveRoom(room.id, this.hover.x, this.hover.y, this.buildRot);
         const col = chk.ok ? hexToNum(PAL.acid) : hexToNum(PAL.coral);
-        g.rect(this.hover.x * T, this.hover.y * T, room.w * T, room.h * T).fill({ color: col, alpha: 0.3 }).stroke({ width: 3, color: col });
+        g.rect(this.hover.x * T, this.hover.y * T, rw * T, rh * T).fill({ color: col, alpha: 0.3 }).stroke({ width: 3, color: col });
         if (!chk.ok) label(chk.reason, this.hover.x * T, this.hover.y * T - 14, 0xff6b5a);
-        else label('整体移动到这里', this.hover.x * T, this.hover.y * T - 14, 0x8ddb4a);
+        else label(`整体移动到这里（旋转 ${this.buildRot * 90}°）`, this.hover.x * T, this.hover.y * T - 14, 0x8ddb4a);
       }
     }
     if (this.moveFurnId !== null) {

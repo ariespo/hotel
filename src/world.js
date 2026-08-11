@@ -27,6 +27,17 @@ export function dirDelta(dir        )                   {
   return dir === 0 ? [0, 1] : dir === 1 ? [-1, 0] : dir === 2 ? [0, -1] : [1, 0];
 }
 
+/** 将房间内的格点顺时针旋转 turns 次；坐标以格子中心为基准。 */
+export function rotateRoomPoint(x        , y        , w        , h        , turns        )                                      {
+  let rx = x, ry = y, rw = w, rh = h;
+  for (let i = 0; i < ((turns % 4) + 4) % 4; i++) {
+    const nx = rh - 1 - ry, ny = rx;
+    rx = nx; ry = ny;
+    const size = rw; rw = rh; rh = size;
+  }
+  return { x: rx, y: ry, w: rw, h: rh };
+}
+
 const K = 4096;
 export function tkey(x        , y        )         { return (x + 2048) * K + (y + 2048); }
 
@@ -285,11 +296,13 @@ export class Tavern {
   }
 
   /** 整体移动现有房间：预检重叠、门位和移动后的全店连通性。 */
-  canMoveRoom(id        , x        , y        )                                  {
+  canMoveRoom(id        , x        , y        , turns = 0)                                  {
     const room = this.roomById(id);
     if (!room) return { ok: false, reason: '房间不存在' };
-    if (room.x === x && room.y === y) return { ok: false, reason: '房间已经在这里' };
-    const moved = this.rooms.map((r) => r.id === id ? { ...r, x, y } : r);
+    turns = ((turns % 4) + 4) % 4;
+    if (room.x === x && room.y === y && turns === 0) return { ok: false, reason: '房间已经在这里' };
+    const size = rotateRoomPoint(0, 0, room.w, room.h, turns);
+    const moved = this.rooms.map((r) => r.id === id ? { ...r, x, y, w: size.w, h: size.h } : r);
     const target = moved.find((r) => r.id === id)          ;
     for (const other of moved) {
       if (other.id === id) continue;
@@ -302,12 +315,15 @@ export class Tavern {
     }
 
     // 预演家具的整体位移；新共享墙的每一扇门都至少要有一对空格可用。
-    const dx = x - room.x, dy = y - room.y;
     const occupied = new Set        ();
     for (const f of this.furns) {
       const owner = this.roomOfFurn(f);
-      const ox = owner?.id === id ? dx : 0, oy = owner?.id === id ? dy : 0;
-      for (const tile of this.furnTiles(f)) occupied.add(tkey(tile.x + ox, tile.y + oy));
+      for (const tile of this.furnTiles(f)) {
+        if (owner?.id === id) {
+          const p = rotateRoomPoint(tile.x - room.x, tile.y - room.y, room.w, room.h, turns);
+          occupied.add(tkey(x + p.x, y + p.y));
+        } else occupied.add(tkey(tile.x, tile.y));
+      }
     }
     for (const other of moved) {
       if (other.id === id) continue;
@@ -354,19 +370,31 @@ export class Tavern {
     return seen.size === rooms.length;
   }
 
-  moveRoom(id        , x        , y        )                                      {
+  moveRoom(id        , x        , y        , turns = 0)                                      {
     const room = this.roomById(id);
     if (!room) return null;
-    const check = this.canMoveRoom(id, x, y);
+    turns = ((turns % 4) + 4) % 4;
+    const check = this.canMoveRoom(id, x, y, turns);
     if (!check.ok) return null;
+    const old = { x: room.x, y: room.y, w: room.w, h: room.h };
     const dx = x - room.x, dy = y - room.y;
     const furns = this.furnsIn(id);
     const dirt = this.dirt.filter((d) => d.x >= room.x && d.x < room.x + room.w && d.y >= room.y && d.y < room.y + room.h);
-    room.x = x; room.y = y;
-    for (const f of furns) { f.x += dx; f.y += dy; f.busyBy = undefined; }
-    for (const d of dirt) { d.x += dx; d.y += dy; }
+    const size = rotateRoomPoint(0, 0, old.w, old.h, turns);
+    for (const f of furns) {
+      const tiles = this.furnTiles(f).map((tile) => rotateRoomPoint(tile.x - old.x, tile.y - old.y, old.w, old.h, turns));
+      f.x = x + Math.min(...tiles.map((tile) => tile.x));
+      f.y = y + Math.min(...tiles.map((tile) => tile.y));
+      f.dir = (f.dir + turns) % 4;
+      f.busyBy = undefined;
+    }
+    for (const d of dirt) {
+      const p = rotateRoomPoint(d.x - old.x, d.y - old.y, old.w, old.h, turns);
+      d.x = x + p.x; d.y = y + p.y;
+    }
+    room.x = x; room.y = y; room.w = size.w; room.h = size.h;
     this.reindex();
-    return { room, dx, dy };
+    return { room, dx, dy, turns, old };
   }
 
   /** 拆除：不能让任何房间与门厅断开 */

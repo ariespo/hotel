@@ -158,14 +158,14 @@ export function makeStaff(rng     , id        , isOwner         , app           
   // 六成应聘者是成套造型（赛博/古装/魔幻），四成保持万界杂糅
   const theme = rng.chance(0.6) ? LOOK_THEMES[rng.int(LOOK_THEMES.length)] : undefined;
   const a = app || randomAppearance(rng, raceIdx, true, theme);
-  // 年龄：大部分 17–47；约两成中年段（人族也到顶 100）；长生种另有一成机会出真正的高龄
+  // 年龄：所有可交互角色均为成年人；大部分 18–47，长生种可能出现真正高龄。
   const maxAge = AGE_MAX[raceIdx] || 100;
-  let age = Math.round(17 + Math.pow(rng.next(), 1.6) * 30);
+  let age = Math.round(18 + Math.pow(rng.next(), 1.6) * 29);
   if (rng.chance(0.18)) age = Math.round(rng.range(46, Math.min(maxAge, 100)));
   if (maxAge > 100 && rng.chance(0.08)) age = Math.round(rng.range(100, maxAge));
   age = Math.min(age, maxAge);
   // 年长者手艺更好：年龄加成垫高技能区间（工资随技能走，老伙计更贵）
-  const ageBoost = clamp((age - 17) / 140, 0, 1);
+  const ageBoost = clamp((age - 18) / 140, 0, 1);
   const skills                         = {};
   const exp                         = {};
   const lo = (opt ? opt.lo : 8) + ageBoost * 10, hi = (opt ? opt.hi : 62) + ageBoost * 26;
@@ -2297,10 +2297,12 @@ export class Sim {
     if (!this.econ.menu) this.econ.menu = {};   // 老存档：全部上架
     if (!this.econ.customDishes) this.econ.customDishes = [];   // 老存档：无自创菜
     if (!this.econ.aiChronicles) this.econ.aiChronicles = [];
+    if (!this.econ.aiNightStories) this.econ.aiNightStories = [];
     this.rels = data.rels || {};                // 老存档：暂无关系
     const fix = (s       , replan = false)        => ({
       ...s, task: null, path: [], carry: null, bubble: null,
       sex: s.sex === '男' || s.sex === '女' ? s.sex : ((s.id || 0) % 2 ? '女' : '男'),
+      age: Math.max(18, Number(s.age) || 18),
       aff: s.aff === undefined ? (s.isOwner ? 100 : 10) : s.aff,
       prio: replan || s.prio === undefined ? (s.isOwner ? 2 : plannedStaffPriority(s.skills, s.traits || [])) : s.prio,
       affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], aiChatLog: s.aiChatLog || [], background: s.background || null, hireDay: s.hireDay || 1,
@@ -2333,7 +2335,7 @@ export function newEcon(seed        )       {
     coins: 1200, rep: 12, day: 1, strikes: 0, markup: 1.5, autoRestock: true,
     stock: { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 },
     menu: {},
-    customDishes: [], aiChronicles: [],
+    customDishes: [], aiChronicles: [], aiNightStories: [],
     revenue: 0, served: 0, lost: 0, seed,
   };
 }

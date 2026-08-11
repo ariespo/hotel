@@ -23,6 +23,7 @@ const TITLE_CSS = `
 .title-logo .en{margin-top:8px;color:#74D8D4;font-size:clamp(9px,1.4vw,14px);letter-spacing:.38em}
 .title-tagline{margin:22px 0 18px;padding:7px 14px;background:#201823CC;color:#E7D8C1;font-size:clamp(13px,1.8vw,17px);letter-spacing:.12em;text-shadow:1px 2px #201923}
 .title-menu{display:flex;flex-direction:column;gap:10px;width:min(330px,82vw)}
+.title-slots{display:none;gap:7px;padding:9px;background:#1A131ECC;border:3px solid #5D3B43;max-height:235px;overflow:auto}.title-slots.on{display:flex;flex-direction:column}.title-slot{min-height:42px;font-size:14px;text-align:left;letter-spacing:.05em}.title-slot small{display:block;color:#E0C796;font-size:11px;margin-top:3px}
 .title-button{position:relative;overflow:hidden;min-height:50px;padding:10px 20px;border:4px solid #2A1B26;background:#6E3C46;color:#FFF1C4;font:inherit;font-size:18px;letter-spacing:.18em;box-shadow:inset 0 0 0 3px #C77955,0 5px 0 #20151E;cursor:pointer;transition:transform .12s,filter .12s,background .12s}
 .title-button:before{content:"";position:absolute;inset:3px auto 3px -35%;width:30%;background:#FFF3C044;transform:skewX(-18deg);transition:left .28s}
 .title-button:hover:not(:disabled),.title-button:focus-visible{transform:translateY(-2px);filter:brightness(1.15);outline:3px solid #71D8D3;outline-offset:2px}.title-button:hover:before{left:115%}.title-button:active:not(:disabled){transform:translateY(4px);box-shadow:inset 0 0 0 3px #C77955,0 1px 0 #20151E}
@@ -49,6 +50,7 @@ export class TitleScreen {
   root = null;
   ready = false;
   hasSave = false;
+  slots = [];
   onChoose = null;
   onInteract = null;
   confirmTimer = 0;
@@ -70,7 +72,7 @@ export class TitleScreen {
       <div class="title-counter"></div>${embers}
       <main class="title-content"><div class="title-logo"><h1>多元便携旅店</h1><div class="en">MULTIVERSE PORTABLE INN</div></div>
         <div class="title-tagline">让每一次营业，都成为独一无二的故事</div>
-        <div class="title-menu"><button class="title-button" data-title-action="new" disabled>开始新游戏</button><button class="title-button" data-title-action="continue" disabled>继续游戏</button><div class="title-status" role="status">正在点亮旅店灯火…</div></div>
+        <div class="title-menu"><button class="title-button" data-title-action="newmenu" disabled>开始新游戏</button><button class="title-button" data-title-action="continuemenu" disabled>继续游戏</button><div class="title-slots" data-title-slots></div><div class="title-status" role="status">正在点亮旅店灯火…</div></div>
         <div class="title-author">作者：<b>Poaries</b></div></main>`;
     root.addEventListener('click', (event) => this.handleClick(event));
     root.addEventListener('pointermove', (event) => {
@@ -87,13 +89,14 @@ export class TitleScreen {
     this.root = root;
   }
 
-  activate({ hasSave, onChoose, onInteract = this.onInteract }) {
+  activate({ hasSave, slots = this.slots, onChoose, onInteract = this.onInteract }) {
     this.ready = true;
     this.hasSave = !!hasSave;
+    this.slots = Array.isArray(slots) ? slots : [];
     this.onChoose = onChoose;
     this.onInteract = onInteract;
-    const fresh = this.root?.querySelector('[data-title-action="new"]');
-    const resume = this.root?.querySelector('[data-title-action="continue"]');
+    const fresh = this.root?.querySelector('[data-title-action="newmenu"]');
+    const resume = this.root?.querySelector('[data-title-action="continuemenu"]');
     if (fresh) fresh.disabled = false;
     if (resume) resume.disabled = !this.hasSave;
     if (resume && this.hasSave) resume.classList.add('primary');
@@ -107,20 +110,45 @@ export class TitleScreen {
     if (node) node.textContent = message;
   }
 
+  renderSlotMenu(mode) {
+    const host = this.root?.querySelector('[data-title-slots]');
+    if (!host) return;
+    const rows = this.slots.filter((slot) => mode === 'new' || slot.valid);
+    host.innerHTML = rows.map((slot) => {
+      const action = mode === 'new' ? 'new' : 'continue';
+      const title = mode === 'new'
+        ? (slot.valid ? `档位 ${slot.slot} · 覆盖现有进度` : `档位 ${slot.slot} · 开设新旅店`)
+        : `档位 ${slot.slot} · 继续游戏`;
+      const detail = slot.valid ? `${slot.ownerName} · 第 ${slot.day} 天 · ${'★'.repeat(slot.stars || 0) || '无星'} · ${slot.coins} 界币` : '空档位';
+      return `<button class="title-button title-slot" data-title-action="${action}" data-slot="${slot.slot}">${title}<small>${detail}</small></button>`;
+    }).join('');
+    host.classList.add('on');
+    this.status(mode === 'new' ? '选择新游戏要使用的档位。已有档位需要再次确认覆盖。' : '选择要继续的旅店档位。');
+    host.querySelector('button')?.focus();
+  }
+
   async handleClick(event) {
     const button = event.target.closest('[data-title-action]');
     if (!button || button.disabled || !this.ready || this.root?.classList.contains('leaving')) return;
     this.onInteract?.();
     const action = button.dataset.titleAction;
-    if (action === 'new' && this.hasSave && button.dataset.confirm !== 'yes') {
+    if (action === 'newmenu' || action === 'continuemenu') {
+      this.renderSlotMenu(action === 'newmenu' ? 'new' : 'continue');
+      return;
+    }
+    const slot = Math.max(1, Math.min(3, parseInt(button.dataset.slot || '1', 10)));
+    const slotHasSave = !!this.slots.find((item) => item.slot === slot)?.valid;
+    if (action === 'new' && slotHasSave && button.dataset.confirm !== 'yes') {
       button.dataset.confirm = 'yes';
+      button.dataset.originalHtml = button.innerHTML;
       button.textContent = '再次点击，确认新游戏';
-      this.status('开始新游戏会覆盖当前进度。');
+      this.status(`开始新游戏会覆盖档位 ${slot} 的当前进度。`);
       clearTimeout(this.confirmTimer);
       this.confirmTimer = setTimeout(() => {
         if (!button.isConnected) return;
         delete button.dataset.confirm;
-        button.textContent = '开始新游戏';
+        button.innerHTML = button.dataset.originalHtml || `档位 ${slot} · 覆盖现有进度`;
+        delete button.dataset.originalHtml;
         this.status('已取消覆盖，仍可继续现有存档。');
       }, 4500);
       return;
@@ -132,11 +160,12 @@ export class TitleScreen {
     this.status(action === 'continue' ? '正在推开熟悉的门扉…' : '正在为新旅店交付钥匙…');
     await new Promise((resolve) => setTimeout(resolve, 520));
     let ok = true;
-    try { ok = (await this.onChoose?.(action)) !== false; } catch (err) { ok = false; }
+    try { ok = (await this.onChoose?.(action, slot)) !== false; } catch (err) { ok = false; }
     if (ok) this.destroy();
     else {
       this.root.classList.remove('leaving');
-      this.activate({ hasSave: false, onChoose: this.onChoose, onInteract: this.onInteract });
+      this.slots = this.slots.map((item) => item.slot === slot ? { ...item, valid: false } : item);
+      this.activate({ hasSave: this.slots.some((item) => item.valid), slots: this.slots, onChoose: this.onChoose, onInteract: this.onInteract });
       this.status('存档无法读取，请开始新游戏。');
     }
   }
