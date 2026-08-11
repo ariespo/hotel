@@ -142,7 +142,7 @@ const TITLE_CSS = `
 @media(max-height:620px){.title-content{padding-top:34px}.title-logo{padding-top:13px;padding-bottom:11px}.title-logo h1{font-size:clamp(34px,7vh,55px)}.title-tagline{margin:12px 0 10px}.title-button{min-height:43px}.title-building{height:52vh}.title-author{bottom:8px}}
 /* Illustrated title layout: the generated pixel scene is the visual anchor. */
 #game-title-screen{background:#050711;overflow:clip}
-#game-title-screen:before{content:"";position:absolute;z-index:0;inset:-1.5%;background-image:url("assets/title-universe-inn-v2-pixel.png");background-repeat:no-repeat;background-position:center;background-size:cover;image-rendering:pixelated;transform:scale(1.015);animation:titleBackdropDrift 20s steps(10,end) infinite alternate}
+#game-title-screen:before{content:"";position:absolute;z-index:0;inset:0;background-image:url("assets/title-universe-inn-v2-pixel.png");background-repeat:no-repeat;background-position:center;background-size:cover;image-rendering:pixelated;transform:none;animation:none}
 #game-title-screen:after{content:"";position:absolute;z-index:1;inset:0;pointer-events:none;background:
   radial-gradient(ellipse at 50% 32%,#05071116 0 22%,#05071152 67%,#03040add 100%),
   linear-gradient(180deg,#03040a52 0,#06071212 44%,#03040a70 100%)}
@@ -168,8 +168,28 @@ const TITLE_CSS = `
 .title-status{margin-top:4px;padding:3px 9px;background:#07060aa3;color:#efcf89;text-shadow:0 2px #0a070d,0 0 8px #ffbf5455}
 .title-author{bottom:17px;padding:6px 20px;border:1px solid #7c544c99;background:#07060bbf;box-shadow:0 0 18px #020207cc;backdrop-filter:blur(3px)}
 .title-slots{background:#080711eb;backdrop-filter:blur(6px)}
-@keyframes titleBackdropDrift{0%{transform:scale(1.015) translate3d(-.35%,0,0)}100%{transform:scale(1.035) translate3d(.35%,-.25%,0)}}
-@media(max-width:650px){#game-title-screen:before{inset:-1%;background-position:30% center;transform:scale(1.01);animation:none}.title-content{padding-top:7vh}.title-logo{width:92vw;padding:15px 22px 13px}.title-logo h1{font-size:clamp(35px,10.5vw,46px);letter-spacing:.045em}.title-logo .en{font-size:8px;letter-spacing:.3em}.title-tagline{margin:17px 0 14px;padding:7px 11px;font-size:12px;letter-spacing:.08em}.title-menu{width:86vw;margin-top:52px}.slot-mode .title-menu{margin-top:20px}.title-button{min-height:48px}.title-author{bottom:10px}}
+.title-image-fx{position:absolute;z-index:2;inset:0;overflow:hidden;pointer-events:none;mix-blend-mode:screen}
+.title-fx-inn{position:absolute;left:0;bottom:0;width:59%;height:52%;opacity:.45;background:
+  radial-gradient(ellipse 17% 15% at 55% 54%,#ffd36f85 0 10%,#e9903430 38%,transparent 72%),
+  radial-gradient(ellipse 8% 11% at 37% 55%,#ffe29370 0 12%,transparent 72%),
+  radial-gradient(ellipse 9% 14% at 17% 67%,#925dff68 0 13%,#40d9ff25 46%,transparent 74%),
+  radial-gradient(ellipse 30% 18% at 47% 70%,#f29b3f28 0 18%,transparent 74%);
+  filter:blur(5px) saturate(1.2);animation:titleInnFlicker 4.6s steps(5,end) infinite}
+.title-fx-horizon{position:absolute;right:-3%;bottom:13%;width:62%;height:23%;opacity:.34;background:
+  radial-gradient(ellipse 70% 18% at 54% 58%,#93f8ff9c 0 5%,#966dff52 23%,transparent 68%),
+  linear-gradient(180deg,transparent 47%,#83efff38 52%,#b870ff30 55%,transparent 67%);
+  filter:blur(7px);animation:titleHorizonShimmer 6.4s steps(6,end) infinite}
+.title-fx-galaxy{position:absolute;right:0;top:-5%;width:29%;height:34%;opacity:.32;background:radial-gradient(ellipse at 56% 40%,#fff2ae9c 0 3%,#bd79ff4c 18%,#6f54e52d 35%,transparent 67%);filter:blur(8px);animation:titleGalaxyGlow 5.8s ease-in-out infinite}
+.title-fx-stars{position:absolute;inset:0;opacity:.65;background:
+  radial-gradient(circle at 16% 10%,#fff7ca 0 1px,transparent 2px),radial-gradient(circle at 72% 19%,#8ef7ff 0 1px,transparent 2px),
+  radial-gradient(circle at 82% 36%,#fff2b6 0 1px,transparent 2px),radial-gradient(circle at 68% 49%,#8deaff 0 1px,transparent 2px),
+  radial-gradient(circle at 91% 58%,#f3a3ff 0 1px,transparent 2px),radial-gradient(circle at 61% 15%,#d0b0ff 0 1px,transparent 2px);
+  filter:drop-shadow(0 0 4px #b9f8ff);animation:titleStarTwinkle 3.7s steps(4,end) infinite}
+@keyframes titleInnFlicker{0%,100%{opacity:.32;filter:blur(5px) brightness(.9) saturate(1.1)}23%{opacity:.5;filter:blur(5px) brightness(1.15) saturate(1.25)}47%{opacity:.38}71%{opacity:.56;filter:blur(6px) brightness(1.22) saturate(1.3)}}
+@keyframes titleHorizonShimmer{0%,100%{opacity:.22;filter:blur(8px) brightness(.9)}42%{opacity:.4;filter:blur(6px) brightness(1.18)}67%{opacity:.3;filter:blur(8px) brightness(1.04)}}
+@keyframes titleGalaxyGlow{0%,100%{opacity:.2;filter:blur(9px) brightness(.9)}50%{opacity:.38;filter:blur(7px) brightness(1.18)}}
+@keyframes titleStarTwinkle{0%,100%{opacity:.28;filter:drop-shadow(0 0 2px #b9f8ff)}27%{opacity:.76;filter:drop-shadow(0 0 6px #fff2bc)}53%{opacity:.42}79%{opacity:.88;filter:drop-shadow(0 0 5px #9af5ff)}}
+@media(max-width:650px){#game-title-screen:before{inset:0;background-position:30% center;transform:none;animation:none}.title-fx-inn{width:100%;height:52%;opacity:.42;background:radial-gradient(ellipse 30% 17% at 75% 59%,#ffd36f82 0 9%,#e9903430 38%,transparent 72%),radial-gradient(ellipse 55% 20% at 63% 72%,#f29b3f2b 0 15%,transparent 72%)}.title-fx-horizon,.title-fx-galaxy{display:none}.title-fx-stars{opacity:.48}.title-content{padding-top:7vh}.title-logo{width:92vw;padding:15px 22px 13px}.title-logo h1{font-size:clamp(35px,10.5vw,46px);letter-spacing:.045em}.title-logo .en{font-size:8px;letter-spacing:.3em}.title-tagline{margin:17px 0 14px;padding:7px 11px;font-size:12px;letter-spacing:.08em}.title-menu{width:86vw;margin-top:52px}.slot-mode .title-menu{margin-top:20px}.title-button{min-height:48px}.title-author{bottom:10px}}
 @media(max-height:620px){.title-content{padding-top:28px}.title-logo{padding-top:12px;padding-bottom:10px}.title-logo h1{font-size:clamp(32px,7.5vh,52px)}.title-tagline{margin:12px 0 10px}.title-button{min-height:43px}.title-author{bottom:7px}}
 @media(prefers-reduced-motion:reduce){#game-title-screen *{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}.title-button{transition:none}}
 `;
@@ -208,6 +228,7 @@ export class TitleScreen {
       <div class="title-lamp l1"></div><div class="title-lamp l2"></div>
       <div class="title-building"><div class="title-sign">旅店</div><div class="title-window w1"></div><div class="title-window w2"></div><div class="title-door"></div></div>
       <div class="title-counter"></div>${embers}
+      <div class="title-image-fx" aria-hidden="true"><i class="title-fx-inn"></i><i class="title-fx-horizon"></i><i class="title-fx-galaxy"></i><i class="title-fx-stars"></i></div>
       <main class="title-content"><div class="title-logo"><h1>多元便携旅店</h1><div class="en">MULTIVERSE PORTABLE INN</div></div>
         <div class="title-tagline">让每一次营业，都成为独一无二的故事</div>
         <div class="title-menu"><button class="title-button" data-title-action="newmenu" disabled>开始新游戏</button><button class="title-button" data-title-action="continuemenu" disabled>继续游戏</button><div class="title-slots" data-title-slots></div><div class="title-status" role="status">正在点亮旅店灯火…</div></div>
