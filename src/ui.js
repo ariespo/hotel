@@ -410,6 +410,9 @@ export class UI {
     else if (act === 'rdgo') this.runResearch();
     else if (act === 'dress') this.openWardrobe(parseInt(v, 10));
     else if (act === 'event') { g.resolveEvent(parseInt(v, 10)); }
+    else if (act === 'eventcustom') this.runCustomEvent();
+    else if (act === 'eventcustomretry') this.runCustomEvent(this.eventCustomContext?.action || '继续处理当前事件');
+    else if (act === 'eventback') this.openEvent();
     else if (act === 'airetryevent') {
       if (this.eventAIContext) {
         this.showModal(`<h3>事件结果</h3><div>${htmlText(this.eventAIContext.text)}</div><div class="hi" data-ai-event-status style="margin-top:10px">AI 正在演绎事件结果…</div><div class="row" style="margin-top:8px"><button data-act="closemodal">跳过 AI，继续</button></div>`);
@@ -908,11 +911,65 @@ export class UI {
         <div class="dim">${c.note}${best ? `｜检定：${best.name} ${SKILL_LABEL[c.skill          ]} ${best.value} → 成功率 ${chance}%` : ''}</div>
         <button data-act="event" data-v="${i}" ${afford ? '' : 'disabled'}>选择</button></div>`;
     }).join('');
-    this.showModal(`<h3>⚡ ${card.title}</h3><div style="max-width:520px">${card.text}</div>${choices}
+    const custom = aiConfigured() ? `<div class="card" style="border-left-color:#7A4BE0"><b>✦ 自定义处理（AI 推演）</b>
+      <div class="dim" style="margin:5px 0 8px">描述店主要采取的行动。AI 会生成成功与失败结果，由游戏检定并在安全范围内结算真实数值。</div>
+      <textarea data-event-custom maxlength="300" rows="3" placeholder="例如：让店主先安抚客人，再请最冷静的员工检查异常来源" style="width:100%;box-sizing:border-box"></textarea>
+      <div class="row" style="margin-top:8px;justify-content:flex-end"><button data-act="eventcustom">使用 AI 推演</button></div></div>` : '';
+    this.showModal(`<h3>⚡ ${card.title}</h3><div style="max-width:520px">${card.text}</div>${choices}${custom}
       <div class="dim">暂停中仍可拖动镜头查看酒馆。</div>`);
   }
 
   eventAIContext                 = null;
+  eventCustomContext             = null;
+
+  eventEffectsText(effects     )         {
+    const parts = [];
+    const signed = (value) => value > 0 ? `+${value}` : `${value}`;
+    if (effects?.coins) parts.push(`界币 ${signed(effects.coins)}`);
+    if (effects?.rep) parts.push(`声望 ${signed(effects.rep)}`);
+    for (const [key, value] of Object.entries(effects?.stock || {})) if (value) parts.push(`${ING_LABEL[key] || key} ${signed(value)}`);
+    if (effects?.cleanliness) parts.push(`平均清洁 ${signed(effects.cleanliness)}`);
+    if (effects?.stress) parts.push(`平均压力 ${signed(effects.stress)}`);
+    if (effects?.morale) parts.push(`平均士气 ${signed(effects.morale)}`);
+    if (effects?.dirt) parts.push(`脏污 ${signed(effects.dirt)} 处`);
+    return parts.join('｜') || '无直接数值变化';
+  }
+
+  async runCustomEvent(actionOverride = '')       {
+    const s = this.g.sim;
+    const input = this.modal?.querySelector('[data-event-custom]')                    ;
+    const action = String(actionOverride || input?.value || '').trim().slice(0, 300);
+    if (!action) { input?.focus(); return; }
+    const facts = s.customEventFacts(action);
+    if (!facts) return;
+    this.eventCustomContext = { action };
+    this.showModal(`<h3>✦ AI 正在推演事件</h3><div class="card"><b>玩家行动</b><div>${htmlText(action)}</div></div>
+      <div class="hi" style="margin-top:10px">正在分析行动方式、难度、成功与失败结果…</div>
+      <div class="dim" style="margin-top:8px">游戏将在 AI 返回后自行检定，并只采用受限制的结构化数值。</div>`);
+    const startedModal = this.modal;
+    try {
+      const plan = await requestGameAI('event_custom', facts);
+      if (this.modal !== startedModal) return;
+      const resolved = s.resolveCustomEvent(action, plan);
+      if (!resolved) { this.openEvent(); return; }
+      this.g.save();
+      this.eventCustomContext = null;
+      const verdict = resolved.success ? '行动成功' : '行动失败';
+      this.showModal(`<h3>⚡ ${htmlText(resolved.resultTitle || plan.title)}</h3>
+        <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><span class="${resolved.success ? 'good' : 'bad'}"><b>${verdict}</b></span>
+        <span class="dim">${SKILL_LABEL[resolved.skill] || resolved.skill}检定：${htmlText(resolved.best?.name || '无人')} ${resolved.best?.value || 0}｜难度 ${resolved.difficulty}｜成功率 ${resolved.chance}%｜掷骰 ${resolved.roll}</span></div>
+        <div style="max-width:700px;white-space:pre-wrap;line-height:1.75;margin-top:10px">${htmlText(resolved.narrative)}</div>
+        <div class="card" style="margin-top:10px"><b>AI 推演影响</b><div>${htmlText(resolved.impact || '事件告一段落。')}</div>
+        <div class="hi" style="margin-top:6px"><b>实际结算：</b>${htmlText(this.eventEffectsText(resolved.effects))}</div>
+        <div class="dim" style="margin-top:5px">判定依据：${htmlText(resolved.choiceNote)}</div></div>
+        <div class="row" style="margin-top:10px"><button data-act="closemodal">继续营业</button></div>`);
+    } catch (err) {
+      if (this.modal !== startedModal) return;
+      this.showModal(`<h3>自定义事件推演失败</h3><div class="card"><b>玩家行动</b><div>${htmlText(action)}</div></div>
+        <div class="bad" style="margin-top:8px">${htmlText(err?.message || '未知错误')}</div>
+        <div class="row" style="margin-top:10px"><button data-act="eventcustomretry">重试 AI</button><button data-act="eventback">返回默认选项</button></div>`);
+    }
+  }
 
   openEventResult(text        , detail = null)       {
     if (detail && aiConfigured()) {

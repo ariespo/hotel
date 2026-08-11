@@ -2229,6 +2229,81 @@ export class Sim {
     return clamp(Math.round((choice.base || 50) * 0.5 + best.value * 0.6 + stoic), 5, 96);
   }
 
+  customEventFacts(action        )           {
+    const card = this.pendingEvent;
+    if (!card) return null;
+    const average = (rows, read) => rows.length ? Math.round(rows.reduce((sum, row) => sum + read(row), 0) / rows.length) : 0;
+    return {
+      event: {
+        id: card.id, title: card.title, premise: card.text,
+        defaultChoices: card.choices.map((choice) => ({ label: choice.label, note: choice.note, skill: choice.skill || '', cost: choice.cost || 0 })),
+      },
+      playerAction: String(action || '').trim().slice(0, 300),
+      state: {
+        coins: this.econ.coins, reputation: this.econ.rep, stock: { ...this.econ.stock }, dirt: this.tavern.dirt.length,
+        roomCount: this.tavern.rooms.length, averageCleanliness: average(this.tavern.rooms, (room) => room.clean),
+        averageStress: average(this.staff, (staff) => staff.needs.stress), averageMorale: average(this.staff, (staff) => staff.needs.morale),
+      },
+      staff: this.staff.map((staff) => ({ name: staff.name, job: staff.job, traits: [...staff.traits], skills: { ...staff.skills }, stress: Math.round(staff.needs.stress), morale: Math.round(staff.needs.morale) })),
+      allowedEffectRanges: { coins: [-400, 400], rep: [-25, 25], stockEach: [-12, 12], cleanliness: [-20, 20], stress: [-15, 20], morale: [-15, 15], dirt: [-4, 6] },
+    };
+  }
+
+  resolveCustomEvent(action        , plan     )       {
+    const card = this.pendingEvent;
+    if (!card || !plan) return null;
+    const safeAction = String(action || '').trim().slice(0, 300);
+    if (!safeAction) return null;
+    const snapshot = () => ({
+      coins: this.econ.coins, rep: this.econ.rep, stock: { ...this.econ.stock }, dirt: this.tavern.dirt.length,
+      clean: this.tavern.rooms.length ? this.tavern.rooms.reduce((sum, room) => sum + room.clean, 0) / this.tavern.rooms.length : 0,
+      stress: this.staff.length ? this.staff.reduce((sum, staff) => sum + staff.needs.stress, 0) / this.staff.length : 0,
+      morale: this.staff.length ? this.staff.reduce((sum, staff) => sum + staff.needs.morale, 0) / this.staff.length : 0,
+    });
+    const before = snapshot();
+    const skill = SKILL_KEYS.includes(plan.skill) ? plan.skill : 'calm';
+    const difficulty = clamp(Math.round(Number(plan.difficulty) || 55), 20, 90);
+    const best = this.bestSkill(skill);
+    const stoic = this.staff.some((staff) => staff.traits.includes('stoic')) ? 10 : 0;
+    const chance = clamp(Math.round(55 + best.value * 0.45 - difficulty * 0.55 + stoic), 5, 95);
+    const roll = 1 + Math.floor(this.rng.next() * 100);
+    const success = roll <= chance;
+    const branch = success ? plan.successResult : plan.failureResult;
+    const effects = branch?.effects || {};
+    const amount = (value, min, max) => clamp(Math.round(Number(value) || 0), min, max);
+    const ctx = this.eventCtx();
+    ctx.coins(amount(effects.coins, -400, 400));
+    ctx.rep(amount(effects.rep, -25, 25));
+    for (const key of ING_KEYS) ctx.stock(key, amount(effects.stock?.[key], -12, 12));
+    ctx.cleanAll(amount(effects.cleanliness, -20, 20));
+    ctx.stressAll(amount(effects.stress, -15, 20));
+    ctx.moraleAll(amount(effects.morale, -15, 15));
+    const dirt = amount(effects.dirt, -4, 6);
+    if (dirt > 0) ctx.spawnDirt(dirt);
+    else if (dirt < 0) this.tavern.dirt.splice(Math.max(0, this.tavern.dirt.length + dirt), -dirt);
+    this.pendingEvent = null;
+    const after = snapshot();
+    const stock = {};
+    for (const key of Object.keys(after.stock)) {
+      const delta = (after.stock[key] || 0) - (before.stock[key] || 0);
+      if (delta) stock[key] = delta;
+    }
+    const actualEffects = {
+      coins: after.coins - before.coins, rep: after.rep - before.rep, stock, dirt: after.dirt - before.dirt,
+      cleanliness: Math.round((after.clean - before.clean) * 10) / 10,
+      stress: Math.round((after.stress - before.stress) * 10) / 10,
+      morale: Math.round((after.morale - before.morale) * 10) / 10,
+    };
+    this.lastEventResolution = {
+      eventId: card.id, title: card.title, premise: card.text, choice: `自定义：${safeAction}`,
+      choiceNote: plan.rationale || '由 AI 解释玩家的自定义处理方式', skill, success,
+      originalResult: branch?.narrative || branch?.impact || '事件告一段落。', effects: actualEffects,
+      aiCustom: true, difficulty, chance, roll, impact: branch?.impact || '', resultTitle: plan.title || card.title,
+    };
+    if (this.dayReport) this.dayReport.events.push(this.lastEventResolution);
+    return { ...this.lastEventResolution, narrative: this.lastEventResolution.originalResult, best };
+  }
+
   resolveEvent(idx        )         {
     const card = this.pendingEvent;
     if (!card) return '';
