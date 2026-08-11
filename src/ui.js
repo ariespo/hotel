@@ -184,6 +184,7 @@ export class UI {
   leftTab = 'room';
   rightTab = 'staff';
   modal                     = null;
+  aiStaffChatSession = null;
   collapsed = { left: false, right: false };
   compact = false;
           railL             ;
@@ -741,8 +742,8 @@ export class UI {
   }
 
   // ---------- 模态 ----------
-          showModal(inner        , closable = true)              {
-    this.closeModal();
+          showModal(inner        , closable = true, preserveAIChat = false)              {
+    this.closeModal(preserveAIChat);
     // 必经流程（捏脸）不给 ✕：关了就永远进不了店
     const x = closable ? '<button class="x" data-act="closemodal" title="关闭">✕</button>' : '';
     const m = el(`<div class="modal"><div class="mbox">${x}${inner}</div></div>`);
@@ -751,8 +752,17 @@ export class UI {
     return m;
   }
 
-  closeModal()       {
+  closeModal(preserveAIChat = false)       {
+    if (!preserveAIChat) this.finishAIStaffChatSession();
     if (this.modal) { this.modal.remove(); this.modal = null; }
+  }
+
+  finishAIStaffChatSession()       {
+    const session = this.aiStaffChatSession;
+    this.aiStaffChatSession = null;
+    if (!session || session.exchanges <= 0) return;
+    this.g.sim.chatWith(session.id, session.lastReply);
+    this.g.save();
   }
 
   openHelp()       {
@@ -849,6 +859,11 @@ export class UI {
     const st = this.g.sim.staff.find((person) => person.id === id);
     if (!st || st.isOwner) return;
     if (!aiConfigured()) { this.g.sim.chatWith(id); this.openStaffDetail(id); return; }
+    if (!this.aiStaffChatSession || this.aiStaffChatSession.id !== id) {
+      this.finishAIStaffChatSession();
+      if (st.affCd > 0) { this.openStaffDetail(id); return; }
+      this.aiStaffChatSession = { id, exchanges: 0, lastReply: '' };
+    }
     const history = (st.aiChatLog || []).slice(0, 6).reverse();
     this.showModal(`<div class="row"><img class="av" src="${avatarURL(st.app)}" width="64" height="64">
         <div style="flex:1"><h3 style="margin:0">和 ${htmlText(st.name)} 聊聊</h3><div class="dim">${htmlText(st.race)}·${JOB_LABEL[st.job]}｜${this.g.sim.affLevel(st.aff).name} ${Math.round(st.aff)}</div></div></div>
@@ -856,9 +871,9 @@ export class UI {
         ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${htmlText(st.name)}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有 AI 对话记录。说点什么吧。</div>'}
       </div>
       ${error ? `<div class="bad" style="margin-top:7px">${htmlText(error)}</div>` : ''}
-      <textarea id="aiplayerline" maxlength="120" rows="3" placeholder="输入店主想说的话……" style="width:100%;box-sizing:border-box;margin-top:8px" ${st.affCd > 0 ? 'disabled' : ''}></textarea>
-      <div class="row" style="margin-top:8px"><span class="dim">AI 只负责角色台词，不会自行修改数值。</span>
-        <span><button data-act="aichatsend" data-v="${st.id}" ${st.affCd > 0 ? 'disabled' : ''}>发送</button><button data-act="detail" data-v="${st.id}">返回详情</button></span></div>`);
+      <textarea id="aiplayerline" maxlength="120" rows="3" placeholder="输入店主想说的话……" style="width:100%;box-sizing:border-box;margin-top:8px"></textarea>
+      <div class="row" style="margin-top:8px"><span class="dim">本次会话可连续发送；结束聊天后统一结算一次互动。</span>
+        <span><button data-act="aichatsend" data-v="${st.id}">发送</button><button data-act="detail" data-v="${st.id}">结束聊天</button></span></div>`, true, true);
   }
 
   async sendAIStaffChat(id        )       {
@@ -872,8 +887,12 @@ export class UI {
     try {
       const result = await requestGameAI('staff_chat', this.staffAIFacts(st, line));
       if (this.modal !== startedModal) return;
-      const reply = this.g.sim.chatWith(st.id, result.reply);
+      const reply = this.g.sim.showAIChatReply(st.id, result.reply);
       if (!reply) throw new Error('员工现在无法回应');
+      if (this.aiStaffChatSession?.id === st.id) {
+        this.aiStaffChatSession.exchanges++;
+        this.aiStaffChatSession.lastReply = reply;
+      }
       const owner = this.g.sim.staff.find((person) => person.isOwner);
       st.aiChatLog = st.aiChatLog || [];
       st.aiChatLog.unshift({ day: this.g.sim.econ.day, playerName: owner?.name || '店主', player: line.slice(0, 120), reply, emotion: result.emotion });
@@ -951,6 +970,8 @@ export class UI {
   }
 
   openStaffDetail(id        )       {
+    // 从 AI 聊天返回详情时先结束会话，让本次统一结算后的冷却立即显示。
+    if (this.aiStaffChatSession?.id === id) this.finishAIStaffChatSession();
     const sim = this.g.sim;
     const st = sim.staff.find((x) => x.id === id);
     if (!st) return;

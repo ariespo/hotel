@@ -395,6 +395,16 @@ export class Sim {
     return s.bubble.text;
   }
 
+  /** AI 聊天窗口内只展示连续回复；关闭会话时再由 chatWith 统一结算一次收益与冷却。 */
+  showAIChatReply(id        , customLine = '')         {
+    const s = this.staff.find((x) => x.id === id);
+    const line = String(customLine || '').trim().slice(0, 180);
+    if (!s || s.isOwner || !line) return '';
+    s.bubble = { text: line, t: 3.2 };
+    this.sounds.push('happy');
+    return line;
+  }
+
   fire(id        )       {
     const s = this.staff.find((x) => x.id === id);
     if (!s || s.isOwner) return;
