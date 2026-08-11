@@ -14,7 +14,7 @@ import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
 } from './data.js';
-import {                                    } from './sim.js';
+import { AGE_MAX } from './sim.js';
 import {                        } from './world.js';
 
                        
@@ -135,7 +135,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;margin-top:-9px;border:none;background:url('assets/ui-knob.png') center/contain no-repeat;filter:drop-shadow(0 2px 2px rgba(90,64,51,.4))}
 #ui input[type=range]::-moz-range-track{height:10px;border-radius:6px;background:#E7D2B2;border:1px solid #C9A176;box-shadow:inset 0 1px 3px rgba(90,64,51,.35)}
 #ui input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;background:url('assets/ui-knob.png') center/contain no-repeat}
-#ui input[type=text],#ui input[type=url],#ui input[type=password],#ui input:not([type]),#ui select,#ui textarea{font-family:inherit;font-size:13px;color:#5A4033;background:#FFFDF6;border:2px solid #D8BC94;border-radius:8px;padding:3px 7px;box-shadow:inset 0 2px 4px rgba(120,85,45,.18)}
+#ui input[type=text],#ui input[type=number],#ui input[type=url],#ui input[type=password],#ui input:not([type]),#ui select,#ui textarea{font-family:inherit;font-size:13px;color:#5A4033;background:#FFFDF6;border:2px solid #D8BC94;border-radius:8px;padding:3px 7px;box-shadow:inset 0 2px 4px rgba(120,85,45,.18)}
 #ui input:focus,#ui select:focus{outline:none;border-color:#C97F2B}
 .rail{position:absolute;top:46px;display:flex;flex-direction:column;gap:6px;z-index:6}
 #railL{left:8px}
@@ -160,8 +160,8 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .prompt-editor{display:block;margin:5px 0 12px;width:100%;min-height:88px;box-sizing:border-box;resize:vertical;line-height:1.55}
 .prompt-card{padding:8px 10px;border:2px solid #E3C9A4;border-left:5px solid #8A74B8;border-radius:10px;background:#FFF8E9;margin-top:8px}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
-.creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
-@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}.creator-identity{grid-template-columns:1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}}
+.creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
+@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}}
 `;
 
 function el(html        )              {
@@ -433,6 +433,9 @@ export class UI {
     else if (act === 'aiguestchatsend') this.sendAIGuestChat(parseInt(v, 10));
     else if (act === 'interactback') { this.finishAIGuestChatSession(); this.openInteract('guest', parseInt(v, 10)); }
     else if (act === 'aiprofilepolish') this.polishPlayerProfile();
+    else if (act === 'ownerprofile') this.openOwnerProfileEditor();
+    else if (act === 'ownersave') this.saveOwnerProfile();
+    else if (act === 'ownerprompts') { this.syncPlayerProfileForm(); this.openPromptSettings(); }
     else if (act === 'aibg') this.generateAIBackground(parseInt(v, 10));
     else if (act === 'viewbg') this.openAIBackground(parseInt(v, 10));
     else if (act === 'aidishname') this.generateAIDishName();
@@ -801,7 +804,7 @@ export class UI {
         <div class="row" style="flex-wrap:wrap">房间 <button data-act="sroom" data-id="${st.id}" data-v="null" class="${st.roomId ? '' : 'on'}">全店机动</button>
           ${rooms.map((r) => `<button data-act="sroom" data-id="${st.id}" data-v="${r.id}" class="${st.roomId === r.id ? 'on' : ''}">${ROOM_LABEL[r.kind]}#${r.id}</button>`).join('')}</div>
         <div class="row" title="数值越高，空闲时越先领取新任务">抢单优先级 ${[0, 1, 2, 3].map((p) => `<button data-act="prio" data-id="${st.id}" data-v="${p}" class="${st.prio === p ? 'on' : ''}">${p}</button>`).join('')}
-          <span>日薪 ${st.wage}</span><button data-act="wage" data-id="${st.id}" data-v="${st.wage + 5}">+5</button><button data-act="wage" data-id="${st.id}" data-v="${Math.max(5, st.wage - 5)}">-5</button>
+          ${st.isOwner ? '<span class="dim">店主不领取工资</span>' : `<span>日薪 ${st.wage}</span><button data-act="wage" data-id="${st.id}" data-v="${st.wage + 5}">+5</button><button data-act="wage" data-id="${st.id}" data-v="${Math.max(5, st.wage - 5)}">-5</button>`}
           <button data-act="dress" data-v="${st.id}">换装</button>
           ${st.isOwner ? '' : `<button data-act="fire" data-v="${st.id}" class="warn">解雇</button>`}</div>
       </div></div>`;
@@ -1275,6 +1278,7 @@ export class UI {
     const lv = sim.affLevel(st.aff);
     const room = st.roomId ? this.g.tavern.roomById(st.roomId) : null;
     const own = sim.staff.find((x) => x.isOwner);
+    const playerProfile = st.isOwner ? loadPlayerProfile(this.g.currentSlot) : null;
     const near = !!own && !st.isOwner && Math.hypot(own.x - st.x, own.y - st.y) < 2.2;
     const tabs = [['info', '资料'], ['skill', '技能'], ['rel', '关系']]                      ;
     let body = '';
@@ -1285,12 +1289,12 @@ export class UI {
           <span class="dim">年龄</span><span>${st.age}</span>
           <span class="dim">身高/体重</span><span>${st.ht}cm / ${st.wt}kg</span></div>
         <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><span class="dim">性格</span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</div>
-        <div class="row"><span class="dim">岗位</span><span>${JOB_LABEL[st.job]}</span><span class="dim">负责</span><span>${room ? ROOM_LABEL[room.kind] : '全店'}</span><span class="dim">日薪</span><span class="hi">${st.wage}</span></div>
+        <div class="row"><span class="dim">岗位</span><span>${JOB_LABEL[st.job]}</span><span class="dim">负责</span><span>${room ? ROOM_LABEL[room.kind] : '全店'}</span><span class="dim">薪资</span><span class="${st.isOwner ? 'dim' : 'hi'}">${st.isOwner ? '店主不领取工资' : `日薪 ${st.wage}`}</span></div>
         <div class="row"><span class="dim">卧室</span><span>${st.isOwner ? '<span class="dim">店主守店</span>' : (() => { const br = sim.bedroomOf(st.id); return br ? `休息室 #${br.id}` : '<span class="bad">无（打地铺）</span>'; })()}</span></div>
         <div class="row"><span class="dim">体力</span>${bar(st.needs.stamina, 100, '#8DDB4A')}<span class="dim">士气</span>${bar(st.needs.morale, 100, '#39D7D2')}</div>
         <div class="row"><span class="dim">压力</span>${bar(st.needs.stress, 100, '#FF6B5A')}<span class="dim">饥饿</span>${bar(st.needs.hunger, 100, '#F3B84B')}</div>
         <div class="dim">${st.task ? '正在：' + st.task.label : st.note || '待命中'}</div>
-        ${st.background ? `<div class="card" style="margin-top:7px"><b>人物背景</b><div class="dim">${htmlText(st.background.background)}</div><button data-act="viewbg" data-v="${st.id}">查看完整背景</button></div>` : aiConfigured() && !st.isOwner ? `<button data-act="aibg" data-v="${st.id}" style="margin-top:7px">AI 生成员工背景</button>` : ''}`;
+        ${st.isOwner ? `<div class="card" style="margin-top:7px;border-left-color:#7A4BE0"><div class="row"><b>店主身份与背景</b><button data-act="ownerprofile">修改设定</button></div><div><span class="dim">身份定位：</span>${htmlText(playerProfile.role)}</div><div class="dim" style="margin-top:5px;white-space:pre-wrap">${playerProfile.background ? htmlText(playerProfile.background) : '尚未填写背景设定。'}</div></div>` : st.background ? `<div class="card" style="margin-top:7px"><b>人物背景</b><div class="dim">${htmlText(st.background.background)}</div><button data-act="viewbg" data-v="${st.id}">查看完整背景</button></div>` : aiConfigured() ? `<button data-act="aibg" data-v="${st.id}" style="margin-top:7px">AI 生成员工背景</button>` : ''}`;
     } else if (this.detailTab === 'skill') {
       body = SKILL_KEYS.map((k) => `<div class="row"><span class="dim" style="width:52px">${SKILL_LABEL[k]}</span>${bar(st.skills[k], 100, '#F3B84B')}<span style="width:56px">${st.skills[k]}<span class="dim">+${Math.floor(st.exp[k] || 0)}</span></span></div>`).join('')
         + `<div class="dim">干活会攒经验，熟练度越高上菜/翻台/清洁越快。好感加成：当前 +${Math.round(st.aff / 4)}% 动作速度。</div>`;
@@ -1712,6 +1716,27 @@ export class UI {
       <div class="row" style="margin-top:10px"><button data-act="loadslotgo" data-v="${slot}">确认读取</button><button data-act="savemenu">取消</button></div>`);
   }
 
+  openOwnerProfileEditor()       {
+    const owner = this.g.sim.staff.find((person) => person.isOwner);
+    if (!owner) return;
+    const profile = loadPlayerProfile(this.g.currentSlot);
+    this.showModal(`<h3>店主身份与背景</h3>
+      <div class="dim">${htmlText(owner.name)}｜${htmlText(owner.sex)}｜${htmlText(owner.race)}｜${owner.age} 岁｜${owner.traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name).join('、')}</div>
+      <div class="dim" style="margin-top:5px">这里的设定会作为员工、客人与店主互动时的身份依据，并按档位独立保存。</div>
+      <label style="display:block;margin-top:10px"><span class="dim">身份定位</span><input data-player-role maxlength="100" value="${htmlText(profile.role)}" style="width:100%;box-sizing:border-box;margin-top:4px"></label>
+      <label style="display:block;margin-top:8px"><span class="dim">背景设定</span><textarea class="prompt-editor" data-player-background maxlength="2400" placeholder="填写店主的出身、经历、经营动机、待人方式或其他希望角色记住的设定。">${htmlText(profile.background)}</textarea></label>
+      <div class="row" style="margin-top:10px"><button data-act="ownersave">保存并返回店主详情</button><button data-act="ownerprompts">保存并前往 AI 完善</button><button data-act="detail" data-v="${owner.id}">取消</button></div>`);
+  }
+
+  saveOwnerProfile()       {
+    const owner = this.g.sim.staff.find((person) => person.isOwner);
+    if (!owner) return;
+    this.syncPlayerProfileForm();
+    this.g.sim.toast('店主身份与背景已保存');
+    this.detailTab = 'info';
+    this.openStaffDetail(owner.id);
+  }
+
   openPromptSettings(status = '', isError = false) {
     const tasks = loadPromptTasks();
     const profile = loadPlayerProfile(this.g.currentSlot);
@@ -1984,9 +2009,11 @@ export class UI {
   }
 
   // ---------- 捏脸 / 换装 ----------
-  openCreator(initial            , name        , onDone                                                      , dressOnly = false, sex0 = '女')       {
+  openCreator(initial            , name        , onDone                                                      , dressOnly = false, sex0 = '女', ownerOptions = {})       {
     let app = cloneApp(initial);
     let sex = sex0;
+    let age = Number.isFinite(Number(ownerOptions.age)) ? Math.round(Number(ownerOptions.age)) : 24;
+    let traits = Array.isArray(ownerOptions.traits) ? ownerOptions.traits.slice(0, 2) : ['diligent', 'cheerful'];
     let pose                           = 'walk';
     const locks = new Set        ();
     const cats                                                                                                                    = [
@@ -2032,6 +2059,15 @@ export class UI {
     };
     const m = this.showModal(`<div id="cr"></div>`, dressOnly);
     const host = m.querySelector('#cr')               ;
+    const normalizeOwnerIdentity = () => {
+      const maxAge = AGE_MAX[app.race] || 100;
+      age = Math.max(18, Math.min(maxAge, Math.round(Number(age) || 24)));
+      traits = traits.filter((id, index, rows) => TRAITS.some((trait) => trait.id === id) && rows.indexOf(id) === index).slice(0, 2);
+      for (const trait of TRAITS) {
+        if (traits.length >= 2) break;
+        if (!traits.includes(trait.id)) traits.push(trait.id);
+      }
+    };
     const draw = ()       => {
       const cv = host.querySelector('canvas.prev')                            ;
       if (!cv) return;
@@ -2050,6 +2086,13 @@ export class UI {
     const rerender = ()       => {
       const currentName = host.querySelector('#crname')?.value;
       if (currentName !== undefined) name = currentName;
+      const currentAge = host.querySelector('#crage')?.value;
+      if (currentAge !== undefined && currentAge !== '') age = Number(currentAge);
+      const firstTrait = host.querySelector('#crtrait1')?.value;
+      const secondTrait = host.querySelector('#crtrait2')?.value;
+      if (firstTrait) traits[0] = firstTrait;
+      if (secondTrait) traits[1] = secondTrait;
+      normalizeOwnerIdentity();
       visible = visibleCats();
       if (!visible.some((c) => c.key === activeCat)) activeCat = visible[0].key;
       const availableGroups = groups.map((group) => ({ ...group, cats: group.cats.filter((key) => visible.some((cat) => cat.key === key)) })).filter((group) => group.cats.length);
@@ -2064,8 +2107,12 @@ export class UI {
         <section class="creator-preview">
           <div class="creator-preview-art"><canvas class="prev" width="256" height="144"></canvas><img class="av big" src="${avatarURL(app)}" width="108" height="144"></div>
           <div class="row creator-pose"><span class="dim">正面 / 背面</span><span>${['idle', 'walk', 'work'].map((p) => `<button data-pose="${p}" class="${pose === p ? 'on' : ''}">${p === 'idle' ? '待机' : p === 'walk' ? '行走' : '工作'}</button>`).join('')}</span></div>
-          ${dressOnly ? '' : `<div class="creator-identity"><label><span>姓名</span><input id="crname" value="${htmlText(name)}" maxlength="20"></label><div>性别 ${['女', '男'].map((s) => `<button data-sex="${s}" class="${sex === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>`}
-          <div class="creator-summary">${RACE_NAMES[app.race]} · ${HT_NAMES[app.ht]}${BD_NAMES[app.bd]}<br><span class="dim">已锁定 ${locks.size} 项，随机外观时会保留</span></div>
+          ${dressOnly ? '' : `<div class="creator-identity"><label><span>姓名</span><input id="crname" value="${htmlText(name)}" maxlength="20"></label><div>性别 ${['女', '男'].map((s) => `<button data-sex="${s}" class="${sex === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>
+          <div class="creator-personality"><label><span class="dim">年龄</span><input id="crage" type="number" min="18" max="${AGE_MAX[app.race] || 100}" value="${age}"></label>
+            <label><span class="dim">性格一</span><select id="crtrait1">${TRAITS.map((trait) => `<option value="${trait.id}" ${traits[0] === trait.id ? 'selected' : ''} ${traits[1] === trait.id ? 'disabled' : ''}>${trait.name}</option>`).join('')}</select></label>
+            <label><span class="dim">性格二</span><select id="crtrait2">${TRAITS.map((trait) => `<option value="${trait.id}" ${traits[1] === trait.id ? 'selected' : ''} ${traits[0] === trait.id ? 'disabled' : ''}>${trait.name}</option>`).join('')}</select></label></div>
+          <div class="dim" style="margin-top:4px">${traits.map((id) => { const trait = TRAITS.find((item) => item.id === id); return trait ? `${trait.name}：${trait.note}` : id; }).join('　')}</div>`}
+          <div class="creator-summary">${RACE_NAMES[app.race]} · ${dressOnly ? '' : `${age}岁 · ${traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name).join(' / ')} · `}${HT_NAMES[app.ht]}${BD_NAMES[app.bd]}<br><span class="dim">已锁定 ${locks.size} 项，随机外观时会保留</span></div>
           <div class="creator-actions"><button data-rand="1">随机外观</button>${THEMES.map((th) => `<button data-theme="${th.id}">${th.name}</button>`).join('')}</div>
           <button class="creator-done" data-done="1">${dressOnly ? '换上这套服装' : '就这个店主'}</button>
           ${dressOnly ? '<button data-act="closemodal" style="width:100%;margin-top:6px">取消</button>' : ''}
@@ -2139,11 +2186,25 @@ export class UI {
       } else if (t.dataset.done) {
         const inp = host.querySelector('#crname')                           ;
         const nm = inp && inp.value.trim() ? inp.value.trim() : name;
+        const ageInput = host.querySelector('#crage')                           ;
+        if (ageInput) age = Number(ageInput.value);
+        const traitOne = host.querySelector('#crtrait1')                           ;
+        const traitTwo = host.querySelector('#crtrait2')                           ;
+        if (traitOne && traitTwo) traits = [traitOne.value, traitTwo.value];
+        normalizeOwnerIdentity();
         this.closeModal();
-        onDone(app, nm, sex);
+        onDone(app, nm, sex, { age, traits: [...traits] });
         return;
       }
       if (changed) remember();
+      rerender();
+    });
+    host.addEventListener('change', (e) => {
+      const target = e.target               ;
+      if (target.id === 'crage') age = Number(target.value);
+      else if (target.id === 'crtrait1') traits[0] = target.value;
+      else if (target.id === 'crtrait2') traits[1] = target.value;
+      else return;
       rerender();
     });
     rerender();

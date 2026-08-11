@@ -394,14 +394,14 @@ class Game                    {
   // ---------- 初始局 ----------
   startCreator()       {
     this.creatorPending = true;
-    this.ui.openCreator(defaultAppearance(), '店主', (app, name, sex) => {
-      this.newTavern(app, name, sex);
+    this.ui.openCreator(defaultAppearance(), '店主', (app, name, sex, ownerOptions) => {
+      this.newTavern(app, name, sex, ownerOptions);
       this.creatorPending = false;
       this.ui.render(true);
     });
   }
 
-  newTavern(app            , name        , sex        )       {
+  newTavern(app            , name        , sex        , ownerOptions = {})       {
     this.tavern = new Tavern();
     this.sim = new Sim(this.tavern, newEcon(Math.floor(Math.random() * 1e9)));
     this.ownerName = name;
@@ -447,7 +447,7 @@ class Game                    {
     t.placeFurn('bunk', 4, -10, 0, 1);
     t.placeFurn('teatable', 7, -12, 0, 1);
     t.placeFurn('vanity', 7, -10, 0, 1);
-    const owner = makeStaff(this.sim.rng, this.sim.id(), true, app, name);
+    const owner = makeStaff(this.sim.rng, this.sim.id(), true, app, name, ownerOptions);
     owner.sex = sex;
     const e = t.entrance();
     owner.x = e.x; owner.y = e.y + 1;
@@ -1084,7 +1084,7 @@ class Game                    {
   }
   setWage(id        , w        )       {
     const s = this.sim.staff.find((x) => x.id === id);
-    if (s) { s.wage = Math.max(5, w); this.save(); }
+    if (s && !s.isOwner) { s.wage = Math.max(5, w); this.save(); }
   }
   dressStaff(id        , app            )       {
     const s = this.sim.staff.find((x) => x.id === id);

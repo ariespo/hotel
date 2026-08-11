@@ -77,7 +77,7 @@ import {            Tavern, dirDelta, furnFootprint } from './world.js';
 export const DAY_LEN = 300;
 
 /** 种族寿命上限：人族硬封顶 100；长生种上限高但年龄分布压向年轻段，过百岁少见 */
-const AGE_MAX = [100, 600, 150, 90, 600, 600, 600, 900, 400, 900, 80, 90, 300, 300, 900, 500, 150, 300];
+export const AGE_MAX = [100, 600, 150, 90, 600, 600, 600, 900, 400, 900, 80, 90, 300, 300, 900, 500, 150, 300];
 
 /** 打烊自由活动的心里话（按活动分池） */
 const FREE_THOUGHTS                           = {
@@ -160,10 +160,14 @@ export function makeStaff(rng     , id        , isOwner         , app           
   const a = app || randomAppearance(rng, raceIdx, true, theme);
   // 年龄：所有可交互角色均为成年人；大部分 18–47，长生种可能出现真正高龄。
   const maxAge = AGE_MAX[raceIdx] || 100;
-  let age = Math.round(18 + Math.pow(rng.next(), 1.6) * 29);
-  if (rng.chance(0.18)) age = Math.round(rng.range(46, Math.min(maxAge, 100)));
-  if (maxAge > 100 && rng.chance(0.08)) age = Math.round(rng.range(100, maxAge));
-  age = Math.min(age, maxAge);
+  let age;
+  if (Number.isFinite(Number(opt?.age))) age = Math.round(clamp(Number(opt.age), 18, maxAge));
+  else {
+    age = Math.round(18 + Math.pow(rng.next(), 1.6) * 29);
+    if (rng.chance(0.18)) age = Math.round(rng.range(46, Math.min(maxAge, 100)));
+    if (maxAge > 100 && rng.chance(0.08)) age = Math.round(rng.range(100, maxAge));
+    age = Math.min(age, maxAge);
+  }
   // 年长者手艺更好：年龄加成垫高技能区间（工资随技能走，老伙计更贵）
   const ageBoost = clamp((age - 18) / 140, 0, 1);
   const skills                         = {};
@@ -174,7 +178,10 @@ export function makeStaff(rng     , id        , isOwner         , app           
   const strong = [opt && opt.bias ? opt.bias : SKILL_KEYS[rng.int(SKILL_KEYS.length)], SKILL_KEYS[rng.int(SKILL_KEYS.length)]];
   for (const s of strong) skills[s] = Math.round(clamp(skills[s] + rng.range(20, 40), 5, 95));
   if (opt && opt.bias) skills[opt.bias] = Math.round(clamp(Math.max(skills[opt.bias], lo + (hi - lo) * 0.6 + rng.range(0, 14)), 5, 96));
-  const traits           = [];
+  const requestedTraits = Array.isArray(opt?.traits)
+    ? opt.traits.filter((id, index, rows) => TRAITS.some((trait) => trait.id === id) && rows.indexOf(id) === index).slice(0, 2)
+    : [];
+  const traits           = [...requestedTraits];
   let traitGuard = 0;
   while (traits.length < 2 && traitGuard++ < 100) {
     const t = TRAITS[rng.int(TRAITS.length)].id;
@@ -191,7 +198,7 @@ export function makeStaff(rng     , id        , isOwner         , app           
     id, name: name || makeName(rng), sex,
     age, race: RACE_NAMES[raceIdx], raceIdx,
     ht: Math.round([148, 168, 192][a.ht] + rng.range(-6, 6)), wt: Math.round([46, 62, 88][a.bd] + rng.range(-5, 8)),
-    traits, skills, exp, wage: Math.round((18 + skillSum * 0.14 + (isOwner ? 0 : rng.range(0, 12))) * (traits.includes('frugal') ? 0.88 : 1)),
+    traits, skills, exp, wage: isOwner ? 0 : Math.round((18 + skillSum * 0.14 + rng.range(0, 12)) * (traits.includes('frugal') ? 0.88 : 1)),
     app: a, job: isOwner ? 'greeter' : 'free', roomId: null, prio: isOwner ? 2 : plannedStaffPriority(skills, traits), isOwner,
     x: 0, y: 0, dir: 0, pose: 'idle', animT: 0, path: [], carry: null, task: null, actT: 0, actTotal: 0,
     needs: { stamina: 100, hunger: 0, stress: 10, morale: 70 }, note: '', bubble: null,
@@ -754,7 +761,7 @@ export class Sim {
       s.needs.stamina = clamp(s.needs.stamina + 55, 0, 100);
       s.needs.hunger = clamp(s.needs.hunger - 60, 0, 100);
       s.needs.stress = clamp(s.needs.stress - (s.traits.includes('stubborn') ? 13 : 22) - (s.traits.includes('resilient') ? 8 : 0), 0, 100);
-      const fair = s.wage >= 18 + SKILL_KEYS.reduce((a, k) => a + s.skills[k], 0) * 0.13 ? 6 : -7;
+      const fair = s.isOwner ? 0 : s.wage >= 18 + SKILL_KEYS.reduce((a, k) => a + s.skills[k], 0) * 0.13 ? 6 : -7;
       s.needs.morale = clamp(s.needs.morale + fair - s.needs.stress * 0.08, 0, 100);
       if (!s.isOwner) {
         // 日结好感：士气高就更亲近，长期压榨会掉
@@ -2381,6 +2388,7 @@ export class Sim {
       ...s, task: null, path: [], carry: null, bubble: null,
       sex: s.sex === '男' || s.sex === '女' ? s.sex : ((s.id || 0) % 2 ? '女' : '男'),
       age: Math.max(18, Number(s.age) || 18),
+      wage: s.isOwner ? 0 : Math.max(5, Number(s.wage) || 5),
       aff: s.aff === undefined ? (s.isOwner ? 100 : 10) : s.aff,
       prio: replan || s.prio === undefined ? (s.isOwner ? 2 : plannedStaffPriority(s.skills, s.traits || [])) : s.prio,
       affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], aiChatLog: s.aiChatLog || [], background: s.background || null, hireDay: s.hireDay || 1,
