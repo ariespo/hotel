@@ -446,7 +446,7 @@ class Game                    {
     if (leftLounge) leftLounge.occupant = clerk.id;
     this.sim.refreshPool();
     this.sim.manualOwner = this.manualPref();
-    this.sim.toast(`${name}接过了钥匙：多元编写旅店，开张了。`);
+    this.sim.toast(`${name}接过了钥匙：多元便携旅店，开张了。`);
     this.staticVersion = -1;
     this.cam = { x: 2, y: 3 };
     if (this.ui.compact) this.fitView();

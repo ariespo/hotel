@@ -63,13 +63,13 @@ export class TitleScreen {
     const embers = Array.from({ length: 16 }, (_, i) => `<i class="title-ember" style="--x:${5 + (i * 37) % 92}%;--d:${4.5 + (i % 5) * 1.1}s;--delay:${-(i % 7) * .8}s"></i>`).join('');
     const root = document.createElement('section');
     root.id = 'game-title-screen';
-    root.setAttribute('aria-label', '多元编写旅店标题页面');
+    root.setAttribute('aria-label', '多元便携旅店标题页面');
     root.innerHTML = `<div class="title-sky"></div><div class="title-moon"></div>
       <div class="title-lamp l1"></div><div class="title-lamp l2"></div>
       <div class="title-building"><div class="title-sign">旅店</div><div class="title-window w1"></div><div class="title-window w2"></div><div class="title-door"></div></div>
       <div class="title-counter"></div>${embers}
-      <main class="title-content"><div class="title-logo"><h1>多元编写旅店</h1><div class="en">MULTIVERSE STORY INN</div></div>
-        <div class="title-tagline">让每一次营业，都被编写成独一无二的故事</div>
+      <main class="title-content"><div class="title-logo"><h1>多元便携旅店</h1><div class="en">MULTIVERSE PORTABLE INN</div></div>
+        <div class="title-tagline">让每一次营业，都成为独一无二的故事</div>
         <div class="title-menu"><button class="title-button" data-title-action="new" disabled>开始新游戏</button><button class="title-button" data-title-action="continue" disabled>继续游戏</button><div class="title-status" role="status">正在点亮旅店灯火…</div></div>
         <div class="title-author">作者：<b>Poaries</b></div></main>`;
     root.addEventListener('click', (event) => this.handleClick(event));
