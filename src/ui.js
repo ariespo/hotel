@@ -423,7 +423,7 @@ export class UI {
     const timePct = s.dayActive ? (s.dayT / 300) * 100 : 0;
     const lowStock = ING_KEYS.filter((k) => e.stock[k] < 10);
     this.top.innerHTML = `
-      <b>万界不打烊</b>
+      <b>多元编写旅店</b>
       <span class="sep"></span>第 ${e.day} 天
       <span>${s.dayActive ? `<span class="hi">营业中·${this.phase()}</span> <span class="bar" style="display:inline-block;width:90px"><i style="width:${timePct}%;background:#F3B84B"></i></span>` : '<span class="dim">收盘规划</span>'}</span>
       <span class="sep"></span>
@@ -925,7 +925,7 @@ export class UI {
       traits: person.traits.map((id2) => { const trait = TRAITS.find((item) => item.id === id2); return trait ? { name: trait.name, note: trait.note } : { name: id2 }; }),
       skills: Object.fromEntries(SKILL_KEYS.map((key) => [SKILL_LABEL[key], person.skills[key]])),
       jobInclination: JOB_LABEL[person.job], wage: person.wage,
-      world: '角色来自万界之一，正在应聘或供职于跨位面酒馆《万界不打烊》。',
+      world: '角色来自万界之一，正在应聘或供职于跨位面酒馆《多元编写旅店》。',
     };
     try {
       const result = await requestGameAI('staff_background', facts);
@@ -1399,7 +1399,7 @@ export class UI {
     const report = stat.report || {};
     const mapStock = (stock       ) => Object.fromEntries(Object.entries(stock || {}).map(([key, value]) => [ING_LABEL[key] || key, value]));
     return {
-      world: '《万界不打烊》是一家接待不同位面来客的奇幻酒馆。所有数值和工作统计都是不可改写的事实。',
+      world: '《多元编写旅店》是一家接待不同位面来客的奇幻酒馆。所有数值和工作统计都是不可改写的事实。',
       tavern: { rooms: this.g.tavern.rooms.length, furniture: this.g.tavern.furns.length, stars: sim.stars() },
       day: stat.day,
       finance: report.finance || { revenue: stat.revenue, wages: stat.wages, maintenance: stat.maintenance, restock: stat.restock, net: stat.revenue - stat.wages - stat.maintenance - stat.restock, coinsAfter: stat.coinsAfter },

@@ -12,6 +12,7 @@ import { DAY_LEN,            makeStaff, newEcon, Sim,            } from './src/s
 import { canPersistSim } from './src/save-policy.js';
 import { bpById, dirDelta,            furnFootprint,            Tavern } from './src/world.js';
 import {               UI } from './src/ui.js';
+import { TitleScreen, validGameSave } from './src/title.js';
 
 const SAVE_KEY = 'wjbdy.save.v1';
 const MORNING_KEY = 'wjbdy.morning.v1';
@@ -241,6 +242,8 @@ class Game                    {
   zoom = 2;
   paused = false;
   creatorPending = true;
+  titleActive = true;
+  titleScreen = null;
   speed = 1;
   heat = 'off';
   /** 仅供自测读取：本帧热图着色格数 */
@@ -270,10 +273,11 @@ class Game                    {
           lastW = 0;
           lastH = 0;
 
-  get blocked()          { return this.creatorPending || !!(this.ui && this.ui.modal); }
+  get blocked()          { return this.titleActive || this.creatorPending || !!(this.ui && this.ui.modal); }
 
   async boot()                {
     const host = document.getElementById('app')               ;
+    this.titleScreen = new TitleScreen(document.body);
     this.app = new PIXI.Application();
     await this.app.init({ resizeTo: host, background: PAL.voidBg, antialias: false, roundPixels: true });
     host.appendChild(this.app.canvas);
@@ -307,13 +311,17 @@ class Game                    {
 
     this.sim = new Sim(this.tavern, newEcon(Math.floor(Math.random() * 1e9)));
     this.ui = new UI(this);
+    this.ui.root.inert = true;
+    this.ui.root.setAttribute('aria-hidden', 'true');
+    this.ui.root.style.visibility = 'hidden';
     this.bindInput();
-
+    this.creatorPending = false;
     const saved = localStorage.getItem(SAVE_KEY);
-    if (saved) {
-      try { this.loadFrom(saved); this.sim.manualOwner = this.manualPref(); this.creatorPending = false; }
-      catch (e) { localStorage.removeItem(SAVE_KEY); this.startCreator(); }
-    } else this.startCreator();
+    this.titleScreen.activate({
+      hasSave: validGameSave(saved),
+      onInteract: () => this.audio.unlock(),
+      onChoose: (action) => this.chooseTitleAction(action),
+    });
 
     this.app.ticker.add((tk) => {
       // pixi 的 ticker 一旦在回调里抛异常就不会再申请下一帧 —— 整个游戏会静默冻结。
@@ -334,6 +342,36 @@ class Game                    {
         heat: this.heat, heatCells: this.heatCells, sealed: this.sim.sealed,
       }),
     };
+  }
+
+  chooseTitleAction(action        )          {
+    this.audio.play('chime', 0.7);
+    if (action === 'continue') {
+      const saved = localStorage.getItem(SAVE_KEY);
+      if (!validGameSave(saved)) return false;
+      try {
+        this.loadFrom(saved);
+        this.sim.manualOwner = this.manualPref();
+        this.creatorPending = false;
+      } catch (err) {
+        localStorage.removeItem(SAVE_KEY);
+        return false;
+      }
+      this.titleActive = false;
+      this.ui.root.inert = false;
+      this.ui.root.removeAttribute('aria-hidden');
+      this.ui.root.style.visibility = '';
+      this.audio.playTrack(this.sim.dayActive ? 'bgm' : 'bgm-plan');
+      this.audio.playAmb(this.sim.dayActive ? 'amb' : 'amb-night');
+      this.ui.render(true);
+      return true;
+    }
+    this.titleActive = false;
+    this.ui.root.inert = false;
+    this.ui.root.removeAttribute('aria-hidden');
+    this.ui.root.style.visibility = '';
+    this.newGame();
+    return true;
   }
 
   // ---------- 初始局 ----------
@@ -408,7 +446,7 @@ class Game                    {
     if (leftLounge) leftLounge.occupant = clerk.id;
     this.sim.refreshPool();
     this.sim.manualOwner = this.manualPref();
-    this.sim.toast(`${name}接过了钥匙：万界不打烊，开张了。`);
+    this.sim.toast(`${name}接过了钥匙：多元编写旅店，开张了。`);
     this.staticVersion = -1;
     this.cam = { x: 2, y: 3 };
     if (this.ui.compact) this.fitView();
