@@ -133,6 +133,18 @@ export function advanceTutorialState(state) {
   return { ...current, started: true, index: current.index + 1, satisfied: false, completed: false, skipped: false };
 }
 
+export function retreatTutorialState(state) {
+  const current = normalizeTutorialState(state);
+  return {
+    ...current,
+    started: true,
+    index: Math.max(0, current.index - 1),
+    satisfied: false,
+    completed: false,
+    skipped: false,
+  };
+}
+
 export function tutorialActionMatches(step, act, value = '') {
   if (!step?.action) return false;
   return step.action.acts.includes(String(act || '')) && String(value || '') === String(step.action.value || '');

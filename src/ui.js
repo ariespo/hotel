@@ -10,7 +10,7 @@ import { aiConfigured, requestGameAI } from './ai-game.js';
 import { loadPromptTasks, PROMPT_TASKS, resetPromptTasks, savePromptTasks } from './prompt-settings.js';
 import { loadPlayerProfile, savePlayerProfile } from './player-profile.js';
 import { canPersistSim } from './save-policy.js';
-import { advanceTutorialState, loadTutorialState, resetTutorialState, saveTutorialState, TUTORIAL_STEPS, tutorialActionMatches } from './tutorial.js';
+import { advanceTutorialState, loadTutorialState, resetTutorialState, retreatTutorialState, saveTutorialState, TUTORIAL_STEPS, tutorialActionMatches } from './tutorial.js';
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
@@ -216,6 +216,7 @@ export class UI {
           tutorialState = null;
           tutorialActive = false;
           tutorialSlot = 0;
+          tutorialRenderKey = '';
           acc = 0;
           interactionLock = false;
           interactionRelease = 0;
@@ -361,6 +362,7 @@ export class UI {
       if (!this.confirmPurchase(t, act)) return;
     } else this.clearPurchaseConfirmation(false);
     if (act === 'tutorialnext') this.advanceTutorial();
+    else if (act === 'tutorialprev') this.retreatTutorial();
     else if (act === 'tutorialresume') this.resumeTutorial(true);
     else if (act === 'tutorialstart' || act === 'tutorialrestart') this.startTutorial(true);
     else if (act === 'tutorialmin') this.minimizeTutorial();
@@ -612,6 +614,14 @@ export class UI {
     return true;
   }
 
+  retreatTutorial()       {
+    const state = this.currentTutorialState();
+    if (state.index <= 0) return false;
+    this.tutorialState = retreatTutorialState(state);
+    this.persistTutorial();
+    return true;
+  }
+
   handleTutorialAction(act        , value        )       {
     if (!this.tutorialActive) return;
     const state = this.currentTutorialState();
@@ -627,7 +637,8 @@ export class UI {
     const state = this.currentTutorialState();
     if (!this.tutorialActive || !state.started || state.completed || state.skipped) {
       this.tutorialLayer.style.display = 'none';
-      this.tutorialLayer.innerHTML = '';
+      if (this.tutorialLayer.innerHTML) this.tutorialLayer.innerHTML = '';
+      this.tutorialRenderKey = '';
       return;
     }
     const step = TUTORIAL_STEPS[state.index];
@@ -642,12 +653,16 @@ export class UI {
     const waiting = !!step.action && !state.satisfied;
     const points = step.points?.length ? `<ul>${step.points.map((point) => `<li>${htmlText(point)}</li>`).join('')}</ul>` : '';
     const primary = state.index === TUTORIAL_STEPS.length - 1 ? '完成引导' : state.satisfied ? '看完了，下一步' : '下一步';
-    this.tutorialLayer.innerHTML = `<section class="tutorial-card" role="dialog" aria-label="新手引导">
-      <div class="tutorial-head"><span class="tutorial-step">${state.index + 1}/${TUTORIAL_STEPS.length} · ${htmlText(step.chapter)}</span><h2>${htmlText(step.title)}</h2></div>
-      <p>${htmlText(step.body)}</p>${points}
-      ${waiting ? '<div class="tutorial-hint">请点击画面中金色高亮的入口；打开后可以先阅读实际面板。</div>' : state.satisfied ? '<div class="tutorial-hint good">已打开目标面板。确认看懂后再进入下一步。</div>' : ''}
-      <div class="tutorial-actions" style="margin-top:9px"><button data-act="tutorialmin">暂时收起</button><button data-act="tutorialskip" class="warn">跳过引导</button><span class="spacer"></span><button data-act="tutorialnext" ${waiting ? 'disabled' : ''}>${primary}</button></div>
-    </section>`;
+    const renderKey = `${state.index}|${state.satisfied ? 1 : 0}|${waiting ? 1 : 0}`;
+    if (this.tutorialRenderKey !== renderKey) {
+      this.tutorialLayer.innerHTML = `<section class="tutorial-card" role="dialog" aria-label="新手引导">
+        <div class="tutorial-head"><span class="tutorial-step">${state.index + 1}/${TUTORIAL_STEPS.length} · ${htmlText(step.chapter)}</span><h2>${htmlText(step.title)}</h2></div>
+        <p>${htmlText(step.body)}</p>${points}
+        ${waiting ? '<div class="tutorial-hint">请点击画面中金色高亮的入口；打开后可以先阅读实际面板。</div>' : state.satisfied ? '<div class="tutorial-hint good">已打开目标面板。确认看懂后再进入下一步。</div>' : ''}
+        <div class="tutorial-actions" style="margin-top:9px"><button data-act="tutorialmin">暂时收起</button><button data-act="tutorialskip" class="warn">跳过引导</button><span class="spacer"></span><button data-act="tutorialprev" ${state.index <= 0 ? 'disabled' : ''}>← 上一步</button><button data-act="tutorialnext" ${waiting ? 'disabled' : ''}>${primary}</button></div>
+      </section>`;
+      this.tutorialRenderKey = renderKey;
+    }
     this.tutorialLayer.style.display = 'block';
   }
 
