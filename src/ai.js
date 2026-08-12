@@ -107,13 +107,15 @@ function localDevelopment() {
   return ['localhost', '127.0.0.1'].includes(location.hostname);
 }
 
-async function requestAI(action, config, body, fetchImpl = globalThis.fetch) {
+async function requestAI(action, config, body, options = {}) {
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new Error('当前环境不支持网络请求');
   if (!localDevelopment()) {
     const response = await fetchImpl('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, baseUrl: config.baseUrl, apiKey: config.apiKey, ...body }),
+      signal: options.signal,
     });
     return readResponse(response);
   }
@@ -124,6 +126,7 @@ async function requestAI(action, config, body, fetchImpl = globalThis.fetch) {
     method: action === 'models' ? 'GET' : 'POST',
     headers: authHeaders(config),
     body: action === 'models' ? undefined : JSON.stringify(body),
+    signal: options.signal,
   });
   return readResponse(response);
 }
@@ -135,7 +138,7 @@ export function parseModelList(payload) {
 
 export async function refreshAIModels(config, options = {}) {
   const valid = validateConfig(config);
-  const payload = await requestAI('models', valid, {}, options.fetchImpl);
+  const payload = await requestAI('models', valid, {}, options);
   const models = parseModelList(payload);
   if (!models.length) throw new Error('接口连接成功，但没有返回可选模型');
   const selected = models.includes(valid.model) ? valid.model : models[0];
@@ -163,7 +166,7 @@ export async function chatWithAI(messages, options = {}) {
     max_tokens: options.maxTokens ?? 500,
     stream: false,
     ...structuredOptions,
-  }, options.fetchImpl);
+  }, options);
   const content = payload?.choices?.[0]?.message?.content;
   if (typeof content !== 'string') throw new Error('模型返回格式不兼容 Chat Completions');
   return { content, payload };

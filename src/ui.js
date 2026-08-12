@@ -12,11 +12,19 @@ import { loadPlayerProfile, savePlayerProfile } from './player-profile.js';
 import { canPersistSim } from './save-policy.js';
 import { advanceTutorialState, loadTutorialState, resetTutorialState, retreatTutorialState, saveTutorialState, TUTORIAL_STEPS, tutorialActionMatches } from './tutorial.js';
 import {
-  AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, STYLES,
+  AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, SEASON_NAMES, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
 } from './data.js';
-import { AGE_MAX } from './sim.js';
+import { AGE_MAX, fairWageRange, restockPlan, staffAnalysis } from './sim.js';
 import {                        } from './world.js';
+
+export const OWNER_SKILL_PRESETS = [
+  { id: 'balanced', name: '均衡店主', note: '所有能力稳定，适合第一次经营。', skills: { looks: 38, cook: 38, mix: 38, serve: 38, clean: 38, carry: 38, calm: 38 } },
+  { id: 'chef', name: '料理主理人', note: '擅长餐食与饮品，前厅和杂务较弱。', skills: { looks: 30, cook: 56, mix: 46, serve: 32, clean: 34, carry: 34, calm: 34 } },
+  { id: 'host', name: '魅力经营者', note: '擅长迎宾、服务和处理投诉。', skills: { looks: 48, cook: 28, mix: 30, serve: 58, clean: 30, carry: 30, calm: 42 } },
+  { id: 'operator', name: '现场管家', note: '移动、清洁和后勤能力突出。', skills: { looks: 30, cook: 30, mix: 28, serve: 36, clean: 48, carry: 54, calm: 40 } },
+  { id: 'veteran', name: '沉着老练', note: '各项稳健，尤其擅长化解风险。', skills: { looks: 36, cook: 36, mix: 36, serve: 36, clean: 36, carry: 36, calm: 50 } },
+];
 
                        
                            
@@ -163,6 +171,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper2.png');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
+.owner-skill-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0}.owner-skill-presets button{text-align:left;white-space:normal}.owner-skill-presets small{display:block;color:#87684e;margin-top:2px}.owner-growth{position:relative;overflow:hidden;border-left-color:#7A4BE0!important;background:linear-gradient(115deg,#fff7db,#efe3ff,#fff7db);animation:ownerGrowthGlow 1.6s ease-in-out infinite alternate}.owner-growth:after{content:'✦';position:absolute;right:12px;top:7px;color:#7A4BE0;font-size:24px;animation:ownerGrowthSpark 1.2s ease-in-out infinite}@keyframes ownerGrowthGlow{to{box-shadow:0 0 18px #9e72e866,inset 0 0 12px #fff}}@keyframes ownerGrowthSpark{50%{transform:scale(1.3) rotate(15deg);opacity:.45}}
 @media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
 `;
 
@@ -206,6 +215,12 @@ export class UI {
   rightTab = 'staff';
   modal                     = null;
   aiStaffChatSession = null;
+  aiGuestChatSession = null;
+  chatAIController = null;
+  pendingAIChat = null;
+  settlementAIController = null;
+  dynamicAIStatus = null;
+  dynamicAIController = null;
   collapsed = { left: false, right: false };
   compact = false;
           railL             ;
@@ -421,6 +436,17 @@ export class UI {
     else if (act === 'delfurn') g.removeFurn(parseInt(v, 10));
     else if (act === 'rotfurn') g.rotateFurn(parseInt(v, 10));
     else if (act === 'movefurn') g.startMoveFurn(parseInt(v, 10));
+    else if (act === 'copyfurn') g.copyFurn(parseInt(v, 10));
+    else if (act === 'copyroom') g.copyRoom(parseInt(v, 10));
+    else if (act === 'saveroombp') { g.saveRoomBlueprint(parseInt(v, 10)); this.openBlueprintLibrary(); }
+    else if (act === 'buildundo') g.undoBuild();
+    else if (act === 'buildredo') g.redoBuild();
+    else if (act === 'savelayout') { g.saveLayoutBlueprint(); this.openBlueprintLibrary(); }
+    else if (act === 'blueprints') this.openBlueprintLibrary();
+    else if (act === 'startroombp') { g.startSavedRoomBlueprint(parseInt(v, 10)); this.closeModal(); }
+    else if (act === 'delroombp') { g.deleteRoomBlueprint(parseInt(v, 10)); this.openBlueprintLibrary(); }
+    else if (act === 'applylayout') { if (g.applyLayoutBlueprint(parseInt(v, 10))) this.closeModal(); }
+    else if (act === 'dellayout') { g.deleteLayoutBlueprint(parseInt(v, 10)); this.openBlueprintLibrary(); }
     else if (act === 'buy') g.buyStock(v          , parseInt(t.dataset.n          , 10));
     else if (act === 'menuitem') { const m = g.sim.econ.menu; if (m[v] === false) delete m[v]; else m[v] = false; g.save(); }
     else if (act === 'deldish') { g.sim.deleteCustomDish(v); g.save(); }
@@ -445,6 +471,11 @@ export class UI {
     }
     else if (act === 'aichatsend') this.sendAIStaffChat(parseInt(v, 10));
     else if (act === 'aiguestchatsend') this.sendAIGuestChat(parseInt(v, 10));
+    else if (act === 'aicancelchat') this.chatAIController?.abort();
+    else if (act === 'aichatretry') this.retryAIChat();
+    else if (act === 'aichatlocal') this.useLocalChatFallback();
+    else if (act === 'aicancelday') this.settlementAIController?.abort();
+    else if (act === 'localday') this.renderSettlement(this.settlementAIStat, { story: this.localSettlementStory(this.settlementAIStat) });
     else if (act === 'interactback') { this.finishAIGuestChatSession(); this.openInteract('guest', parseInt(v, 10)); }
     else if (act === 'aiprofilepolish') this.polishPlayerProfile();
     else if (act === 'ownerprofile') this.openOwnerProfileEditor();
@@ -461,6 +492,9 @@ export class UI {
     else if (act === 'saveslot') { g.saveToSlot(parseInt(v, 10)); this.openSaveManager(); }
     else if (act === 'loadslot') this.openLoadSlotConfirm(parseInt(v, 10));
     else if (act === 'loadslotgo') g.loadSlot(parseInt(v, 10));
+    else if (act === 'exportsave') g.exportSave(parseInt(v, 10));
+    else if (act === 'restoresave') { if (g.restoreBackup(parseInt(v, 10))) this.openSaveManager(); }
+    else if (act === 'importpick') this.modal?.querySelector(`[data-save-import][data-v="${v}"]`)?.click();
     else if (act === 'help') this.openHelp();
     else if (act === 'prompts') this.openPromptSettings();
     else if (act === 'promptsave') this.savePromptSettings();
@@ -473,6 +507,11 @@ export class UI {
       this.openSettings();
     }
     else if (act === 'airefresh') this.refreshAISettings();
+    else if (act === 'aicanceldynamic') {
+      this.dynamicAIController?.abort();
+      this.dynamicAIStatus = { state: 'cancelled', text: '已取消本日 AI 经营事件' };
+    }
+    else if (act === 'airetrydynamic') this.requestDynamicBusinessEvent(true);
     else if (act === 'aiclear') {
       const current = this.syncAIForm();
       saveAIConfig({ ...current, apiKey: '', model: '', models: [], refreshedAt: 0 });
@@ -519,6 +558,22 @@ export class UI {
     if (t.dataset.act === 'markup') { this.g.setMarkup(parseFloat(t.value)); this.render(true); }
     if (t.dataset.act === 'adrace') { this.adSpec.race = parseInt(t.value, 10); this.openAdPanel(this.adSlot); }
     if (t.dataset.act === 'restock') { this.g.sim.econ.autoRestock = t.checked; this.g.save(); }
+    if (t.dataset.act === 'restockbudget') {
+      this.g.sim.econ.restockBudget = Math.max(0, Math.min(999999, Math.round(Number(t.value) || 0)));
+      this.g.save(); this.render(true);
+    }
+    if (t.dataset.act === 'restocktarget') {
+      const key = t.dataset.v;
+      if (ING_KEYS.includes(key)) {
+        this.g.sim.econ.restockTargets[key] = Math.max(0, Math.min(999, Math.round(Number(t.value) || 0)));
+        this.g.save(); this.render(true);
+      }
+    }
+    if (t.dataset.saveImport !== undefined) {
+      const file = t.files?.[0];
+      const slot = parseInt(t.dataset.v || '1', 10);
+      if (file) file.text().then((raw) => { this.g.importSaveText(raw, slot); this.openSaveManager(); }).catch((error) => this.g.sim.toast(`读取导入文件失败：${error.message}`));
+    }
     if (t.dataset.act === 'occupant') {
       if (this.g.sim.assignBedroom(parseInt(t.value, 10), parseInt(t.dataset.v || '0', 10))) this.g.save();
       this.render(true);
@@ -687,6 +742,7 @@ export class UI {
     this.setPanelHTML(this.top, `
       <b>多元便携旅店</b>
       <span class="sep"></span>第 ${e.day} 天
+      <span class="dim">${SEASON_NAMES[s.seasonIndex()]}</span>
       <span>${s.dayActive ? `<span class="hi">营业中·${this.phase()}</span> <span class="bar" style="display:inline-block;width:90px"><i style="width:${timePct}%;background:#F3B84B"></i></span>` : '<span class="dim">收盘规划</span>'}</span>
       <span class="sep"></span>
       <button data-act="pause" class="${g.paused ? 'on' : ''}">${g.paused ? '▶ 继续' : '⏸ 暂停'}</button>
@@ -697,6 +753,7 @@ export class UI {
       ${s.endingSeen ? '<span class="good">🏆 五星认证</span>' : ''}
       ${e.strikes ? `<span class="bad">封印警告 ${e.strikes}/3</span>` : ''}
       ${lowStock.length ? `<span class="bad">缺料：${lowStock.map((k) => ING_LABEL[k]).join('/')}</span>` : ''}
+      ${this.dynamicAIStatus?.state === 'loading' ? `<span class="hi">✦ ${htmlText(this.dynamicAIStatus.text)}</span><button data-act="aicanceldynamic">取消</button>` : this.dynamicAIStatus?.state === 'error' ? `<span class="bad">${htmlText(this.dynamicAIStatus.text)}</span><button data-act="airetrydynamic">重试</button>` : ''}
       <span style="flex:1"></span>
       <button data-act="home">回店</button>
       ${s.dayActive ? '' : '<button data-act="open">开门营业</button>'}
@@ -717,7 +774,8 @@ export class UI {
     const stars = g.sim.stars();
     let body = '';
     if (this.leftTab === 'room') {
-      body = BLUEPRINTS.filter((b) => b.buildable).map((b) => {
+      body = `<div class="row" style="flex-wrap:wrap;margin-bottom:7px"><button data-act="buildundo" ${g.buildHistoryIndex <= 0 ? 'disabled' : ''}>↶ 撤销</button><button data-act="buildredo" ${g.buildHistoryIndex >= g.buildHistory.length - 1 ? 'disabled' : ''}>↷ 重做</button><button data-act="blueprints">蓝图库</button><button data-act="savelayout">保存整店布局</button></div>`;
+      body += BLUEPRINTS.filter((b) => b.buildable).map((b) => {
         const locked = b.unlock > stars;
         return `<div class="card ${g.buildBp === b.id ? 'sel' : ''}" ${locked ? '' : `data-act="bp" data-v="${b.id}"`}>
           <div class="row"><b>${b.name}</b><span class="${g.sim.econ.coins < b.cost ? 'bad' : 'hi'}">${b.cost}</span></div>
@@ -760,10 +818,12 @@ export class UI {
           if (!st.facility) badges.push(drink ? '需酒吧+酒桶' : '需厨房+灶台+出餐口');
           if (!st.skillOk) badges.push('厨艺不足');
           if (!st.stockOk) badges.push('缺料');
+          if (!st.seasonOk) badges.push(`非当前时令（${d.seasons.map((index) => SEASON_NAMES[index]).join('/')}）`);
           const fl = (d.flavors || []).map((f) => FLAVOR_LABEL[f] || f).join('/');
           return `<div class="card">
             <div class="row"><b>${d.custom ? '🧪 ' : ''}${d.name}</b><span class="hi">${Math.round(d.price * e.markup)} 币</span></div>
             ${d.description ? `<div class="dim">${htmlText(d.description)}</div>` : ''}
+            <div class="dim">${d.school || '万界经典'}${d.combo ? ' · 套餐' : ''}${d.seasons ? ` · 时令 ${d.seasons.map((index) => SEASON_NAMES[index]).join('/')}` : ''} · 招牌 ${'★'.repeat(d.mastery?.level || 0)}${'☆'.repeat(3 - (d.mastery?.level || 0))}（累计 ${d.mastery?.sales || 0} 份${d.mastery?.next ? `，下级 ${d.mastery.next}` : '，已满级'}）</div>
             <div class="dim">${ing}${fl ? ` · 口味 ${fl}` : ''}${d.fun && d.fun.length ? ' · ' + d.fun.map((f) => (DISH_FUN.find((x) => x.id === f) || DISH_FUN[0]).name).join('/') : ''}</div>
             <div class="row"><span class="${st.skillOk ? 'dim' : 'bad'}">${drink ? '调酒' : '厨艺'} ≥${d.skill} · 当前 ${best.value}</span>
               <span><button data-act="menuitem" data-v="${d.id}" class="${st.on ? 'on' : ''}">${st.on ? '供应中' : '已下架'}</button>
@@ -778,12 +838,17 @@ export class UI {
         + group(false, '餐食') + group(true, '饮品');
     } else {
       const e = g.sim.econ;
+      const plan = restockPlan(e);
       body = `<h3>库存与定价</h3>` + ING_KEYS.map((k) => `<div class="row"><span>${ING_LABEL[k]} ${e.stock[k]}</span>
         <span><button data-act="buy" data-v="${k}" data-n="20">+20 (${ING_PRICE[k] * 20})</button></span></div>`).join('')
         + `<div class="row" style="margin-top:6px"><span>加价倍率 ${e.markup.toFixed(2)}×</span></div>
            <input data-act="markup" type="range" min="0.8" max="3" step="0.05" value="${e.markup}" style="width:100%">
            <div class="dim">高于 2× 会明显降低味道评价与点单率。</div>
            <label class="row"><span>次日自动补货</span><input data-act="restock" type="checkbox" ${e.autoRestock ? 'checked' : ''}></label>
+           <div class="card" style="margin-top:6px"><div class="row"><b>自动补货计划</b><span class="dim">预算 0 = 不限</span></div>
+           <label class="row"><span>预算上限</span><input data-act="restockbudget" type="number" min="0" max="999999" value="${e.restockBudget}" style="width:86px"></label>
+           ${ING_KEYS.map((key) => `<label class="row"><span>${ING_LABEL[key]}目标</span><input data-act="restocktarget" data-v="${key}" type="number" min="0" max="999" value="${e.restockTargets[key]}" style="width:64px"><span class="${plan.items[key].shortfall ? 'bad' : 'dim'}">预计 +${plan.items[key].amount} / ${plan.items[key].cost} 币${plan.items[key].shortfall ? ` · 缺 ${plan.items[key].shortfall}` : ''}</span></label>`).join('')}
+           <div class="row"><b>预计费用 ${plan.total}</b><b class="${plan.balanceAfter < 0 ? 'bad' : 'good'}">补货后余额 ${plan.balanceAfter}</b></div></div>
            <h3 style="margin-top:8px">热图</h3>
            <div class="row">${['off', 'clean', 'traffic'].map((h) => `<button data-act="heat" data-v="${h}" class="${g.heat === h ? 'on' : ''}">${h === 'off' ? '关闭' : h === 'clean' ? '卫生' : '拥堵'}</button>`).join('')}</div>`;
     }
@@ -827,7 +892,9 @@ export class UI {
         const stateTxt = gr.state === 'wait' ? '前台等位' : gr.state === 'seating' ? '自行入座中'
           : gr.state === 'seated' ? '等点单' : gr.state === 'ordered' ? '等菜' : gr.state === 'eating' ? '用餐'
           : gr.state === 'toFac' ? '前往' + w.name : gr.state === 'using' ? (gr.overnight ? '过夜中' : (w.verb || w.name) + '中') : '离店';
+        const regular = gr.regularId ? s.regulars.find((profile) => profile.id === gr.regularId) : null;
         return `<div class="card"><div class="row"><b>${gr.size}人组·${w.name}</b><span class="dim">${stateTxt}</span></div>
+        ${regular ? `<div class="row"><span class="hi">★ 常客 ${htmlText(regular.name)} · 第 ${regular.visits} 次来店</span><span>好感 ${Math.round(regular.aff)}</span></div>${regular.offer ? `<div class="dim">${htmlText(regular.offer.text)}</div>` : ''}` : ''}
         <div class="row">耐心 ${bar(pct, 100, pct > 50 ? '#8DDB4A' : pct > 25 ? '#F3B84B' : '#FF6B5A')}</div>
         <div class="dim">${gr.members.map((m) => m.race).join('/')}${o ? ' · ' + (g.sim.dishOf(o.dishId).name || '') + '（' + ORDER_STAGE[o.stage] + '）' : ''}</div></div>`;
       }).join('') : '<div class="dim">店里还没有客人。</div>';
@@ -847,12 +914,15 @@ export class UI {
       </div>${body}`);
   }
 
-          candCard(p       )         {
+  candCard(p       )         {
     const bg = p.background;
+    const analysis = staffAnalysis(p);
     return `<div class="card"><div class="row"><img class="av" src="${avatarURL(p.app)}" width="36" height="36">
         <span style="flex:1"><b>${p.name}</b><div class="dim">${p.race}·${p.sex}·${p.age}岁</div></span>
         <span class="hi">日薪${p.wage}</span></div>
       <div class="dim">${SKILL_KEYS.map((k) => `${SKILL_LABEL[k]}${p.skills[k]}`).join(' ')}</div>
+      <div class="row" style="align-items:flex-start"><b class="hi">综合 ${analysis.score}</b><span>推荐：${JOB_LABEL[analysis.recommendedJob]}</span></div>
+      <div class="dim"><span class="good">优势 ${analysis.strengths.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span> · <span class="bad">短板 ${analysis.weaknesses.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span></div>
       <div class="row" style="justify-content:flex-start;flex-wrap:wrap">${p.traits.map((t) => this.traitTag(t)).join('')}<span class="dim" title="根据综合技能与性格自动规划">自动优先级 ${p.prio}</span></div>
       ${bg ? `<div class="dim">${htmlText(bg.background.slice(0, 56))}${bg.background.length > 56 ? '…' : ''}</div>` : ''}
       <div class="row"><button data-act="hire" data-v="${p.id}">雇用（入职费${p.wage * 3}）</button>
@@ -932,6 +1002,8 @@ export class UI {
     const st = this.g.sim.staff.find((x) => x.id === id);
     if (!st) return '<div class="dim">该员工已不在职。</div>';
     const rooms = this.g.tavern.rooms;
+    const wage = fairWageRange(st);
+    const totalWages = this.g.sim.staff.filter((person) => !person.isOwner).reduce((sum, person) => sum + person.wage, 0);
     return `<div class="row" style="align-items:flex-start">
       <img class="av" src="${avatarURL(st.app)}" width="76" height="76">
       <div style="flex:1">
@@ -943,9 +1015,10 @@ export class UI {
         <div class="row" style="flex-wrap:wrap">房间 <button data-act="sroom" data-id="${st.id}" data-v="null" class="${st.roomId ? '' : 'on'}">全店机动</button>
           ${rooms.map((r) => `<button data-act="sroom" data-id="${st.id}" data-v="${r.id}" class="${st.roomId === r.id ? 'on' : ''}">${ROOM_LABEL[r.kind]}#${r.id}</button>`).join('')}</div>
         <div class="row" title="数值越高，空闲时越先领取新任务">抢单优先级 ${[0, 1, 2, 3].map((p) => `<button data-act="prio" data-id="${st.id}" data-v="${p}" class="${st.prio === p ? 'on' : ''}">${p}</button>`).join('')}
-          ${st.isOwner ? '<span class="dim">店主不领取工资</span>' : `<span>日薪 ${st.wage}</span><button data-act="wage" data-id="${st.id}" data-v="${st.wage + 5}">+5</button><button data-act="wage" data-id="${st.id}" data-v="${Math.max(5, st.wage - 5)}">-5</button>`}
+          ${st.isOwner ? '<span class="dim">店主不领取工资</span>' : `<span>日薪 ${st.wage}</span><button data-act="wage" data-id="${st.id}" data-v="${st.wage + 5}" title="涨薪后全店日薪 ${totalWages + 5}">+5</button><button data-act="wage" data-id="${st.id}" data-v="${Math.max(5, st.wage - 5)}" title="降薪后全店日薪 ${totalWages - st.wage + Math.max(5, st.wage - 5)}">-5</button>`}
           <button data-act="dress" data-v="${st.id}">换装</button>
           ${st.isOwner ? '' : `<button data-act="fire" data-v="${st.id}" class="warn">解雇</button>`}</div>
+        ${st.isOwner ? '' : `<div class="dim">合理工资 ${wage.min}–${wage.max}（建议 ${wage.recommended}） · 当前全店日薪 ${totalWages} · 涨薪后 ${totalWages + 5}</div>`}
       </div></div>`;
   }
 
@@ -978,6 +1051,8 @@ export class UI {
       <div class="row">${r.quality < 3 ? `<button data-act="uproom" data-v="${r.id}">升级房间（${upCost}，+槽位/舒适）</button>` : '<span class="dim">已达最高房间品质</span>'}
         <button data-act="roomfurn" data-v="${r.id}">布置家具</button>
         <button data-act="moveroom" data-v="${r.id}" class="${this.g.moveRoomId === r.id ? 'on' : ''}" ${this.g.sim.dayActive ? 'disabled title="营业结束后才能移动房间"' : ''}>↔ 移动房间</button>
+        <button data-act="copyroom" data-v="${r.id}" ${this.g.sim.dayActive ? 'disabled' : ''}>⧉ 复制房间</button>
+        <button data-act="saveroombp" data-v="${r.id}" ${this.g.sim.dayActive ? 'disabled' : ''}>保存蓝图</button>
         <button data-act="delroom" data-v="${r.id}" class="warn">拆除（返还70%）</button></div>
     </div></div>`;
   }
@@ -1004,6 +1079,7 @@ export class UI {
       <div class="row"><button data-act="rotbuild" class="on">⟳ 转个方向（R）</button><button data-act="movefurn" data-v="${f.id}">取消搬动</button></div>` : ''}
       <div class="row"><button data-act="rotfurn" data-v="${f.id}">R 旋转朝向</button>
         <button data-act="movefurn" data-v="${f.id}" class="${this.g.moveFurnId === f.id ? 'on' : ''}">↔ 移动位置</button>
+        <button data-act="copyfurn" data-v="${f.id}" ${this.g.sim.dayActive ? 'disabled' : ''}>⧉ 复制家具</button>
         ${f.quality < 3 ? (() => {
           const nq = f.quality + 1; const ns = furnQualityUnlock(f.kind, nq); const room = this.g.tavern.roomOfFurn(f);
           const locked = this.g.sim.stars() < ns || !room || room.quality < nq;
@@ -1015,6 +1091,14 @@ export class UI {
   }
 
   // ---------- 模态 ----------
+  openBlueprintLibrary()       {
+    const rooms = this.g.roomBlueprints();
+    const layouts = this.g.layoutBlueprints();
+    const roomRows = rooms.length ? rooms.map((bp, index) => `<div class="card"><div class="row"><span><b>${htmlText(bp.name)}</b><span class="dim"> · 家具 ${bp.furns?.length || 0} · 品质 ${'I'.repeat(bp.quality || 1)}</span></span><span><button data-act="startroombp" data-v="${index}">放置</button><button data-act="delroombp" data-v="${index}" class="warn">删除</button></span></div></div>`).join('') : '<div class="dim">尚未保存房间蓝图。选中房间后点击“保存蓝图”。</div>';
+    const layoutRows = layouts.length ? layouts.map((bp, index) => `<div class="card"><div class="row"><span><b>${htmlText(bp.name)}</b><span class="dim"> · 房间 ${bp.tavern?.rooms?.length || 0} · 家具 ${bp.tavern?.furns?.length || 0}</span></span><span><button data-act="applylayout" data-v="${index}">套用</button><button data-act="dellayout" data-v="${index}" class="warn">删除</button></span></div></div>`).join('') : '<div class="dim">尚未保存整店布局。</div>';
+    this.showModal(`<h3>建造蓝图库</h3><div class="dim">房间蓝图会按当前品质、风格和家具重新购买；整店布局只调整现有同一批房间与家具的位置，不复制资产。</div><h3 style="margin-top:10px">房间蓝图</h3>${roomRows}<h3 style="margin-top:10px">整店布局</h3>${layoutRows}<div class="row" style="margin-top:10px"><button data-act="savelayout">保存当前整店布局</button><button data-act="closemodal">关闭</button></div>`);
+  }
+
           showModal(inner        , closable = true, preserveAIChat = false)              {
     if (this.tutorialActive) {
       this.tutorialActive = false;
@@ -1031,6 +1115,8 @@ export class UI {
   }
 
   closeModal(preserveAIChat = false)       {
+    this.chatAIController?.abort(); this.chatAIController = null;
+    this.settlementAIController?.abort(); this.settlementAIController = null;
     if (!preserveAIChat) { this.finishAIStaffChatSession(); this.finishAIGuestChatSession(); }
     if (this.modal) { this.modal.remove(); this.modal = null; }
   }
@@ -1091,12 +1177,46 @@ export class UI {
       <div class="dim" style="margin:5px 0 8px">描述店主要采取的行动。AI 会生成成功与失败结果，由游戏检定并在安全范围内结算真实数值。</div>
       <textarea data-event-custom maxlength="300" rows="3" placeholder="例如：让店主先安抚客人，再请最冷静的员工检查异常来源" style="width:100%;box-sizing:border-box"></textarea>
       <div class="row" style="margin-top:8px;justify-content:flex-end"><button data-act="eventcustom">使用 AI 推演</button></div></div>` : '';
-    this.showModal(`<h3>⚡ ${card.title}</h3><div style="max-width:520px">${card.text}</div>${choices}${custom}
+    const sourceBadge = card.aiGenerated ? '<span class="hi">✦ AI 当日事件</span>' : card.chainId ? `<span class="hi">◆ 长期事件链：${htmlText(card.chainName)} ${Number(card.chainStage) + 1}/3</span>` : '';
+    this.showModal(`<h3>⚡ ${card.title}</h3>${sourceBadge}<div style="max-width:520px;margin-top:5px">${card.text}</div>${choices}${custom}
       <div class="dim">暂停中仍可拖动镜头查看酒馆。</div>`);
   }
 
   eventAIContext                 = null;
   eventCustomContext             = null;
+
+  async requestDynamicBusinessEvent(force = false) {
+    const sim = this.g.sim;
+    if (!sim.dayActive || !aiConfigured()) return false;
+    if (this.dynamicAIStatus?.state === 'loading' && !force) return false;
+    this.dynamicAIController?.abort();
+    const controller = new AbortController();
+    this.dynamicAIController = controller;
+    this.dynamicAIStatus = { state: 'loading', text: 'AI 正在读取今日经营并创建收尾事件…' };
+    sim.toast('✦ 已向 AI 发布本日经营事件创作任务');
+    this.render(true);
+    try {
+      const plan = await requestGameAI('dynamic_event', sim.dynamicEventFacts(), { signal: controller.signal });
+      if (controller.signal.aborted || this.dynamicAIController !== controller || !sim.dayActive) return false;
+      if (!sim.queueAIDynamicEvent(plan)) throw new Error('事件结构未通过游戏校验');
+      this.dynamicAIStatus = { state: 'ready', text: `AI 事件《${plan.title}》已就绪` };
+      sim.toast(`✦ AI 经营事件《${plan.title}》已进入现场`);
+      this.render(true);
+      return true;
+    } catch (err) {
+      if (controller.signal.aborted || err?.name === 'AbortError') {
+        this.dynamicAIStatus = { state: 'cancelled', text: '已取消本日 AI 经营事件' };
+        this.render(true); return false;
+      }
+      this.dynamicAIStatus = { state: 'error', text: `AI 事件失败：${err?.message || '未知错误'}；已降级为预制事件` };
+      if (!sim.pendingEvent && !sim.queuedDynamicEvent) sim.triggerEvent();
+      sim.toast('AI 经营事件生成失败，已自动使用预制事件；可在顶栏重试');
+      this.render(true);
+      return false;
+    } finally {
+      if (this.dynamicAIController === controller) this.dynamicAIController = null;
+    }
+  }
 
   eventEffectsText(effects     )         {
     const parts = [];
@@ -1215,7 +1335,8 @@ export class UI {
         background: st.background || null,
       },
       relationship: '员工与雇主/店主之间的店内交流，不是服务员接待顾客。',
-      recentConversation: (st.aiChatLog || []).slice(0, 12).reverse(),
+      relationshipSummary: st.relationshipSummary || '尚无长期关系摘要。',
+      recentConversation: (st.aiChatLog || []).slice(0, 6).reverse(),
     };
   }
 
@@ -1237,7 +1358,7 @@ export class UI {
       ${error ? `<div class="bad" style="margin-top:7px">${htmlText(error)}</div>` : ''}
       <textarea id="aiplayerline" maxlength="120" rows="3" placeholder="输入店主想说的话……" style="width:100%;box-sizing:border-box;margin-top:8px"></textarea>
       <div class="row" style="margin-top:8px"><span class="dim">本次会话可连续发送；结束聊天后统一结算一次互动。</span>
-        <span><button data-act="aichatsend" data-v="${st.id}">发送</button><button data-act="detail" data-v="${st.id}">结束聊天</button></span></div>`, true, true);
+        <span>${error ? '<button data-act="aichatretry">重试</button><button data-act="aichatlocal">使用本地回复</button>' : ''}<button data-act="aicancelchat" style="display:none">取消生成</button><button data-act="aichatsend" data-v="${st.id}">发送</button><button data-act="detail" data-v="${st.id}">结束聊天</button></span></div>`, true, true);
   }
 
   async sendAIStaffChat(id        )       {
@@ -1248,8 +1369,11 @@ export class UI {
     const startedModal = this.modal;
     const send = this.modal?.querySelector('[data-act="aichatsend"]')                     ;
     if (send) { send.disabled = true; send.textContent = '等待回复…'; }
+    const cancel = this.modal?.querySelector('[data-act="aicancelchat"]'); if (cancel) cancel.style.display = '';
+    const controller = new AbortController(); this.chatAIController?.abort(); this.chatAIController = controller;
+    this.pendingAIChat = { kind: 'staff', id, line };
     try {
-      const result = await requestGameAI('staff_chat', this.staffAIFacts(st, line));
+      const result = await requestGameAI('staff_chat', this.staffAIFacts(st, line), { signal: controller.signal });
       if (this.modal !== startedModal) return;
       const reply = this.g.sim.showAIChatReply(st.id, result.reply);
       if (!reply) throw new Error('员工现在无法回应');
@@ -1264,7 +1388,9 @@ export class UI {
       this.g.save();
       this.openAIStaffChat(id);
     } catch (err) {
-      if (this.modal === startedModal) this.openAIStaffChat(id, `AI 回复失败：${err?.message || '未知错误'}`);
+      if (this.modal === startedModal) this.openAIStaffChat(id, controller.signal.aborted ? '已取消生成；可重试或改用本地回复。' : `AI 回复失败：${err?.message || '未知错误'}`);
+    } finally {
+      if (this.chatAIController === controller) this.chatAIController = null;
     }
   }
 
@@ -1292,7 +1418,8 @@ export class UI {
         },
       },
       relationship: '客人与旅店店主之间的交流；玩家负责经营和接待，不是另一位顾客。',
-      recentConversation: (guest.aiChatLog || []).slice(0, 12).reverse(),
+      relationshipSummary: guest.relationshipSummary || '尚无长期关系摘要。',
+      recentConversation: (guest.aiChatLog || []).slice(0, 6).reverse(),
     };
   }
 
@@ -1309,14 +1436,15 @@ export class UI {
     const history = (guest.aiChatLog || []).slice(0, 12).reverse();
     const affinity = this.guestAffinityFacts(guest, group);
     this.showModal(`<div class="row"><img class="av" src="${avatarURL(guest.app)}" width="64" height="64">
-        <div style="flex:1"><h3 style="margin:0">和 ${htmlText(guest.name)} 聊聊</h3><div class="dim">${htmlText(guest.race)}·住店客｜${htmlText(affinity.level)} ${affinity.value}</div></div></div>
+        <div style="flex:1"><h3 style="margin:0">和 ${htmlText(guest.name)} 聊聊</h3><div class="dim">${htmlText(guest.race)}·${guest.regularId ? '常客' : '住店客'}｜${htmlText(affinity.level)} ${affinity.value}</div></div></div>
+      ${guest.relationshipSummary ? `<div class="card"><b>长久记忆</b><div class="dim">${htmlText(guest.relationshipSummary)}</div></div>` : ''}
       <div style="max-width:680px;max-height:300px;overflow:auto;margin-top:8px">
         ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${htmlText(guest.name)}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有对话记录。你是这里的店主，可以询问入住体验，也可以随意闲聊。</div>'}
       </div>
       ${error ? `<div class="bad" style="margin-top:7px">${htmlText(error)}</div>` : ''}
       <textarea id="aiguestline" maxlength="160" rows="3" placeholder="输入店主想对客人说的话……" style="width:100%;box-sizing:border-box;margin-top:8px"></textarea>
       <div class="row" style="margin-top:8px"><span class="dim">本次窗口内可连续交谈；退出后才结束本轮互动。</span>
-        <span><button data-act="aiguestchatsend" data-v="${guest.id}">发送</button><button data-act="interactback" data-v="${guest.id}">结束聊天</button></span></div>`, true, true);
+        <span>${error ? '<button data-act="aichatretry">重试</button><button data-act="aichatlocal">使用本地回复</button>' : ''}<button data-act="aicancelchat" style="display:none">取消生成</button><button data-act="aiguestchatsend" data-v="${guest.id}">发送</button><button data-act="interactback" data-v="${guest.id}">结束聊天</button></span></div>`, true, true);
   }
 
   async sendAIGuestChat(id        )       {
@@ -1327,8 +1455,11 @@ export class UI {
     const startedModal = this.modal;
     const send = this.modal?.querySelector('[data-act="aiguestchatsend"]')                     ;
     if (send) { send.disabled = true; send.textContent = '等待回复…'; }
+    const cancel = this.modal?.querySelector('[data-act="aicancelchat"]'); if (cancel) cancel.style.display = '';
+    const controller = new AbortController(); this.chatAIController?.abort(); this.chatAIController = controller;
+    this.pendingAIChat = { kind: 'guest', id, line };
     try {
-      const result = await requestGameAI('guest_chat', this.guestAIFacts(guest, line));
+      const result = await requestGameAI('guest_chat', this.guestAIFacts(guest, line), { signal: controller.signal });
       if (this.modal !== startedModal) return;
       const reply = String(result.reply || '').trim().slice(0, 180);
       if (!reply) throw new Error('客人现在无法回应');
@@ -1344,7 +1475,42 @@ export class UI {
       if (guest.aiChatLog.length > 20) guest.aiChatLog.pop();
       this.openAIGuestChat(id);
     } catch (err) {
-      if (this.modal === startedModal) this.openAIGuestChat(id, `AI 回复失败：${err?.message || '未知错误'}`);
+      if (this.modal === startedModal) this.openAIGuestChat(id, controller.signal.aborted ? '已取消生成；可重试或改用本地回复。' : `AI 回复失败：${err?.message || '未知错误'}`);
+    } finally {
+      if (this.chatAIController === controller) this.chatAIController = null;
+    }
+  }
+
+  retryAIChat() {
+    const pending = this.pendingAIChat;
+    if (!pending) return;
+    if (pending.kind === 'staff') this.openAIStaffChat(pending.id); else this.openAIGuestChat(pending.id);
+    const input = this.modal?.querySelector(pending.kind === 'staff' ? '#aiplayerline' : '#aiguestline');
+    if (input) input.value = pending.line;
+    if (pending.kind === 'staff') this.sendAIStaffChat(pending.id); else this.sendAIGuestChat(pending.id);
+  }
+
+  useLocalChatFallback() {
+    const pending = this.pendingAIChat;
+    if (!pending) return;
+    const sim = this.g.sim;
+    const owner = sim.staff.find((person) => person.isOwner);
+    if (pending.kind === 'staff') {
+      const person = sim.staff.find((item) => item.id === pending.id); if (!person) return;
+      const reply = person.needs?.stress > 65 ? '我听见了。今天有些忙，等手上的事缓下来，我们再慢慢说。' : person.aff >= 50 ? '当然记得。你愿意这样和我说，我会认真放在心上。' : '嗯，我明白你的意思了。之后在店里也请多关照。';
+      sim.showAIChatReply(person.id, reply);
+      person.aiChatLog = person.aiChatLog || [];
+      person.aiChatLog.unshift({ day: sim.econ.day, playerName: owner?.name || '店主', player: pending.line, reply, emotion: 'neutral', local: true });
+      if (this.aiStaffChatSession?.id === person.id) { this.aiStaffChatSession.exchanges++; this.aiStaffChatSession.lastReply = reply; }
+      this.g.save(); this.openAIStaffChat(person.id);
+    } else {
+      const person = sim.guests.find((item) => item.id === pending.id); if (!person) return;
+      const aff = this.guestAffinityFacts(person, sim.groupOfGuest(person.id));
+      const reply = aff.value >= 25 ? '店主亲自来问，我很高兴。这里的招待很有温度，下次有机会我还会回来。' : '谢谢店主关心。我会把这次旅途和店里的见闻记下来。';
+      person.bubble = { text: reply, t: 3.2 }; person.aiChatLog = person.aiChatLog || [];
+      person.aiChatLog.unshift({ day: sim.econ.day, playerName: owner?.name || '店主', player: pending.line, reply, emotion: 'neutral', local: true });
+      if (this.aiGuestChatSession?.id === person.id) { this.aiGuestChatSession.exchanges++; this.aiGuestChatSession.lastReply = reply; }
+      this.g.save(); this.openAIGuestChat(person.id);
     }
   }
 
@@ -1844,7 +2010,7 @@ export class UI {
     const rows = slots.map((slot) => `<div class="card" style="margin-top:7px;border-left-color:${slot.slot === this.g.currentSlot ? '#7FB069' : '#B0895E'}">
       <div class="row"><b>档位 ${slot.slot}${slot.slot === this.g.currentSlot ? ' · 当前' : ''}</b><span class="${slot.valid ? 'hi' : 'dim'}">${slot.valid ? `第 ${slot.day} 天 · ${'★'.repeat(slot.stars) || '无星'}` : '空档位'}</span></div>
       <div class="dim">${slot.valid ? `${htmlText(slot.ownerName)} · ${slot.coins} 界币${slot.savedAt ? ` · ${new Date(slot.savedAt).toLocaleString()}` : ''}` : '可以把当前旅店保存到这里。'}</div>
-      <div class="row" style="margin-top:6px"><button data-act="saveslot" data-v="${slot.slot}" ${canSave ? '' : 'disabled'}>${slot.valid ? '覆盖保存' : '保存到此档位'}</button>${slot.valid ? `<button data-act="loadslot" data-v="${slot.slot}">读取</button>` : ''}</div>
+      <div class="row" style="margin-top:6px;flex-wrap:wrap"><button data-act="saveslot" data-v="${slot.slot}" ${canSave ? '' : 'disabled'}>${slot.valid ? '覆盖保存' : '保存到此档位'}</button>${slot.valid ? `<button data-act="loadslot" data-v="${slot.slot}">读取</button><button data-act="exportsave" data-v="${slot.slot}">导出 JSON</button>` : ''}<button data-act="importpick" data-v="${slot.slot}">导入 JSON</button>${slot.hasBackup ? `<button data-act="restoresave" data-v="${slot.slot}">恢复备份</button>` : ''}<input type="file" accept="application/json,.json" data-save-import data-v="${slot.slot}" style="display:none"></div>
     </div>`).join('');
     this.showModal(`<h3>💾 存档管理</h3>
       <div class="dim">自动存档写入当前档位；主动保存会把当前档位切换到所选位置。营业过程中的订单和客人属于实时状态，只能在收盘规划期主动存档。</div>
@@ -2080,7 +2246,11 @@ export class UI {
       characters: sim.staff.map((staff) => ({
         name: staff.name, role: staff.isOwner ? '店主' : JOB_LABEL[staff.job], race: staff.race,
         traits: staff.traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name),
-        affinityToOwner: staff.isOwner ? 100 : Math.round(staff.aff), background: staff.background || null,
+        affinityToOwner: staff.isOwner ? 100 : Math.round(staff.aff), background: staff.background || null, relationshipSummary: staff.relationshipSummary || '',
+      })),
+      regularGuests: sim.regulars.filter((guest) => guest.lastVisitDay >= stat.day - 1).map((guest) => ({
+        name: guest.name, race: guest.race, visits: guest.visits, affinityToOwner: Math.round(guest.aff),
+        relationshipSummary: guest.relationshipSummary || '', background: guest.background || null, offer: guest.offer || null,
       })),
       events: (report.events || []).slice(0, 10).map((event) => ({ ...event, effects: { ...event.effects, stock: mapStock(event.effects?.stock) } })),
     };
@@ -2102,8 +2272,8 @@ export class UI {
         <div style="white-space:pre-wrap;line-height:1.8;max-width:760px">${htmlText(story.chapter)}</div>
         ${story.afterHours.length ? `<h3 style="margin-top:12px">打烊后的灯火</h3>${story.afterHours.map((line) => `<div style="margin:4px 0"><b>${htmlText(line.speaker)}：</b>${htmlText(line.line)}</div>`).join('')}` : ''}
         <div class="dim" style="margin-top:8px">${htmlText(story.closingNote)}</div></div>`
-      : state.loading ? '<div class="card hi" style="margin-top:10px">AI 正在把今日营业记录整理成小说章节，请稍候…</div>'
-        : state.error ? `<div class="card"><div class="bad">AI 日结生成失败：${htmlText(state.error)}</div><button data-act="airetryday">重试 AI</button></div>` : '';
+      : state.loading ? '<div class="card hi" style="margin-top:10px"><div data-ai-progress>AI 正在读取今日经营流水…</div><div class="row" style="margin-top:7px"><span class="dim">你可以随时取消，不会影响日结数值。</span><span><button data-act="aicancelday">取消生成</button><button data-act="localday">改用本地文案</button></span></div></div>'
+        : state.error ? `<div class="card"><div class="bad">AI 日结生成失败：${htmlText(state.error)}</div><div class="row"><button data-act="airetryday">重试 AI</button><button data-act="localday">使用本地文案</button></div></div>` : '';
     this.showModal(`<h3>第 ${stat.day} 天结算</h3>
       <div class="row"><span>营业收入</span><span class="good">+${stat.revenue}</span></div>
       <div class="row"><span>工资</span><span class="bad">-${stat.wages}</span></div>
@@ -2114,6 +2284,7 @@ export class UI {
       ${scoreRows}
       <div class="row"><span>声望变化</span><span class="${stat.repDelta >= 0 ? 'good' : 'bad'}">${stat.repDelta >= 0 ? '+' : ''}${stat.repDelta} → ${Math.round(s.econ.rep)}（${'★'.repeat(s.stars())}）</span></div>
       <div class="row"><span>信用线 ${stat.creditLine}</span><span class="${stat.coinsAfter < stat.creditLine ? 'bad' : ''}">结余 ${Math.round(stat.coinsAfter)}</span></div>
+      ${stat.ownerSkillGrowth && Object.values(stat.ownerSkillGrowth).some(Boolean) ? `<div class="card owner-growth" style="margin-top:10px"><h3>✦ 店长经营历练</h3><div>亲自完成一整场营业后，店长对旅店各环节有了新的理解。</div><div class="row" style="flex-wrap:wrap;margin-top:5px">${SKILL_KEYS.map((key) => `<span><b>${SKILL_LABEL[key]}</b> <span class="good">+${stat.ownerSkillGrowth[key] || 0}</span></span>`).join('')}</div><div class="dim">能力最高为 100；本次成长已经写入店长详情。</div></div>` : ''}
       <h3 style="margin-top:10px">员工工作统计</h3>${workRows || '<div class="dim">没有可统计的员工工作。</div>'}
       ${aiPanel}
       ${stat.fiveStarReached ? '<div class="card" style="margin-top:9px"><b class="good">五星声望达成：位面评议会已抵达门厅</b><div class="dim">完成今日结算后，接受酒馆的最终认证。</div></div>' : ''}
@@ -2124,19 +2295,54 @@ export class UI {
     const stat = this.settlementAIStat;
     if (!stat) return;
     const startedModal = this.modal;
+    const controller = new AbortController(); this.settlementAIController?.abort(); this.settlementAIController = controller;
+    const steps = ['AI 正在读取今日经营流水…', '正在核对盈亏、库存与员工工作…', '正在把事件整理成叙事章节…', '正在生成打烊后的角色交流…'];
+    let progressIndex = 0;
+    const progressTimer = window.setInterval(() => {
+      if (this.modal !== startedModal) { window.clearInterval(progressTimer); return; }
+      const node = this.modal?.querySelector('[data-ai-progress]');
+      if (node) node.textContent = steps[Math.min(++progressIndex, steps.length - 1)];
+    }, 2200);
     try {
-      const story = await requestGameAI('day_story', this.settlementFacts(stat));
+      const story = await requestGameAI('day_story', this.settlementFacts(stat), { signal: controller.signal });
       if (this.modal !== startedModal) return;
       const allowed = new Set(this.g.sim.staff.map((staff) => staff.name));
       story.afterHours = story.afterHours.filter((line) => allowed.has(line.speaker));
+      const summaryTargets = new Map([
+        ...this.g.sim.staff.map((person) => [person.name, person]),
+        ...this.g.sim.regulars.map((person) => [person.name, person]),
+      ]);
+      for (const update of story.relationshipUpdates || []) {
+        const person = summaryTargets.get(update.name);
+        if (!person) continue;
+        person.relationshipSummary = update.summary;
+        for (const active of this.g.sim.guests.filter((guest) => guest.name === update.name)) active.relationshipSummary = update.summary;
+      }
       this.g.sim.econ.aiChronicles = this.g.sim.econ.aiChronicles || [];
       this.g.sim.econ.aiChronicles.push({ day: stat.day, ...story });
       if (this.g.sim.econ.aiChronicles.length > 20) this.g.sim.econ.aiChronicles.shift();
       this.g.save();
       this.renderSettlement(stat, { story });
     } catch (err) {
-      if (this.modal === startedModal) this.renderSettlement(stat, { error: err?.message || '未知错误' });
+      if (this.modal === startedModal) this.renderSettlement(stat, { error: controller.signal.aborted ? '已取消生成' : err?.message || '未知错误' });
+    } finally {
+      window.clearInterval(progressTimer);
+      if (this.settlementAIController === controller) this.settlementAIController = null;
     }
+  }
+
+  localSettlementStory(stat) {
+    const report = stat?.report || {};
+    const net = (stat?.revenue || 0) - (stat?.wages || 0) - (stat?.maintenance || 0) - (stat?.restock || 0);
+    const workers = (report.finished?.staff || []).filter((row) => row.total > 0).slice(0, 4);
+    const deeds = workers.length ? workers.map((row) => `${row.name}完成了${Object.entries(row.tasks || {}).map(([name, count]) => `${name}${count}次`).join('、')}`).join('；') : '员工们守住各自岗位，让营业平稳落幕';
+    return {
+      title: `第${stat.day}日：门廊最后一盏灯`,
+      chapter: `传送门的光在夜色里渐渐收束。今天旅店接待了${stat.served}位客人，仍有${stat.lost}组客人没能得到满意安排。${deeds}。账房最后记下收入 ${stat.revenue} 界币，扣除工资、维护与补货后，今日净收益为 ${net >= 0 ? '+' : ''}${net}，余额停在 ${Math.round(stat.coinsAfter)}。无论盈亏，这些数字都已成为旅店继续生长的一部分。`,
+      afterHours: workers.slice(0, 2).map((row) => ({ speaker: row.name, line: row.total >= 3 ? '今天总算忙完了。店主，明天我们还能做得更好。' : '今天有些安静，我会为明天多做些准备。' })),
+      closingNote: '本章节由本地经营记录生成；未调用 AI，所有经营数值保持不变。',
+      relationshipUpdates: [],
+    };
   }
 
   openFinale()       {
@@ -2159,6 +2365,7 @@ export class UI {
     let sex = sex0;
     let age = Number.isFinite(Number(ownerOptions.age)) ? Math.round(Number(ownerOptions.age)) : 24;
     let traits = Array.isArray(ownerOptions.traits) ? ownerOptions.traits.slice(0, 2) : ['diligent', 'cheerful'];
+    let ownerSkillPreset = OWNER_SKILL_PRESETS.some((preset) => preset.id === ownerOptions.skillPreset) ? ownerOptions.skillPreset : 'balanced';
     let pose                           = 'walk';
     const locks = new Set        ();
     const cats                                                                                                                    = [
@@ -2256,7 +2463,10 @@ export class UI {
           <div class="creator-personality"><label><span class="dim">年龄</span><input id="crage" type="number" min="18" max="${AGE_MAX[app.race] || 100}" value="${age}"></label>
             <label><span class="dim">性格一</span><select id="crtrait1">${TRAITS.map((trait) => `<option value="${trait.id}" ${traits[0] === trait.id ? 'selected' : ''} ${traits[1] === trait.id ? 'disabled' : ''}>${trait.name}</option>`).join('')}</select></label>
             <label><span class="dim">性格二</span><select id="crtrait2">${TRAITS.map((trait) => `<option value="${trait.id}" ${traits[1] === trait.id ? 'selected' : ''} ${traits[0] === trait.id ? 'disabled' : ''}>${trait.name}</option>`).join('')}</select></label></div>
-          <div class="dim" style="margin-top:4px">${traits.map((id) => { const trait = TRAITS.find((item) => item.id === id); return trait ? `${trait.name}：${trait.note}` : id; }).join('　')}</div>`}
+          <div class="dim" style="margin-top:4px">${traits.map((id) => { const trait = TRAITS.find((item) => item.id === id); return trait ? `${trait.name}：${trait.note}` : id; }).join('　')}</div>
+          <div style="margin-top:7px"><b>店长基础能力</b><span class="dim"> · 平均值固定为 38</span></div>
+          <div class="owner-skill-presets">${OWNER_SKILL_PRESETS.map((preset) => `<button data-skillpreset="${preset.id}" class="${ownerSkillPreset === preset.id ? 'on' : ''}"><b>${preset.name}</b><small>${preset.note}</small></button>`).join('')}</div>
+          <div class="dim">${SKILL_KEYS.map((key) => `${SKILL_LABEL[key]} ${OWNER_SKILL_PRESETS.find((preset) => preset.id === ownerSkillPreset).skills[key]}`).join(' · ')}</div>`}
           <div class="creator-summary">${RACE_NAMES[app.race]} · ${dressOnly ? '' : `${age}岁 · ${traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name).join(' / ')} · `}${HT_NAMES[app.ht]}${BD_NAMES[app.bd]}<br><span class="dim">已锁定 ${locks.size} 项，随机外观时会保留</span></div>
           <div class="creator-actions"><button data-rand="1">随机外观</button>${THEMES.map((th) => `<button data-theme="${th.id}">${th.name}</button>`).join('')}</div>
           <button class="creator-done" data-done="1">${dressOnly ? '换上这套服装' : '就这个店主'}</button>
@@ -2274,7 +2484,7 @@ export class UI {
       draw();
     };
     host.addEventListener('click', (e) => {
-      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-done]')                      ;
+      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-done]')                      ;
       if (!t) return;
       let changed = false;
       if (t.dataset.group) {
@@ -2297,6 +2507,7 @@ export class UI {
       else if (t.dataset.sex) {
         sex = t.dataset.sex;
       }
+      else if (t.dataset.skillpreset) ownerSkillPreset = t.dataset.skillpreset;
       else if (t.dataset.preset) {
         const ps = PRESETS.find((q) => q.id === t.dataset.preset);
         if (ps) {
@@ -2338,7 +2549,8 @@ export class UI {
         if (traitOne && traitTwo) traits = [traitOne.value, traitTwo.value];
         normalizeOwnerIdentity();
         this.closeModal();
-        onDone(app, nm, sex, { age, traits: [...traits] });
+        const preset = OWNER_SKILL_PRESETS.find((item) => item.id === ownerSkillPreset) || OWNER_SKILL_PRESETS[0];
+        onDone(app, nm, sex, { age, traits: [...traits], skillPreset: preset.id, skills: { ...preset.skills } });
         return;
       }
       if (changed) remember();

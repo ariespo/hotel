@@ -198,6 +198,8 @@ export const DISH_FUN = [
   { id: 'prank', name: '整蛊料理', note: '出品质量随机 ±30%，评价两极分化' },
 ]         ;
 
+export const SEASON_NAMES = ['星芽季', '炎环季', '雾潮季', '霜月季'];
+
 export const DISHES         = [
   { id: 'stew', name: '虚空炖菜', ing: { grain: 1, veg: 2 }, price: 26, skill: 10, color: '#C2762F', drink: false, taste: 1.0, flavors: ['umami', 'mellow'] },
   { id: 'noodle', name: '多元面条', ing: { grain: 2, veg: 1 }, price: 30, skill: 20, color: '#E8C25A', drink: false, taste: 1.05, flavors: ['umami'] },
@@ -211,6 +213,16 @@ export const DISHES         = [
   { id: 'nebula', name: '星云特调', ing: { ether: 1, veg: 1 }, price: 44, skill: 35, color: '#E45AD1', drink: true, taste: 1.15, flavors: ['sour', 'sweet'] },
   { id: 'tea', name: '时间红茶', ing: { veg: 1, spice: 1 }, price: 28, skill: 20, color: '#B4542E', drink: true, taste: 1.05, flavors: ['mellow'] },
   { id: 'void', name: '虚空烈酒', ing: { ether: 2, spice: 1 }, price: 86, skill: 70, color: '#7A4BE0', drink: true, taste: 1.35, flavors: ['weird', 'mellow'] },
+  { id: 'hearth_set', name: '旅人暖炉套餐', ing: { grain: 3, meat: 2, veg: 2 }, price: 96, skill: 48, color: '#D48A46', drink: false, taste: 1.28, flavors: ['umami', 'mellow'], school: '炉火家常', combo: true },
+  { id: 'astral_set', name: '七星巡游宴', ing: { grain: 2, meat: 2, veg: 2, spice: 2, ether: 1 }, price: 148, skill: 72, color: '#8E78D8', drink: false, taste: 1.42, flavors: ['umami', 'weird'], school: '星海宴席', combo: true },
+  { id: 'sprout_salad', name: '星芽脆叶盏', ing: { veg: 3, ether: 1 }, price: 68, skill: 42, color: '#8DDB4A', drink: false, taste: 1.25, flavors: ['sour', 'sweet'], school: '时令鲜食', seasons: [0] },
+  { id: 'solar_skewer', name: '炎环炙肉串', ing: { meat: 3, spice: 2 }, price: 88, skill: 58, color: '#F06A32', drink: false, taste: 1.34, flavors: ['spicy', 'umami'], school: '烈焰烧烤', seasons: [1] },
+  { id: 'mist_hotpot', name: '雾潮菌锅', ing: { veg: 3, meat: 1, spice: 1 }, price: 78, skill: 52, color: '#75A9A1', drink: false, taste: 1.3, flavors: ['umami', 'mellow'], school: '雾潮汤膳', seasons: [2] },
+  { id: 'frost_cake', name: '霜月晶糕', ing: { grain: 2, veg: 1, ether: 1 }, price: 72, skill: 50, color: '#A9DFF2', drink: false, taste: 1.28, flavors: ['sweet'], school: '晶霜甜品', seasons: [3] },
+  { id: 'neon_fizz', name: '霓虹跃迁汽泡', ing: { veg: 1, spice: 1, ether: 1 }, price: 56, skill: 45, color: '#39D7D2', drink: true, taste: 1.22, flavors: ['sour', 'weird'], school: '赛博调饮' },
+  { id: 'moon_sake', name: '双月清酿', ing: { grain: 2, ether: 1 }, price: 64, skill: 52, color: '#C8C0F3', drink: true, taste: 1.27, flavors: ['mellow'], school: '古法酿造', seasons: [2, 3] },
+  { id: 'spring_tea', name: '星芽晨露茶', ing: { veg: 2, spice: 1 }, price: 42, skill: 32, color: '#A6D96A', drink: true, taste: 1.16, flavors: ['mellow', 'sweet'], school: '时令茶席', seasons: [0] },
+  { id: 'sun_punch', name: '炎环日珥宾治', ing: { veg: 1, spice: 2, ether: 1 }, price: 62, skill: 50, color: '#FF9358', drink: true, taste: 1.25, flavors: ['spicy', 'sour'], school: '赛博调饮', seasons: [1] },
 ];
 
 export function dishById(id        )       {

@@ -4,11 +4,54 @@ import { RACE_NAMES } from './chargen.js';
 import { Rng } from './pix.js';
 import {
   AD_REQ_MULT, AD_TIERS,              BED_KINDS, BED_PRICE_MULT, DISHES,            EVENTS,                               
-  FLAVORS, FURN_DEFS, furnDef,                
-  GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName,                               SKILL_KEYS, SKILL_LABEL,
-  ROOM_CHARM, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
+  FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef,
+  GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName, SEASON_NAMES,                              SKILL_KEYS, SKILL_LABEL,
+  ROOM_CHARM, ROOM_LABEL, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
 } from './data.js';
 import {            Tavern, dirDelta, furnFootprint } from './world.js';
+
+export const LONG_EVENT_CHAINS = [
+  { id: 'starwhale', name: '星鲸迁徙季', steps: [
+    { title: '远空的鲸歌', premise: '整座旅店的杯盘同时轻颤，窗外传来跨越位面的低沉鲸歌。一支观测队希望把这里设为临时补给站。', kind: 'opportunity', choices: [
+      { label: '由服务员接待观测队', note: '服务检定，建立合作关系', skill: 'serve', difficulty: 42, successText: '观测队对安排赞不绝口，约定迁徙当天再次到访。', failureText: '接待流程一团乱，观测队只留下了一张潦草星图。', successEffects: { coins: 120, rep: 10 }, failureEffects: { rep: -4, stress: 5 } },
+      { label: '让冷静员工解析鲸歌', note: '冷静检定，收集特殊情报', skill: 'calm', difficulty: 48, successText: '鲸歌的节律被记进日志，旅店掌握了迁徙路线。', failureText: '共鸣让员工头晕目眩，只能暂时关闭观测窗。', successEffects: { rep: 14 }, failureEffects: { stress: 8 } },
+    ] },
+    { title: '星鲸影落屋顶', premise: '迁徙的星鲸群遮住银河，慕名而来的客人挤满门厅。观测队要求旅店在最混乱的时刻维持秩序。', kind: 'guest', choices: [
+      { label: '开设限时观景席', note: '搬运检定，快速调整场地', skill: 'carry', difficulty: 55, successText: '家具与人流被迅速分开，观景席带来一笔可观收入。', failureText: '临时动线相互打结，碰坏了几件器具。', successEffects: { coins: 260, rep: 12 }, failureEffects: { coins: -120, dirt: 3 } },
+      { label: '用特调安抚等待客人', note: '调酒检定，消耗以太换口碑', skill: 'mix', difficulty: 52, successText: '发光的特调与鲸影交相辉映，客人纷纷留下好评。', failureText: '饮品出得太慢，错过鲸群的人把怨气写进评论。', successEffects: { rep: 20, stock: { ether: -5 } }, failureEffects: { rep: -10, stock: { ether: -3 } } },
+    ] },
+    { title: '幼鲸迷航', premise: '迁徙末尾，一头幼年星鲸被位面门厅的灯光吸引，徘徊不去。观测队请求旅店协助它回到鲸群。', kind: 'mystery', choices: [
+      { label: '以料理香气引导方向', note: '厨艺检定，完成星鲸季终章', skill: 'cook', difficulty: 62, successText: '香气沿着星路铺开，幼鲸追上族群，旅店收到观测队的重谢。', failureText: '香气反而让幼鲸绕了更大一圈，库存和声望都受损。', successEffects: { coins: 360, rep: 24 }, failureEffects: { stock: { meat: -6, spice: -5 }, rep: -8 } },
+      { label: '由店员合唱鲸歌', note: '冷静检定，以默契完成引导', skill: 'calm', difficulty: 58, successText: '众人的合声为幼鲸指出归途，鲸群以星屑回应旅店。', failureText: '音调错位引发剧烈共鸣，所有员工都疲惫不堪。', successEffects: { rep: 28, morale: 8 }, failureEffects: { stress: 14 } },
+    ] },
+  ] },
+  { id: 'council', name: '位面评议会暗访', steps: [
+    { title: '没有徽章的客人', premise: '一位衣着普通的客人逐项询问价格、员工住宿和卫生记录，举止却像受过严格审查训练。', kind: 'mystery', choices: [
+      { label: '如实展示经营记录', note: '服务检定，透明经营', skill: 'serve', difficulty: 40, successText: '客人默默记下完整记录，离店前露出认可的神情。', failureText: '账目解释前后不一，对方带着疑问离开。', successEffects: { rep: 10 }, failureEffects: { rep: -6 } },
+      { label: '先把卫生死角处理掉', note: '清洁检定，改善现场', skill: 'clean', difficulty: 45, successText: '卫生死角被及时清除，客人在检查时挑不出问题。', failureText: '匆忙清洁扬起一阵灰，现场更加尴尬。', successEffects: { cleanliness: 12, rep: 6 }, failureEffects: { dirt: 3, rep: -4 } },
+    ] },
+    { title: '评议会临时问询', premise: '那位客人亮出评议会徽章，要求员工分别回答旅店如何处理投诉、风险与员工权益。', kind: 'accident', choices: [
+      { label: '让最冷静的员工答询', note: '冷静检定，保护员工士气', skill: 'calm', difficulty: 56, successText: '回答有理有据，评议会认可了旅店的处理流程。', failureText: '高压问询让员工措辞失当，评议会提出整改。', successEffects: { rep: 18, morale: 5 }, failureEffects: { rep: -10, stress: 9 } },
+      { label: '由店主承担全部问询', note: '服务检定，店主亲自应对', skill: 'serve', difficulty: 60, successText: '店主的坦诚使问询顺利结束，员工也更加信服。', failureText: '店主被连续追问打乱节奏，营业现场出现混乱。', successEffects: { rep: 20, morale: 7 }, failureEffects: { rep: -8, stress: 8 } },
+    ] },
+    { title: '长期经营认证', premise: '评议会给出最后考题：在突发客流中同时保证出品、秩序与员工状态。这将决定旅店能否获得长期经营认证。', kind: 'opportunity', choices: [
+      { label: '以招牌菜证明实力', note: '厨艺检定，争取经营认证', skill: 'cook', difficulty: 66, successText: '招牌菜与稳定流程打动评议员，旅店获得认证和奖金。', failureText: '关键出品失误，认证被要求延期复审。', successEffects: { coins: 420, rep: 25 }, failureEffects: { coins: -100, rep: -12 } },
+      { label: '以全员协作完成考验', note: '搬运检定，验证现场调度', skill: 'carry', difficulty: 62, successText: '整间旅店像精密机关般运转，评议会正式通过认证。', failureText: '动线在高峰时崩溃，虽然无人受伤，但评价明显下降。', successEffects: { rep: 28, morale: 10 }, failureEffects: { rep: -10, stress: 12 } },
+    ] },
+  ] },
+];
+
+export const FACILITY_CHALLENGES = {
+  meal: { bubble: '就没有更好吃的菜了吗！？', label: '回应挑剔食客', skill: 'cook', difficulty: 52, reward: 110, rep: 6, penalty: 9 },
+  drink: { bubble: '这杯酒的层次还不够！', label: '重调客人的饮品', skill: 'mix', difficulty: 54, reward: 105, rep: 6, penalty: 8 },
+  bath: { bubble: '水温怎么突然失控了！？', label: '稳定温泉水温', skill: 'clean', difficulty: 50, reward: 90, rep: 5, penalty: 8 },
+  play: { bubble: '这张球桌是不是歪了！？', label: '校准台球设施', skill: 'carry', difficulty: 56, reward: 120, rep: 7, penalty: 9 },
+  stargaze: { bubble: '星图正在倒着旋转！', label: '重新校准星图', skill: 'calm', difficulty: 62, reward: 145, rep: 9, penalty: 11 },
+  game: { bubble: '机器要把我的分数吞了！', label: '抢修游艺机', skill: 'carry', difficulty: 60, reward: 135, rep: 8, penalty: 10 },
+  show: { bubble: '画面和声音完全不同步！', label: '恢复放映同步', skill: 'calm', difficulty: 55, reward: 115, rep: 7, penalty: 9 },
+  stroll: { bubble: '喷泉把我的行李卷走了！', label: '从喷泉取回行李', skill: 'carry', difficulty: 58, reward: 125, rep: 7, penalty: 9 },
+  brew: { bubble: '炼金釜里有什么在敲盖子！', label: '控制炼金异变', skill: 'calm', difficulty: 66, reward: 160, rep: 10, penalty: 12 },
+};
 
                                                                                         
 
@@ -151,6 +194,61 @@ export function plannedStaffPriority(skills                         , traits    
   return score >= 74 ? 3 : score >= 58 ? 2 : score >= 42 ? 1 : 0;
 }
 
+/** 将旧档或外部输入中的异常技能值收敛到可玩的有限数值。 */
+export function normalizedSkills(input = {}, fallback = 38) {
+  return Object.fromEntries(SKILL_KEYS.map((key) => {
+    const value = Number(input?.[key]);
+    return [key, Math.round(clamp(Number.isFinite(value) ? value : fallback, 1, 100))];
+  }));
+}
+
+export const DEFAULT_RESTOCK_TARGETS = { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 };
+
+/** 按目标库存与补货预算生成可直接执行的采购计划。budget=0 表示不设上限。 */
+export function restockPlan(econ) {
+  const targets = { ...DEFAULT_RESTOCK_TARGETS, ...(econ?.restockTargets || {}) };
+  const configuredBudget = Math.max(0, Math.round(Number(econ?.restockBudget) || 0));
+  let remaining = configuredBudget || Infinity;
+  let total = 0;
+  const items = {};
+  for (const key of ING_KEYS) {
+    const target = Math.max(0, Math.min(999, Math.round(Number(targets[key]) || 0)));
+    const need = Math.max(0, target - Math.max(0, Number(econ?.stock?.[key]) || 0));
+    const amount = Math.min(need, Math.floor(remaining / ING_PRICE[key]));
+    const cost = amount * ING_PRICE[key];
+    items[key] = { target, amount, cost, shortfall: need - amount };
+    total += cost;
+    remaining -= cost;
+  }
+  return { items, total, budget: configuredBudget, balanceAfter: Math.round((Number(econ?.coins) || 0) - total) };
+}
+
+export function fairWageRange(staff) {
+  const skills = normalizedSkills(staff?.skills);
+  const baseline = 18 + SKILL_KEYS.reduce((sum, key) => sum + skills[key], 0) * 0.13;
+  return { min: Math.round(baseline * 0.95), recommended: Math.round(baseline * 1.05), max: Math.round(baseline * 1.16) };
+}
+
+const JOB_SKILL_WEIGHTS = {
+  front: { looks: .25, serve: .4, calm: .35 }, greeter: { looks: .4, serve: .4, calm: .2 },
+  server: { serve: .45, carry: .25, calm: .3 }, cook: { cook: .6, clean: .15, calm: .25 },
+  bartender: { mix: .6, looks: .2, calm: .2 }, cleaner: { clean: .65, carry: .25, calm: .1 },
+  porter: { carry: .65, clean: .2, calm: .15 },
+};
+
+export function staffAnalysis(staff) {
+  const skills = normalizedSkills(staff?.skills);
+  const roles = Object.entries(JOB_SKILL_WEIGHTS).map(([job, weights]) => ({
+    job, score: Math.round(Object.entries(weights).reduce((sum, [key, weight]) => sum + skills[key] * weight, 0)),
+  })).sort((a, b) => b.score - a.score);
+  const ordered = SKILL_KEYS.map((key) => ({ key, value: skills[key] })).sort((a, b) => b.value - a.value);
+  const traitBoost = (staff?.traits || []).reduce((sum, trait) => sum + ({ decisive: 3, diligent: 3, fast: 2, organized: 2, lazy: -4, clumsy: -3, grumpy: -2 }[trait] || 0), 0);
+  return {
+    score: Math.max(1, Math.min(100, roles[0].score + traitBoost)), recommendedJob: roles[0].job,
+    strengths: ordered.slice(0, 2), weaknesses: ordered.slice(-2).reverse(), roles,
+  };
+}
+
                                                                                              
 
 export function makeStaff(rng     , id        , isOwner         , app             , name         , opt          )        {
@@ -172,12 +270,19 @@ export function makeStaff(rng     , id        , isOwner         , app           
   const ageBoost = clamp((age - 18) / 140, 0, 1);
   const skills                         = {};
   const exp                         = {};
-  const lo = (opt ? opt.lo : 8) + ageBoost * 10, hi = (opt ? opt.hi : 62) + ageBoost * 26;
-  for (const k of SKILL_KEYS) { skills[k] = Math.round(rng.range(lo, hi)); exp[k] = 0; }
-  // 每人两个突出项；广告指定了数值偏向时，第一个突出项就是它
-  const strong = [opt && opt.bias ? opt.bias : SKILL_KEYS[rng.int(SKILL_KEYS.length)], SKILL_KEYS[rng.int(SKILL_KEYS.length)]];
-  for (const s of strong) skills[s] = Math.round(clamp(skills[s] + rng.range(20, 40), 5, 95));
-  if (opt && opt.bias) skills[opt.bias] = Math.round(clamp(Math.max(skills[opt.bias], lo + (hi - lo) * 0.6 + rng.range(0, 14)), 5, 96));
+  const requestedSkills = opt?.skills && typeof opt.skills === 'object' ? normalizedSkills(opt.skills) : null;
+  if (requestedSkills) {
+    for (const k of SKILL_KEYS) { skills[k] = requestedSkills[k]; exp[k] = 0; }
+  } else {
+    const baseLo = Number.isFinite(Number(opt?.lo)) ? Number(opt.lo) : 8;
+    const baseHi = Number.isFinite(Number(opt?.hi)) ? Number(opt.hi) : 62;
+    const lo = baseLo + ageBoost * 10, hi = Math.max(lo + 1, baseHi + ageBoost * 26);
+    for (const k of SKILL_KEYS) { skills[k] = Math.round(rng.range(lo, hi)); exp[k] = 0; }
+    // 每人两个突出项；广告指定了数值偏向时，第一个突出项就是它
+    const strong = [opt?.bias || SKILL_KEYS[rng.int(SKILL_KEYS.length)], SKILL_KEYS[rng.int(SKILL_KEYS.length)]];
+    for (const s of strong) skills[s] = Math.round(clamp(skills[s] + rng.range(20, 40), 5, 95));
+    if (opt?.bias) skills[opt.bias] = Math.round(clamp(Math.max(skills[opt.bias], lo + (hi - lo) * 0.6 + rng.range(0, 14)), 5, 96));
+  }
   const requestedTraits = Array.isArray(opt?.traits)
     ? opt.traits.filter((id, index, rows) => TRAITS.some((trait) => trait.id === id) && rows.indexOf(id) === index).slice(0, 2)
     : [];
@@ -217,6 +322,9 @@ export class Sim {
   ads       = [{ spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }];
   guests          = [];
   groups          = [];
+  facilityChallenges          = [];
+  /** 离店后仍会保存的常客档案；再次来店时复用身份、关系和对话记忆。 */
+  regulars          = [];
   orders          = [];
   econ      ;
   rng     ;
@@ -233,6 +341,10 @@ export class Sim {
   pendingEvent                   = null;
   eventTimes           = [];
   eventHistory = [];
+  eventChains = {};
+  lastChainEventDay = 0;
+  aiEventRequested = false;
+  queuedDynamicEvent = null;
   log           = [];
   scores           = [];
   scoreParts = { quality: [], wait: [], service: [], hygiene: [], comfort: [], spectacle: [] };
@@ -686,6 +798,9 @@ export class Sim {
   // ---------- 营业日 ----------
   openDay()       {
     this.dayT = 0;
+    this.aiEventRequested = false;
+    this.queuedDynamicEvent = null;
+    this.facilityChallenges = [];
     this.dayActive = true;
     this.running = true;
     this.econ.revenue = 0; this.econ.served = 0; this.econ.lost = 0;
@@ -736,12 +851,9 @@ export class Sim {
     for (const f of this.tavern.furns) maintenance += Math.round(2 + f.quality * 3);
     let restock = 0;
     if (this.econ.autoRestock) {
-      const par                         = { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 };
-      for (const k of ING_KEYS) {
-        const need = Math.max(0, par[k] - this.econ.stock[k]);
-        restock += need * ING_PRICE[k];
-        this.econ.stock[k] += need;
-      }
+      const plan = restockPlan(this.econ);
+      restock = plan.total;
+      for (const k of ING_KEYS) this.econ.stock[k] += plan.items[k].amount;
     }
     const avg = this.scores.length ? this.scores.reduce((a, b) => a + b, 0) / this.scores.length : 3;
     let repDelta = Math.round((avg - 3) * 9 + this.econ.served * 0.7 - this.econ.lost * 2.2);
@@ -756,12 +868,23 @@ export class Sim {
     if (sealed) this.sealed = true;
     const fiveStarReached = !this.endingSeen && starsOf(this.econ.rep) >= 5;
     if (fiveStarReached) this.endingSeen = true;
+    // 店长每完成一场经营都会获得全能力成长。独立记录，供日结特效和叙事说明使用。
+    const owner = this.staff.find((s) => s.isOwner);
+    const ownerSkillGrowth = {};
+    if (owner) {
+      owner.skills = normalizedSkills(owner.skills);
+      for (const key of SKILL_KEYS) {
+        const before = owner.skills[key];
+        owner.skills[key] = Math.min(100, before + 2);
+        ownerSkillGrowth[key] = owner.skills[key] - before;
+      }
+    }
     // 员工恢复 / 士气
     for (const s of this.staff) {
       s.needs.stamina = clamp(s.needs.stamina + 55, 0, 100);
       s.needs.hunger = clamp(s.needs.hunger - 60, 0, 100);
       s.needs.stress = clamp(s.needs.stress - (s.traits.includes('stubborn') ? 13 : 22) - (s.traits.includes('resilient') ? 8 : 0), 0, 100);
-      const fair = s.isOwner ? 0 : s.wage >= 18 + SKILL_KEYS.reduce((a, k) => a + s.skills[k], 0) * 0.13 ? 6 : -7;
+      const fair = s.isOwner ? 0 : s.wage >= fairWageRange(s).min ? 6 : -7;
       s.needs.morale = clamp(s.needs.morale + fair - s.needs.stress * 0.08, 0, 100);
       if (!s.isOwner) {
         // 日结好感：士气高就更亲近，长期压榨会掉
@@ -783,7 +906,7 @@ export class Sim {
     const stat          = {
       day: this.econ.day - 1, revenue: this.econ.revenue, wages, maintenance, restock,
       served: this.econ.served, lost: this.econ.lost, repDelta, avgScore: avg,
-      coinsAfter: this.econ.coins, sealed, creditLine, scoreBreakdown, fiveStarReached,
+      coinsAfter: this.econ.coins, sealed, creditLine, scoreBreakdown, fiveStarReached, ownerSkillGrowth,
     };
     stat.report = this.finishDayReport(stat);
     this.lastStat = stat;
@@ -851,6 +974,12 @@ export class Sim {
       this.tickAnim(dt); return;
     }
     this.dayT += dt;
+    if (!this.pendingEvent && this.queuedDynamicEvent) {
+      this.pendingEvent = this.queuedDynamicEvent;
+      this.queuedDynamicEvent = null;
+      this.fx.push({ ...this.tavern.entrance(), t: 1.2, kind: 'event' });
+      this.sounds.push('alert');
+    }
     if (this.dayActive && this.eventTimes.length && this.dayT >= this.eventTimes[0] && !this.pendingEvent) {
       this.eventTimes.shift();
       this.triggerEvent();
@@ -917,6 +1046,11 @@ export class Sim {
     let roll = this.rng.next() * wants.reduce((n, w) => n + w.weight, 0);
     let want = wants[0];
     for (const w of wants) { roll -= w.weight; if (roll <= 0) { want = w; break; } }
+    const activeRegulars = new Set(this.groups.map((group) => group.regularId).filter(Boolean));
+    const returningPool = this.regulars.filter((profile) => !activeRegulars.has(profile.id) && profile.lastVisitDay < this.econ.day);
+    const returning = returningPool.length && this.rng.chance(Math.min(.55, .22 + returningPool.length * .025))
+      ? returningPool[this.rng.int(returningPool.length)] : null;
+    if (returning?.want && wants.some((item) => item.id === returning.want) && this.rng.chance(.7)) want = wants.find((item) => item.id === returning.want);
     const e = this.tavern.entrance();
     const sizeCap = this.econ.day <= 1 ? 2 : this.econ.day <= 3 ? 3 : 4;
     let size = 1 + this.rng.int(this.rng.chance(0.5) ? Math.min(2, sizeCap) : sizeCap);
@@ -928,6 +1062,15 @@ export class Sim {
     const gid = this.id();
     const members          = [];
     for (let i = 0; i < size; i++) {
+      if (i === 0 && returning) {
+        members.push({
+          id: this.id(), app: returning.app, name: returning.name, race: returning.race, regularId: returning.id,
+          groupId: gid, x: e.x - .2, y: e.y, dir: 0, pose: 'idle', animT: this.rng.next() * 2,
+          path: [], seatId: 0, mood: 1, aff: returning.aff || 0, aiChatLog: [...(returning.aiChatLog || [])],
+          relationshipSummary: returning.relationshipSummary || '', background: returning.background || null,
+        });
+        continue;
+      }
       const race = this.rng.int(18);
       members.push({
         id: this.id(), app: randomAppearance(this.rng, race, false, this.rng.chance(0.5) ? LOOK_THEMES[this.rng.int(3)] : undefined),
@@ -937,18 +1080,25 @@ export class Sim {
       });
     }
     const pool = want.facility ? this.allDishes() : this.makeableDishes(want.drink);
-    const taste = [pool[this.rng.int(pool.length)].id, pool[this.rng.int(pool.length)].id];
+    const taste = returning?.taste?.length ? [...returning.taste] : [pool[this.rng.int(pool.length)].id, pool[this.rng.int(pool.length)].id];
     // 口味偏好：两个不重复的口味标签
-    const f1 = FLAVORS[this.rng.int(FLAVORS.length)].id;
-    let f2 = f1;
-    while (f2 === f1) f2 = FLAVORS[this.rng.int(FLAVORS.length)].id;
+    const f1 = returning?.flavors?.[0] || FLAVORS[this.rng.int(FLAVORS.length)].id;
+    const rememberedF2 = returning?.flavors?.[1];
+    const alternatives = FLAVORS.map((item) => item.id).filter((id) => id !== f1);
+    const f2 = rememberedF2 && rememberedF2 !== f1 ? rememberedF2 : alternatives[this.rng.int(alternatives.length)] || f1;
     const g        = {
       id: gid, members, size, tableId: 0, state: 'wait', want: want.id, greeted: false, seatCd: 0, facId: 0, useT: 0, facT: 0,
       maxPatience: Math.round(this.rng.range(78, 135)), patience: 0, budget: Math.round(this.rng.range(30, 120)),
       hygieneSens: this.rng.range(0.4, 1.5), taste, flavors: [f1, f2], orderId: 0,
       enterT: this.dayT, orderedT: 0, servedT: 0, eatT: 0, leaveReason: '',
-      praised: 0, mocked: 0, intCd: 0,
+      praised: 0, mocked: 0, intCd: 0, regularId: returning?.id || null,
     };
+    if (returning) {
+      returning.visits = Math.max(1, returning.visits || 1) + 1;
+      returning.lastVisitDay = this.econ.day;
+      g.budget = Math.round(g.budget * (returning.aff >= 60 ? 1.6 : returning.aff >= 30 ? 1.3 : 1.1));
+      this.toast(`常客 ${returning.name} 第 ${returning.visits} 次来到旅店`);
+    }
     g.patience = g.maxPatience;
     this.groups.push(g);
     this.guests.push(...members);
@@ -960,7 +1110,20 @@ export class Sim {
 
   /** 当前能做出来的菜（库存 + 产出设备 + 星级 都满足） */
   /** 经典菜 + 玩家研发菜（菜谱全集） */
-  allDishes()         { return DISHES.concat(this.econ.customDishes); }
+  seasonIndex() { return Math.floor((this.econ.day - 1) / 3) % SEASON_NAMES.length; }
+
+  dishMastery(id) {
+    const sales = Math.max(0, Number(this.econ.dishMastery?.[id]) || 0);
+    const level = sales >= 70 ? 3 : sales >= 30 ? 2 : sales >= 10 ? 1 : 0;
+    return { sales, level, next: level === 0 ? 10 : level === 1 ? 30 : level === 2 ? 70 : null };
+  }
+
+  effectiveDish(dish) {
+    const mastery = this.dishMastery(dish.id);
+    return { ...dish, basePrice: dish.price, price: Math.round(dish.price * (1 + mastery.level * .08)), taste: Math.round(dish.taste * (1 + mastery.level * .04) * 100) / 100, mastery };
+  }
+
+  allDishes()         { return DISHES.concat(this.econ.customDishes).map((dish) => this.effectiveDish(dish)); }
 
   dishOf(id        )       { return this.allDishes().find((d) => d.id === id) || DISHES[0]; }
 
@@ -968,7 +1131,7 @@ export class Sim {
     return this.allDishes().filter((d) => {
       if (d.drink !== drink) return false;
       const st = this.dishStatus(d);
-      return st.on && st.facility && st.skillOk && st.stockOk;
+      return st.on && st.facility && st.skillOk && st.stockOk && st.seasonOk;
     });
   }
 
@@ -985,6 +1148,7 @@ export class Sim {
       facility: d.drink ? hasBar : hasKitchen,
       skillOk: best >= d.skill,
       stockOk,
+      seasonOk: !d.seasons || d.seasons.includes(this.seasonIndex()),
       best,
     };
   }
@@ -1204,7 +1368,7 @@ export class Sim {
   }
 
   /** 前台等位：站在门厅里、离入口最近的空地上，按组号错开 */
-          goWaitArea(g       )       {
+  goWaitArea(g       )       {
     g.state = 'wait';
     const e = this.tavern.entrance();
     const foyer = this.tavern.rooms.find((r) => r.kind === 'foyer');
@@ -1225,8 +1389,49 @@ export class Sim {
     });
   }
 
-          tickGroups(dt        )       {
+  maybeStartFacilityChallenge(g, dt) {
+    if (g.challengeStarted || g.state === 'leaving' || g.overnight) return;
+    const def = FACILITY_CHALLENGES[g.want];
+    if (!def || !this.rng.chance(dt * .035)) return;
+    g.challengeStarted = true;
+    const guest = g.members[0];
+    const challenge = { id: this.id(), groupId: g.id, guestId: guest.id, ...def, state: 'open', age: 0 };
+    this.facilityChallenges.push(challenge);
+    guest.bubble = { text: def.bubble, t: 12 };
+    this.toast(`⚠ ${guest.name}：${def.bubble}`);
+    this.sounds.push('alert');
+  }
+
+  finishFacilityChallenge(challenge, staff, success) {
+    if (!challenge || challenge.state !== 'open') return;
+    const group = this.groups.find((item) => item.id === challenge.groupId);
+    const guest = group?.members.find((item) => item.id === challenge.guestId) || group?.members[0];
+    challenge.state = success ? 'success' : 'failed';
+    challenge.staff = staff?.name || '';
+    if (success) {
+      this.econ.coins += challenge.reward; this.econ.revenue += challenge.reward; this.econ.rep += challenge.rep;
+      if (guest) { guest.aff = clamp((guest.aff || 0) + 5, -100, 100); guest.bubble = { text: `${staff.name}解决得太漂亮了！`, t: 5 }; }
+      if (group) { group.praised++; group.patience = Math.min(group.maxPatience, group.patience + 18); }
+      this.toast(`挑战成功：${staff.name}完成“${challenge.label}” +${challenge.reward} 界币 / +${challenge.rep} 声望`);
+      this.fx.push({ x: guest?.x || staff.x, y: guest?.y || staff.y, t: 1.1, kind: 'happy' }); this.sounds.push('powerup');
+    } else {
+      this.econ.rep = Math.max(0, this.econ.rep - challenge.penalty);
+      if (guest) { guest.aff = clamp((guest.aff || 0) - 5, -100, 100); guest.bubble = { text: '这可不像一家靠谱的旅店！', t: 5 }; }
+      if (group) group.mocked++;
+      this.recordScoreParts({ service: 1.4, comfort: 1.6 });
+      this.toast(`挑战失败：“${challenge.label}”未解决，声望 -${challenge.penalty}`);
+      this.fx.push({ x: guest?.x || staff?.x || 0, y: guest?.y || staff?.y || 0, t: 1.1, kind: 'sad' }); this.sounds.push('angry');
+    }
+  }
+
+  failOpenChallenges(group) {
+    for (const challenge of this.facilityChallenges.filter((item) => item.groupId === group.id && item.state === 'open')) this.finishFacilityChallenge(challenge, null, false);
+  }
+
+  tickGroups(dt        )       {
     for (const g of [...this.groups]) {
+      if (g.state === 'using' || g.state === 'eating') this.maybeStartFacilityChallenge(g, dt);
+      for (const challenge of this.facilityChallenges.filter((item) => item.groupId === g.id && item.state === 'open')) challenge.age += dt;
       if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered') {
         g.patience -= dt * (1 + (g.state === 'ordered' ? 0.15 : 0));
         if (g.patience <= 0) { this.leave(g, g.state === 'wait' ? '在前台等太久' : '等菜太久'); continue; }
@@ -1331,6 +1536,7 @@ export class Sim {
       this.toast(`一组客人离店：${reason}`);
       this.sounds.push('angry');
     }
+    this.rememberGuests(g, reason ? 1.2 : 3);
     for (const m of g.members) {
       if (m.seatId) this.seatOwner.delete(m.seatId);
       m.seatId = 0;
@@ -1340,9 +1546,33 @@ export class Sim {
   }
 
   /** 这桌人爱不爱这道菜：点了心头好，或菜品口味命中他们的偏好 */
-          guestLikes(g       , dish      )          {
+  guestLikes(g       , dish      )          {
     if (g.taste.includes(dish.id)) return true;
     return (dish.flavors || []).some((f) => (g.flavors || []).includes(f));
+  }
+
+  rememberGuests(g, score = 3) {
+    for (const guest of g.members || []) {
+      let profile = guest.regularId ? this.regulars.find((item) => item.id === guest.regularId) : null;
+      const adjustedAff = clamp((guest.aff || 0) + (score >= 4 ? 3 : score < 2 ? -3 : 1), -100, 100);
+      if (!profile && adjustedAff >= 5 && this.regulars.length < 60) {
+        profile = {
+          id: this.id(), name: guest.name, race: guest.race, app: guest.app, aff: adjustedAff,
+          visits: 1, lastVisitDay: this.econ.day, aiChatLog: [], relationshipSummary: '', background: null,
+          taste: [...(g.taste || [])], flavors: [...(g.flavors || [])], want: g.want, offer: null,
+        };
+        guest.regularId = profile.id;
+        this.regulars.push(profile);
+      }
+      if (!profile) continue;
+      profile.aff = adjustedAff;
+      profile.aiChatLog = [...(guest.aiChatLog || [])].slice(0, 20);
+      profile.relationshipSummary = guest.relationshipSummary || profile.relationshipSummary || '';
+      profile.want = g.want; profile.taste = [...(g.taste || [])]; profile.flavors = [...(g.flavors || [])];
+      if (profile.aff >= 20 && !profile.background) profile.background = `${profile.name}来自${profile.race}聚居的远方位面，把这家旅店当作穿越世界时可以安心停靠的熟悉灯火。`;
+      if (profile.aff >= 35 && !profile.offer) profile.offer = { kind: 'commission', text: `希望旅店为其准备带有${FLAVOR_LABEL[profile.flavors[0]] || '独特'}风味的特别招待`, reward: 90 };
+      if (profile.aff >= 60) profile.offer = { kind: 'vip', text: '愿意为招牌体验支付更高费用，但希望店主亲自照应', reward: 160 };
+    }
   }
 
   /** 房间氛围值（壁炉/盆栽/星灯），封顶避免堆盆栽刷分 */
@@ -1369,6 +1599,7 @@ export class Sim {
   }
 
   pay(g       )       {
+    this.failOpenChallenges(g);
     const order = this.orders.find((o) => o.id === g.orderId);
     const dish = order ? this.dishOf(order.dishId) : DISHES[0];
     const table = this.tavern.furnById(g.tableId);
@@ -1378,6 +1609,10 @@ export class Sim {
     this.econ.revenue += revenue;
     this.econ.served += g.size;
     this.recordDaySale('dishSales', dish.id, dish.name, g.size, revenue);
+    const beforeMastery = this.dishMastery(dish.id).level;
+    this.econ.dishMastery[dish.id] = (this.econ.dishMastery[dish.id] || 0) + g.size;
+    const afterMastery = this.dishMastery(dish.id).level;
+    if (afterMastery > beforeMastery) this.toast(`★ 招牌菜成长：《${dish.name}》升至 ${afterMastery} 级，售价与风味提升`);
     // 评价 6 项
     const waitPen = clamp(3 + (g.patience / g.maxPatience) * 2.4, 1, 5);
     const taste = clamp((order ? order.quality : 2) * (this.guestLikes(g, dish) ? 1.15 : 1) * (this.econ.markup > 2 ? 0.8 : 1), 1, 5);    const serveScore = clamp(2 + this.bestSkill('serve').value / 30 + (g.greeted ? 0.5 : 0)
@@ -1395,6 +1630,7 @@ export class Sim {
     if (this.rng.chance(0.5)) this.tavern.addDirt(Math.round(g.members[0].x), Math.round(g.members[0].y));
     this.fx.push({ x: table ? table.x : g.members[0].x, y: table ? table.y : g.members[0].y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
     if (score >= 3.6) this.sounds.push('happy');
+    this.rememberGuests(g, score);
     if (this.advanceWant(g)) return;   // 住店客：吃完这摊去睡觉
     g.state = 'leaving';
     g.leaveT = 0;
@@ -1410,6 +1646,7 @@ export class Sim {
 
   /** 设施型需求结算：住宿/泡汤/台球按人头收费，设施留下需要整理的状态 */
   payFacility(g       )       {
+    this.failOpenChallenges(g);
     const w = wantById(g.want);
     const f = this.tavern.furnById(g.facId);
     const room = f ? this.tavern.roomOfFurn(f) : null;
@@ -1438,6 +1675,7 @@ export class Sim {
     else if (room) { const t = this.tavern.freeTileIn(room, this.rng.int(70)); this.tavern.addDirt(t.x, t.y); }
     this.fx.push({ x: m0.x, y: m0.y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
     if (score >= 3.6) this.sounds.push('happy');
+    this.rememberGuests(g, score);
     this.releaseFacility(g);
     if (this.advanceWant(g)) return;   // 住店客：玩完这摊去睡觉
     g.state = 'leaving';
@@ -1575,13 +1813,16 @@ export class Sim {
   }
 
   // ---------- 员工 ----------
-          moveActor(a                                                                                     , dt        , speed        )       {
+  moveActor(a                                                                                     , dt        , speed        )       {
     if (!a.path.length) { if (a.pose === 'walk') a.pose = 'idle'; return; }
     const n = a.path[0];
     const dx = n.x - a.x, dy = n.y - a.y;
     const d = Math.hypot(dx, dy);
     if (d < 0.06) { a.x = n.x; a.y = n.y; a.path.shift(); return; }
-    const v = Math.min(speed * dt, d);
+    // 搬运 40 等于原始默认移速；每高 1 点在原速度上增加 1%，低于 40 同比例降低。
+    const carry = Number(a?.skills?.carry);
+    const carryMultiplier = Number.isFinite(carry) ? clamp(1 + (carry - 40) * .01, .4, 1.8) : 1;
+    const v = Math.min(speed * carryMultiplier * dt, d);
     const nx = a.x + (dx / d) * v;
     const ny = a.y + (dy / d) * v;
     if (this.tavern.bodyFree(a.x, a.y, nx, ny, 0.14, false)) {
@@ -1795,6 +2036,10 @@ export class Sim {
       if (g.state === 'wait' && !g.greeted) add(`greet:${g.id}`, 'greet', '招呼客人', this.dayT - (g.enterT || this.dayT));
       if (g.state === 'seated' && !g.orderId) add(`order:${g.id}`, 'order', '点单', this.dayT - (g.enterT || this.dayT));
     }
+    const challengeKind = { cook: 'cook', mix: 'mix', serve: 'order', clean: 'clean', carry: 'bus', calm: 'greet' };
+    for (const challenge of this.facilityChallenges) if (challenge.state === 'open') {
+      add(`challenge:${challenge.id}`, challengeKind[challenge.skill] || 'greet', `⚠ ${challenge.label}`, challenge.age || 0);
+    }
     for (const o of this.orders) {
       if (o.stage === 'queued') add(`cook:${o.id}`, this.dishOf(o.dishId).drink ? 'mix' : 'cook', this.dishOf(o.dishId).drink ? '调酒' : '烹饪', this.dayT - (o.t0 || this.dayT));
       if (o.stage === 'ready') add(`serve:${o.id}`, 'serve', '上菜', this.dayT - (o.t0 || this.dayT));
@@ -1822,6 +2067,25 @@ export class Sim {
         o.stage = 'void';
         this.econ.wasted = (this.econ.wasted || 0) + 1;
       }
+    }
+    const challengeKind = { cook: 'cook', mix: 'mix', serve: 'order', clean: 'clean', carry: 'bus', calm: 'greet' };
+    for (const challenge of this.facilityChallenges) {
+      if (challenge.state !== 'open') continue;
+      const key = `challenge:${challenge.id}`;
+      if (claimed.has(key)) continue;
+      const group = this.groups.find((item) => item.id === challenge.groupId);
+      const guest = group?.members.find((item) => item.id === challenge.guestId) || group?.members[0];
+      if (!group || !guest || group.state === 'leaving') { this.finishFacilityChallenge(challenge, null, false); continue; }
+      const stand = this.nearStand(Math.round(guest.x), Math.round(guest.y));
+      if (!stand) continue;
+      out.push({
+        kind: challengeKind[challenge.skill] || 'greet', key, label: `⚠ ${challenge.label}`, i: 0,
+        steps: [{ tx: stand.x, ty: stand.y }, { dur: 2.8, label: challenge.label, skill: challenge.skill, done: (staff) => {
+          if (challenge.state !== 'open') return;
+          const chance = clamp(Math.round(55 + (staff.skills[challenge.skill] - challenge.difficulty) * 1.15), 8, 96);
+          this.finishFacilityChallenge(challenge, staff, this.rng.next() * 100 <= chance);
+        } }],
+      });
     }
     // 迎宾：客人自己会找位子，所以迎宾专门去安抚在前台排队的客人（续耐心、加服务分）
     for (const g of this.groups) {
@@ -2218,7 +2482,72 @@ export class Sim {
     };
   }
 
+  applyEventEffects(effects = {}) {
+    const amount = (value, min, max) => clamp(Math.round(Number(value) || 0), min, max);
+    const ctx = this.eventCtx();
+    ctx.coins(amount(effects.coins, -400, 400));
+    ctx.rep(amount(effects.rep, -25, 25));
+    for (const key of ING_KEYS) ctx.stock(key, amount(effects.stock?.[key], -12, 12));
+    ctx.cleanAll(amount(effects.cleanliness, -20, 20));
+    ctx.stressAll(amount(effects.stress, -15, 20));
+    ctx.moraleAll(amount(effects.morale, -15, 15));
+    const dirt = amount(effects.dirt, -4, 6);
+    if (dirt > 0) ctx.spawnDirt(dirt);
+    else if (dirt < 0) this.tavern.dirt.splice(Math.max(0, this.tavern.dirt.length + dirt), -dirt);
+  }
+
+  dynamicEventFacts() {
+    return {
+      day: this.econ.day, timeRemainingSeconds: Math.max(0, Math.round(DAY_LEN - this.dayT)),
+      tavern: { stars: this.stars(), coins: Math.round(this.econ.coins), reputation: Math.round(this.econ.rep), rooms: this.tavern.rooms.map((room) => ROOM_LABEL[room.kind] || room.kind), furnitureCount: this.tavern.furns.length },
+      today: { served: this.econ.served, lost: this.econ.lost, revenue: this.econ.revenue, completedWork: Object.values(this.dayReport?.work || {}).map((row) => ({ name: row.name, tasks: row.tasks })) },
+      staff: this.staff.map((person) => ({ name: person.name, job: person.job, skills: normalizedSkills(person.skills), morale: Math.round(person.needs.morale), stress: Math.round(person.needs.stress) })),
+      regularGuests: this.regulars.filter((profile) => profile.lastVisitDay >= this.econ.day - 2).map((profile) => ({ name: profile.name, race: profile.race, visits: profile.visits, affinity: profile.aff, offer: profile.offer })),
+      recentEvents: this.eventHistory.slice(-8),
+      allowedEffectRanges: { coins: [-400, 400], rep: [-25, 25], stockEach: [-12, 12], cleanliness: [-20, 20], stress: [-15, 20], morale: [-15, 15], dirt: [-4, 6] },
+    };
+  }
+
+  structuredEventCard(plan, eventId, meta = {}) {
+    return {
+      id: eventId, title: plan.title, text: plan.premise, kind: plan.kind || 'mystery', ...meta,
+      choices: plan.choices.map((choice) => ({
+        label: choice.label, note: choice.note, skill: choice.skill,
+        base: clamp(95 - Number(choice.difficulty || 55), 18, 70),
+        ok: () => { this.applyEventEffects(choice.successEffects); return choice.successText; },
+        fail: () => { this.applyEventEffects(choice.failureEffects); return choice.failureText; },
+      })),
+    };
+  }
+
+  queueAIDynamicEvent(plan) {
+    if (!plan || !Array.isArray(plan.choices) || plan.choices.length !== 2) return false;
+    const eventId = `ai_day_${this.econ.day}_${Math.round(this.dayT)}`;
+    const card = this.structuredEventCard(plan, eventId, { aiGenerated: true });
+    this.eventHistory.push(eventId);
+    if (this.eventHistory.length > 12) this.eventHistory.shift();
+    this.queuedDynamicEvent = card;
+    return true;
+  }
+
   triggerEvent()       {
+    if (this.econ.day >= 3 && this.econ.day % 3 === 0 && this.lastChainEventDay !== this.econ.day) {
+      const available = LONG_EVENT_CHAINS.filter((chain) => (this.eventChains[chain.id] || 0) < chain.steps.length);
+      if (available.length) {
+        const chain = available[(Math.floor(this.econ.day / 3) - 1) % available.length];
+        const stage = this.eventChains[chain.id] || 0;
+        const step = chain.steps[stage];
+        const id = `chain_${chain.id}_${stage}`;
+        this.pendingEvent = this.structuredEventCard(step, id, { chainId: chain.id, chainStage: stage, chainName: chain.name });
+        this.lastChainEventDay = this.econ.day;
+        this.lastEventId = id;
+        this.eventHistory.push(id);
+        if (this.eventHistory.length > 12) this.eventHistory.shift();
+        this.fx.push({ ...this.tavern.entrance(), t: 1.2, kind: 'event' });
+        this.sounds.push('alert');
+        return;
+      }
+    }
     const recent = new Set(this.eventHistory.slice(-5));
     const pool = EVENTS.filter((e) => !recent.has(e.id));
     const card = pool[this.rng.int(pool.length)];
@@ -2318,6 +2647,7 @@ export class Sim {
     const card = this.pendingEvent;
     if (!card) return '';
     const c = card.choices[idx];
+    if (card.chainId) this.eventChains[card.chainId] = Math.max(this.eventChains[card.chainId] || 0, (card.chainStage || 0) + 1);
     const snapshot = () => ({
       coins: this.econ.coins, rep: this.econ.rep, stock: { ...this.econ.stock }, dirt: this.tavern.dirt.length,
       clean: this.tavern.rooms.length ? this.tavern.rooms.reduce((sum, room) => sum + room.clean, 0) / this.tavern.rooms.length : 0,
@@ -2374,6 +2704,8 @@ export class Sim {
       sealed: this.sealed,
       endingSeen: this.endingSeen,
       eventHistory: this.eventHistory,
+      eventChains: this.eventChains,
+      regulars: this.regulars,
     };
   }
 
@@ -2383,15 +2715,24 @@ export class Sim {
     if (!this.econ.customDishes) this.econ.customDishes = [];   // 老存档：无自创菜
     if (!this.econ.aiChronicles) this.econ.aiChronicles = [];
     if (!this.econ.aiNightStories) this.econ.aiNightStories = [];
+    if (!this.econ.dishMastery || typeof this.econ.dishMastery !== 'object') this.econ.dishMastery = {};
+    this.econ.restockTargets = { ...DEFAULT_RESTOCK_TARGETS, ...(this.econ.restockTargets || {}) };
+    this.econ.restockBudget = Math.max(0, Math.round(Number(this.econ.restockBudget) || 0));
     this.rels = data.rels || {};                // 老存档：暂无关系
+    this.regulars = Array.isArray(data.regulars) ? data.regulars.slice(0, 60).map((profile) => ({
+      ...profile, aff: clamp(Number(profile.aff) || 0, -100, 100), visits: Math.max(1, Number(profile.visits) || 1),
+      aiChatLog: Array.isArray(profile.aiChatLog) ? profile.aiChatLog.slice(0, 20) : [], relationshipSummary: String(profile.relationshipSummary || '').slice(0, 600),
+    })) : [];
     const fix = (s       , replan = false)        => ({
       ...s, task: null, path: [], carry: null, bubble: null,
       sex: s.sex === '男' || s.sex === '女' ? s.sex : ((s.id || 0) % 2 ? '女' : '男'),
       age: Math.max(18, Number(s.age) || 18),
       wage: s.isOwner ? 0 : Math.max(5, Number(s.wage) || 5),
+      skills: normalizedSkills(s.skills),
+      exp: Object.fromEntries(SKILL_KEYS.map((key) => [key, Number.isFinite(Number(s.exp?.[key])) ? Number(s.exp[key]) : 0])),
       aff: s.aff === undefined ? (s.isOwner ? 100 : 10) : s.aff,
       prio: replan || s.prio === undefined ? (s.isOwner ? 2 : plannedStaffPriority(s.skills, s.traits || [])) : s.prio,
-      affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], aiChatLog: s.aiChatLog || [], background: s.background || null, hireDay: s.hireDay || 1,
+      affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], aiChatLog: s.aiChatLog || [], relationshipSummary: String(s.relationshipSummary || '').slice(0, 600), background: s.background || null, hireDay: s.hireDay || 1,
     });
     this.staff = data.staff.map((s) => fix(s, false));
     this.pool = data.pool.map((s) => fix(s, true));
@@ -2412,6 +2753,7 @@ export class Sim {
     this.sealed = data.sealed;
     this.endingSeen = !!data.endingSeen;
     this.eventHistory = Array.isArray(data.eventHistory) ? data.eventHistory.slice(-12) : [];
+    this.eventChains = data.eventChains && typeof data.eventChains === 'object' ? { ...data.eventChains } : {};
     this.rng = new Rng(this.econ.seed + this.econ.day * 977);
   }
 }
@@ -2419,9 +2761,10 @@ export class Sim {
 export function newEcon(seed        )       {
   return {
     coins: 1200, rep: 12, day: 1, strikes: 0, markup: 1.5, autoRestock: true,
+    restockTargets: { ...DEFAULT_RESTOCK_TARGETS }, restockBudget: 600,
     stock: { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 },
     menu: {},
-    customDishes: [], aiChronicles: [], aiNightStories: [],
+    customDishes: [], dishMastery: {}, aiChronicles: [], aiNightStories: [],
     revenue: 0, served: 0, lost: 0, seed,
   };
 }

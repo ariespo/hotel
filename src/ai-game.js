@@ -49,6 +49,7 @@ const DEFINITIONS = Object.freeze({
       title: '字符串，本日章回标题，4-24 个汉字',
       chapter: '字符串，完整小说章节，500-1800 个汉字',
       afterHours: [{ speaker: '现有角色姓名', line: '该角色说的话，10-100 个汉字' }],
+      relationshipUpdates: [{ name: '现有员工或常客姓名', summary: '截至今天、供未来互动使用的客观关系摘要，30-220 个汉字' }],
       closingNote: '字符串，收束本日气氛的一句话，10-80 个汉字',
     },
     rules: [
@@ -56,6 +57,7 @@ const DEFINITIONS = Object.freeze({
       '必须自然交代营业收入、工资、维护、补货、净收益、客流、评价和声望变化。',
       '必须写出每位员工实际完成过的工作；没有统计到的工作不能杜撰为已完成。',
       '章节末尾写打烊后店主与员工的交流；afterHours 只能使用给出的现有角色姓名。',
+      '为今天实际出现或发生关系变化的员工、常客更新 relationshipUpdates；摘要要合并旧摘要与今日事实，不能杜撰未发生的承诺。',
       '不得改写任何数值、事件结果、角色属性或经营结论。',
     ],
     temperature: 0.85, maxTokens: 2400,
@@ -97,6 +99,20 @@ const DEFINITIONS = Object.freeze({
       '正面数值与负面数值可以组合；没有实际影响的字段返回 0，stock 没有变化时返回空对象。',
     ],
     temperature: 0.82, maxTokens: 1900,
+  },
+  dynamic_event: {
+    schema: {
+      title: '字符串，经营事件标题，4-24 个汉字', premise: '字符串，营业现场发生的事件，80-360 个汉字',
+      kind: '枚举：guest、accident、opportunity、mystery',
+      choices: [{ label: '字符串，玩家可选择的处理方式，4-32 个汉字', note: '字符串，检定能力与可能影响提示，10-100 个汉字', skill: '枚举：cook、mix、serve、clean、carry、calm', difficulty: '整数 25-85', successText: '字符串，成功结果，40-260 个汉字', failureText: '字符串，失败结果，40-260 个汉字', successEffects: '同 event_custom.effects', failureEffects: '同 event_custom.effects' }],
+    },
+    rules: [
+      '根据当前天数、旅店设施、员工能力、常客与今日经营记录，创造一个只可能在这家旅店发生的现场事件。',
+      'choices 必须恰好两个，方向明显不同；每个选项都必须使用一种员工技能检定，并同时给出成功与失败结果。',
+      '不得复述 recentEvents 中最近发生的事件，不得引入永久超能力、必然死亡或无法由旅店经营规则处理的事实。',
+      '数值必须使用规定 effects 字段和范围；文本描述必须与数值严格一致。',
+    ],
+    temperature: 0.92, maxTokens: 1900,
   },
   dish_name: {
     schema: {
@@ -232,10 +248,15 @@ export function validateGameAIResult(kind, raw) {
       speaker: requiredText(item?.speaker, `afterHours[${i}].speaker`, 1, 30),
       line: requiredText(item?.line, `afterHours[${i}].line`, 2, 140),
     }));
+    const relationshipUpdates = Array.isArray(raw.relationshipUpdates) ? raw.relationshipUpdates.slice(0, 20).map((item, i) => ({
+      name: requiredText(item?.name, `relationshipUpdates[${i}].name`, 1, 30),
+      summary: requiredText(item?.summary, `relationshipUpdates[${i}].summary`, 10, 600),
+    })) : [];
     return {
       title: requiredText(raw.title, 'title', 2, 36),
       chapter: requiredText(raw.chapter, 'chapter', 80, 2400),
       afterHours,
+      relationshipUpdates,
       closingNote: requiredText(raw.closingNote, 'closingNote', 2, 120),
     };
   }
@@ -252,6 +273,23 @@ export function validateGameAIResult(kind, raw) {
       rationale: requiredText(raw.rationale, 'rationale', 8, 220),
       successResult: customEventBranch(raw.successResult, 'successResult'),
       failureResult: customEventBranch(raw.failureResult, 'failureResult'),
+    };
+  }
+  if (kind === 'dynamic_event') {
+    const kinds = ['guest', 'accident', 'opportunity', 'mystery'];
+    if (!Array.isArray(raw.choices) || raw.choices.length !== 2) throw new Error('AI 经营事件必须恰好返回两个选项');
+    return {
+      title: requiredText(raw.title, 'title', 2, 36), premise: requiredText(raw.premise, 'premise', 20, 500),
+      kind: kinds.includes(raw.kind) ? raw.kind : 'mystery',
+      choices: raw.choices.map((choice, index) => {
+        if (!EVENT_CUSTOM_SKILLS.includes(choice?.skill)) throw new Error(`AI 返回的 choices[${index}].skill 无效`);
+        return {
+          label: requiredText(choice.label, `choices[${index}].label`, 2, 48), note: requiredText(choice.note, `choices[${index}].note`, 4, 140),
+          skill: choice.skill, difficulty: boundedInteger(choice.difficulty, 25, 85),
+          successText: requiredText(choice.successText, `choices[${index}].successText`, 20, 400), failureText: requiredText(choice.failureText, `choices[${index}].failureText`, 20, 400),
+          successEffects: customEventEffects(choice.successEffects), failureEffects: customEventEffects(choice.failureEffects),
+        };
+      }),
     };
   }
   if (kind === 'dish_name') return {
@@ -285,6 +323,7 @@ export async function requestGameAI(kind, facts, options = {}) {
     config: options.config,
     temperature: spec.temperature,
     maxTokens: spec.maxTokens,
+    signal: options.signal,
   });
   return validateGameAIResult(kind, parseGameAIJSON(content));
 }

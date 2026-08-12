@@ -292,14 +292,19 @@ export class Tavern {
     }
     if (this.rooms.length === 0) return { ok: true, reason: '' };
     let touch = false;
+    const proposed = { id: -1, kind: bp.kind, bp: bp.id, x, y, w, h, quality: 1, clean: 100, maint: 100 };
+    const occupied = new Set(this.furnIdx.keys());
+    let usableDoors = 0;
     for (const r of this.rooms) {
       const hOverlap = Math.min(x + w, r.x + r.w) - Math.max(x, r.x);
       const vOverlap = Math.min(y + h, r.y + r.h) - Math.max(y, r.y);
       if ((x + w === r.x || r.x + r.w === x) && vOverlap >= 1) touch = true;
       if ((y + h === r.y || r.y + r.h === y) && hOverlap >= 1) touch = true;
+      if (this.doorBetween(proposed, r, occupied)) usableDoors++;
     }
     if (!touch) return { ok: false, reason: '必须与已有房间贴边（需要门连接）' };
-    return { ok: true, reason: '' };
+    if (!usableDoors) return { ok: false, reason: '共享墙没有可形成门洞的空位' };
+    return { ok: true, reason: '', usableDoors };
   }
 
   placeRoom(bp           , x        , y        , rot        )       {
