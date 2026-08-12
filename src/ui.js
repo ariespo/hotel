@@ -6,7 +6,7 @@ import {
 } from './chargen.js';
 import { Rng } from './pix.js';
 import { AI_PRESETS, loadAIConfig, presetById, refreshAIModels, saveAIConfig } from './ai.js';
-import { aiConfigured, requestGameAI } from './ai-game.js';
+import { aiConfigured, ownerCreatorCatalogs, requestGameAI } from './ai-game.js';
 import { loadPromptTasks, PROMPT_TASKS, resetPromptTasks, savePromptTasks } from './prompt-settings.js';
 import { loadPlayerProfile, savePlayerProfile } from './player-profile.js';
 import { canPersistSim } from './save-policy.js';
@@ -24,6 +24,25 @@ export const OWNER_SKILL_PRESETS = [
   { id: 'host', name: '魅力经营者', note: '擅长迎宾、服务和处理投诉。', skills: { looks: 48, cook: 28, mix: 30, serve: 58, clean: 30, carry: 30, calm: 42 } },
   { id: 'operator', name: '现场管家', note: '移动、清洁和后勤能力突出。', skills: { looks: 30, cook: 30, mix: 28, serve: 36, clean: 48, carry: 54, calm: 40 } },
   { id: 'veteran', name: '沉着老练', note: '各项稳健，尤其擅长化解风险。', skills: { looks: 36, cook: 36, mix: 36, serve: 36, clean: 36, carry: 36, calm: 50 } },
+];
+
+export const OWNER_BACKGROUND_PRESETS = [
+  {
+    id: 'wanderer', name: '位面旅人', role: '多元便携旅店的店主与见多识广的位面旅人',
+    background: '曾沿着不稳定的星门在不同世界之间旅行，为了换取路费做过向导、账房和临时厨工。见过繁华驿站，也在荒凉边境替陌生人守过一夜炉火。后来接过多元便携旅店的钥匙，希望把这里经营成任何旅人都能暂时放下戒备的停靠处。',
+  },
+  {
+    id: 'quartermaster', name: '公会后勤官', role: '多元便携旅店的店主与前跨位面冒险者公会后勤官',
+    background: '过去负责冒险者公会的物资、住宿与伤员安置，擅长在混乱中清点库存、安排人手并安抚争执。一次公会远征解散后，带着旧账本和几封未寄出的感谢信离开。如今经营旅店，想证明照料他人的日常工作同样可以成为值得骄傲的事业。',
+  },
+  {
+    id: 'heir', name: '失落王国遗民', role: '多元便携旅店的店主与失落王国最后的民间继承人',
+    background: '故乡在一次位面潮汐中从星图上消失，只留下随身携带的家族食谱、礼仪笔记和几件旧饰物。没有军队，也不执着于复国，而是希望通过一间向所有种族开放的旅店保存故乡待客的方式，让那些已经失去归处的人仍能在灯下得到姓名和一顿热饭。',
+  },
+  {
+    id: 'scholar', name: '星门研究者', role: '多元便携旅店的店主与长期观察位面门扉的民间学者',
+    background: '年轻时沉迷记录星门开启的规律、来客的语言和不同世界的生活习惯，却逐渐发现，真正理解一个世界不能只依靠图表。于是把研究室改成旅店前厅，用账本记录经营，也用日记记录每位旅人的故事，希望从一餐一宿与真实交谈中理解万界。',
+  },
 ];
 
                        
@@ -172,6 +191,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
 .owner-skill-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0}.owner-skill-presets button{text-align:left;white-space:normal}.owner-skill-presets small{display:block;color:#87684e;margin-top:2px}.owner-growth{position:relative;overflow:hidden;border-left-color:#7A4BE0!important;background:linear-gradient(115deg,#fff7db,#efe3ff,#fff7db);animation:ownerGrowthGlow 1.6s ease-in-out infinite alternate}.owner-growth:after{content:'✦';position:absolute;right:12px;top:7px;color:#7A4BE0;font-size:24px;animation:ownerGrowthSpark 1.2s ease-in-out infinite}@keyframes ownerGrowthGlow{to{box-shadow:0 0 18px #9e72e866,inset 0 0 12px #fff}}@keyframes ownerGrowthSpark{50%{transform:scale(1.3) rotate(15deg);opacity:.45}}
+.creator-background,.creator-ai-design{padding:9px 10px;border:2px solid #D9BC91;border-radius:11px;background:#FFF8E9;margin-bottom:9px}.creator-background-presets{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.creator-background label{display:block;margin-top:6px}.creator-background input,.creator-background textarea,.creator-ai-design textarea{width:100%;box-sizing:border-box}.creator-background textarea{min-height:116px;resize:vertical;line-height:1.55}.creator-ai-design{border-color:#A78BD0;background:linear-gradient(135deg,#FFF8E9,#F2EAFE)}.creator-ai-design textarea{min-height:86px;resize:vertical;line-height:1.5}.creator-ai-skills{margin-top:5px;padding:5px 7px;border-radius:7px;background:#7A4BE014;color:#6A4B91}.creator-ai-status{margin-top:6px}.creator-ai-design button{border-color:#8D6CC0}.creator-ai-design.generating{animation:ownerGrowthGlow 1.4s ease-in-out infinite alternate}
 @media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
 `;
 
@@ -219,6 +239,7 @@ export class UI {
   chatAIController = null;
   pendingAIChat = null;
   settlementAIController = null;
+  creatorAIController = null;
   dynamicAIStatus = null;
   dynamicAIController = null;
   collapsed = { left: false, right: false };
@@ -1117,6 +1138,7 @@ export class UI {
   closeModal(preserveAIChat = false)       {
     this.chatAIController?.abort(); this.chatAIController = null;
     this.settlementAIController?.abort(); this.settlementAIController = null;
+    this.creatorAIController?.abort(); this.creatorAIController = null;
     if (!preserveAIChat) { this.finishAIStaffChatSession(); this.finishAIGuestChatSession(); }
     if (this.modal) { this.modal.remove(); this.modal = null; }
   }
@@ -2366,6 +2388,16 @@ export class UI {
     let age = Number.isFinite(Number(ownerOptions.age)) ? Math.round(Number(ownerOptions.age)) : 24;
     let traits = Array.isArray(ownerOptions.traits) ? ownerOptions.traits.slice(0, 2) : ['diligent', 'cheerful'];
     let ownerSkillPreset = OWNER_SKILL_PRESETS.some((preset) => preset.id === ownerOptions.skillPreset) ? ownerOptions.skillPreset : 'balanced';
+    const initialBackground = OWNER_BACKGROUND_PRESETS.find((preset) => preset.id === ownerOptions.backgroundPreset) || OWNER_BACKGROUND_PRESETS[0];
+    let backgroundPreset = ownerOptions.profile?.background ? 'custom' : initialBackground.id;
+    let ownerRole = ownerOptions.profile?.role || initialBackground.role;
+    let ownerBackground = ownerOptions.profile?.background || initialBackground.background;
+    let aiDraft = '';
+    let aiDesigned = !!ownerOptions.aiDesigned;
+    let aiSkills = ownerOptions.aiDesigned && ownerOptions.skills ? { ...ownerOptions.skills } : null;
+    let aiDesignNote = '';
+    let aiGenerating = false;
+    let aiError = '';
     let pose                           = 'walk';
     const locks = new Set        ();
     const cats                                                                                                                    = [
@@ -2435,7 +2467,7 @@ export class UI {
       const av = host.querySelector('img.big')                           ;
       if (av) av.src = avatarURL(app);
     };
-    const rerender = ()       => {
+    const captureCreatorInputs = () => {
       const currentName = host.querySelector('#crname')?.value;
       if (currentName !== undefined) name = currentName;
       const currentAge = host.querySelector('#crage')?.value;
@@ -2444,6 +2476,15 @@ export class UI {
       const secondTrait = host.querySelector('#crtrait2')?.value;
       if (firstTrait) traits[0] = firstTrait;
       if (secondTrait) traits[1] = secondTrait;
+      const currentRole = host.querySelector('#crrole')?.value;
+      if (currentRole !== undefined) ownerRole = currentRole;
+      const currentBackground = host.querySelector('#crbackground')?.value;
+      if (currentBackground !== undefined) ownerBackground = currentBackground;
+      const currentDraft = host.querySelector('#craidraft')?.value;
+      if (currentDraft !== undefined) aiDraft = currentDraft;
+    };
+    const rerender = (captureInputs = true)       => {
+      if (captureInputs) captureCreatorInputs();
       normalizeOwnerIdentity();
       visible = visibleCats();
       if (!visible.some((c) => c.key === activeCat)) activeCat = visible[0].key;
@@ -2452,6 +2493,8 @@ export class UI {
       const group = availableGroups.find((item) => item.key === activeGroup);
       if (!group.cats.includes(activeCat)) activeCat = group.cats[0];
       const cat = visible.find((c) => c.key === activeCat)                     ;
+      const selectedSkillPreset = OWNER_SKILL_PRESETS.find((preset) => preset.id === ownerSkillPreset) || OWNER_SKILL_PRESETS[0];
+      const displayedSkills = aiDesigned && aiSkills ? aiSkills : selectedSkillPreset.skills;
       host.innerHTML = `<div class="creator-head"><div><h3>${dressOnly ? '纸娃娃换装' : '捏一个店主'}</h3><div class="dim">先选样板，再按面部、发型、身体、服装与配色逐组调整。</div></div>
         <div class="creator-history"><button data-undo title="撤销" ${historyIndex <= 0 ? 'disabled' : ''}>↶</button><button data-redo title="重做" ${historyIndex >= history.length - 1 ? 'disabled' : ''}>↷</button></div></div>
       <div class="creator-presets">${PRESETS.map((ps) => `<button data-preset="${ps.id}">${ps.name}</button>`).join('')}</div>
@@ -2464,15 +2507,26 @@ export class UI {
             <label><span class="dim">性格一</span><select id="crtrait1">${TRAITS.map((trait) => `<option value="${trait.id}" ${traits[0] === trait.id ? 'selected' : ''} ${traits[1] === trait.id ? 'disabled' : ''}>${trait.name}</option>`).join('')}</select></label>
             <label><span class="dim">性格二</span><select id="crtrait2">${TRAITS.map((trait) => `<option value="${trait.id}" ${traits[1] === trait.id ? 'selected' : ''} ${traits[0] === trait.id ? 'disabled' : ''}>${trait.name}</option>`).join('')}</select></label></div>
           <div class="dim" style="margin-top:4px">${traits.map((id) => { const trait = TRAITS.find((item) => item.id === id); return trait ? `${trait.name}：${trait.note}` : id; }).join('　')}</div>
-          <div style="margin-top:7px"><b>店长基础能力</b><span class="dim"> · 平均值固定为 38</span></div>
-          <div class="owner-skill-presets">${OWNER_SKILL_PRESETS.map((preset) => `<button data-skillpreset="${preset.id}" class="${ownerSkillPreset === preset.id ? 'on' : ''}"><b>${preset.name}</b><small>${preset.note}</small></button>`).join('')}</div>
-          <div class="dim">${SKILL_KEYS.map((key) => `${SKILL_LABEL[key]} ${OWNER_SKILL_PRESETS.find((preset) => preset.id === ownerSkillPreset).skills[key]}`).join(' · ')}</div>`}
+          <div style="margin-top:7px"><b>店长基础能力</b><span class="dim"> · ${aiDesigned ? 'AI 角色设计不受平均 38 限制' : '手动预设平均值固定为 38'}</span></div>
+          <div class="owner-skill-presets">${OWNER_SKILL_PRESETS.map((preset) => `<button data-skillpreset="${preset.id}" class="${!aiDesigned && ownerSkillPreset === preset.id ? 'on' : ''}"><b>${preset.name}</b><small>${preset.note}</small></button>`).join('')}</div>
+          <div class="${aiDesigned ? 'creator-ai-skills' : 'dim'}">${aiDesigned ? '<b>✦ AI 定制能力：</b>' : ''}${SKILL_KEYS.map((key) => `${SKILL_LABEL[key]} ${displayedSkills[key]}`).join(' · ')}</div>`}
           <div class="creator-summary">${RACE_NAMES[app.race]} · ${dressOnly ? '' : `${age}岁 · ${traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name).join(' / ')} · `}${HT_NAMES[app.ht]}${BD_NAMES[app.bd]}<br><span class="dim">已锁定 ${locks.size} 项，随机外观时会保留</span></div>
           <div class="creator-actions"><button data-rand="1">随机外观</button>${THEMES.map((th) => `<button data-theme="${th.id}">${th.name}</button>`).join('')}</div>
-          <button class="creator-done" data-done="1">${dressOnly ? '换上这套服装' : '就这个店主'}</button>
+          <button class="creator-done" data-done="1" ${aiGenerating ? 'disabled' : ''}>${dressOnly ? '换上这套服装' : '就这个店主'}</button>
           ${dressOnly ? '<button data-act="closemodal" style="width:100%;margin-top:6px">取消</button>' : ''}
         </section>
         <section class="creator-editor">
+          ${dressOnly ? '' : `<div class="creator-background"><div class="row"><b>店主背景设定</b><span class="dim">会用于员工、客人与日结 AI 的长期互动</span></div>
+            <div class="creator-background-presets">${OWNER_BACKGROUND_PRESETS.map((preset) => `<button data-bg-preset="${preset.id}" class="${backgroundPreset === preset.id ? 'on' : ''}">${preset.name}</button>`).join('')}<button data-bg-preset="custom" class="${backgroundPreset === 'custom' ? 'on' : ''}">自定义</button></div>
+            <label><span class="dim">身份定位</span><input id="crrole" maxlength="100" value="${htmlText(ownerRole)}"></label>
+            <label><span class="dim">背景经历</span><textarea id="crbackground" maxlength="2400" placeholder="写下店主的出身、经历、经营动机和待人方式……">${htmlText(ownerBackground)}</textarea></label>
+          </div>
+          ${aiConfigured() ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ AI 完整角色设计</b><span class="hi">可突破手动能力平均值限制</span></div>
+            <div class="dim">输入一个大概概念，AI 会重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力。生成后仍可手动修改；不会给予跳过经营规则的权限。</div>
+            <textarea id="craidraft" maxlength="1200" placeholder="例如：沉默寡言的机械体前旅行厨师，背着旧武士刀，看起来冷淡但很会照顾人……">${htmlText(aiDraft)}</textarea>
+            <div class="row"><span class="dim">${aiDesignNote ? htmlText(aiDesignNote) : '描述越具体，生成的人设和长短板越鲜明。'}</span><span>${aiGenerating ? '<button data-aicancelowner>取消生成</button>' : '<button data-aiowner>让 AI 设计整个角色</button>'}</span></div>
+            ${aiGenerating ? '<div class="creator-ai-status hi">AI 正在组合人物经历、外貌与能力，请稍候…</div>' : aiError ? `<div class="creator-ai-status bad">${htmlText(aiError)}</div>` : ''}
+          </div>` : ''}`}
           <div class="creator-groups">${availableGroups.map((item) => `<button data-group="${item.key}" class="${activeGroup === item.key ? 'on' : ''}">${item.label}</button>`).join('')}</div>
           <div class="creator-cats">${group.cats.map((key) => { const item = visible.find((entry) => entry.key === key); return `<button data-cat="${key}" class="${activeCat === key ? 'on' : ''}">${locks.has(key) ? '🔒 ' : ''}${item.label}</button>`; }).join('')}</div>
           <div class="creator-cat-lock"><div><b>${cat.label}</b><div class="dim">选择样式，或锁定后继续随机其他部分。</div></div><button class="creator-lock ${locks.has(cat.key) ? 'on' : ''}" data-lockbtn="${cat.key}">${locks.has(cat.key) ? '🔒 已锁定' : '🔓 锁定此项'}</button></div>
@@ -2483,10 +2537,11 @@ export class UI {
       </div>`;
       draw();
     };
-    host.addEventListener('click', (e) => {
-      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-done]')                      ;
+    host.addEventListener('click', async (e) => {
+      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-bg-preset],[data-aiowner],[data-aicancelowner],[data-done]')                      ;
       if (!t) return;
       let changed = false;
+      let captureBeforeRender = true;
       if (t.dataset.group) {
         activeGroup = t.dataset.group;
         const group = groups.find((item) => item.key === activeGroup);
@@ -2507,7 +2562,50 @@ export class UI {
       else if (t.dataset.sex) {
         sex = t.dataset.sex;
       }
-      else if (t.dataset.skillpreset) ownerSkillPreset = t.dataset.skillpreset;
+      else if (t.dataset.skillpreset) { ownerSkillPreset = t.dataset.skillpreset; aiDesigned = false; aiSkills = null; aiDesignNote = ''; }
+      else if (t.dataset.bgPreset) {
+        captureCreatorInputs();
+        backgroundPreset = t.dataset.bgPreset;
+        const selected = OWNER_BACKGROUND_PRESETS.find((preset) => preset.id === backgroundPreset);
+        if (selected) { ownerRole = selected.role; ownerBackground = selected.background; }
+        captureBeforeRender = false;
+      }
+      else if (t.hasAttribute('data-aicancelowner')) {
+        this.creatorAIController?.abort();
+        return;
+      }
+      else if (t.hasAttribute('data-aiowner')) {
+        captureCreatorInputs();
+        name = name.trim() || '店主'; aiDraft = aiDraft.trim();
+        if (!aiDraft) { aiError = '请先写一点角色概念，再让 AI 进行完整设计。'; rerender(); return; }
+        const controller = new AbortController();
+        this.creatorAIController?.abort(); this.creatorAIController = controller;
+        aiGenerating = true; aiError = ''; rerender(false);
+        try {
+          const result = await requestGameAI('owner_creator', {
+            concept: aiDraft,
+            currentDraft: {
+              name, sex, age, traitIds: traits, appearance: app, role: ownerRole, background: ownerBackground,
+              skills: aiDesigned && aiSkills ? aiSkills : (OWNER_SKILL_PRESETS.find((preset) => preset.id === ownerSkillPreset) || OWNER_SKILL_PRESETS[0]).skills,
+            },
+            catalogs: ownerCreatorCatalogs(AGE_MAX),
+            constraints: { playerRole: '多元便携旅店的店主、所有者与经营者', manualPresetAverage: 38, aiSkillRange: [1, 100], aiMayExceedManualAverage: true },
+          }, { signal: controller.signal });
+          if (this.modal !== m) return;
+          app = cloneApp(result.appearance);
+          name = result.name; sex = result.sex; age = result.age; traits = [...result.traitIds];
+          ownerRole = result.role; ownerBackground = result.background; backgroundPreset = 'ai';
+          aiSkills = { ...result.skills }; aiDesigned = true; aiDesignNote = result.designNote;
+          normalizeOwnerIdentity(); remember();
+        } catch (err) {
+          if (this.modal === m) aiError = controller.signal.aborted ? '已取消本次 AI 角色设计。' : `AI 角色设计失败：${err?.message || '未知错误'}`;
+        } finally {
+          if (this.creatorAIController === controller) this.creatorAIController = null;
+          aiGenerating = false;
+          if (this.modal === m) rerender(false);
+        }
+        return;
+      }
       else if (t.dataset.preset) {
         const ps = PRESETS.find((q) => q.id === t.dataset.preset);
         if (ps) {
@@ -2550,11 +2648,15 @@ export class UI {
         normalizeOwnerIdentity();
         this.closeModal();
         const preset = OWNER_SKILL_PRESETS.find((item) => item.id === ownerSkillPreset) || OWNER_SKILL_PRESETS[0];
-        onDone(app, nm, sex, { age, traits: [...traits], skillPreset: preset.id, skills: { ...preset.skills } });
+        const skills = aiDesigned && aiSkills ? { ...aiSkills } : { ...preset.skills };
+        onDone(app, nm, sex, {
+          age, traits: [...traits], skillPreset: aiDesigned ? 'ai' : preset.id, skills, aiDesigned,
+          backgroundPreset, profile: { role: ownerRole, background: ownerBackground },
+        });
         return;
       }
       if (changed) remember();
-      rerender();
+      rerender(captureBeforeRender);
     });
     host.addEventListener('change', (e) => {
       const target = e.target               ;
@@ -2563,6 +2665,12 @@ export class UI {
       else if (target.id === 'crtrait2') traits[1] = target.value;
       else return;
       rerender();
+    });
+    host.addEventListener('input', (e) => {
+      const target = e.target;
+      if (target.id === 'crrole') { ownerRole = target.value; backgroundPreset = 'custom'; }
+      else if (target.id === 'crbackground') { ownerBackground = target.value; backgroundPreset = 'custom'; }
+      else if (target.id === 'craidraft') aiDraft = target.value;
     });
     rerender();
     const timer = window.setInterval(() => { if (this.modal !== m) { clearInterval(timer); return; } draw(); }, 160);

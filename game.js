@@ -14,7 +14,7 @@ import { bedDisplayPlacement, bpById, dirDelta,            furnFootprint, rotate
 import {               UI } from './src/ui.js';
 import { TitleScreen, validGameSave } from './src/title.js';
 import { createSkyPlan } from './src/sky.js';
-import { resetPlayerProfile } from './src/player-profile.js';
+import { resetPlayerProfile, savePlayerProfile } from './src/player-profile.js';
 import { clampZoom } from './src/camera.js';
 import { parseAndMigrateGameSave, SAVE_SCHEMA_VERSION, stringifyGameSave } from './src/save-schema.js';
 
@@ -455,6 +455,7 @@ class Game                    {
     t.placeFurn('vanity', 7, -10, 0, 1);
     const owner = makeStaff(this.sim.rng, this.sim.id(), true, app, name, ownerOptions);
     owner.sex = sex;
+    savePlayerProfile(ownerOptions.profile || {}, this.currentSlot);
     const e = t.entrance();
     owner.x = e.x; owner.y = e.y + 1;
     owner.job = 'free';
