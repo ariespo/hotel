@@ -103,8 +103,8 @@ export class Tavern {
   furnsOfKind(kind        )         { return this.furns.filter((f) => f.kind === kind); }
   roomOfFurn(f      )              { return this.roomAt(f.x, f.y); }
 
-  /** 椅子/客床/汤池不挡路：客人要能站到上面去（坐/躺/泡） */
-  blocks(kind        )          { return kind !== 'chair' && kind !== 'bed' && kind !== 'doublebed' && kind !== 'kingbed' && kind !== 'pool'; }
+  /** 椅子/长椅/客床/汤池不挡 NPC 路：角色要能坐、躺、泡，也避免长椅截断两格宽走廊。 */
+  blocks(kind        )          { return kind !== 'chair' && kind !== 'bench' && kind !== 'bed' && kind !== 'doublebed' && kind !== 'kingbed' && kind !== 'pool'; }
 
   /** strict=true 时连椅子/客床/汤池也算实心（玩家直控的店主用这个，别从床上走过去） */
   walkable(x        , y        , strict = false)          {
@@ -520,10 +520,11 @@ export class Tavern {
   /** 餐桌与其朝向匹配的椅子 */
   tableSeats(t      )         {
     const out         = [];
+    const tableTiles = new Set(this.furnTiles(t).map((tile) => tkey(tile.x, tile.y)));
     for (const c of this.furns) {
       if (c.kind !== 'chair') continue;
       const [dx, dy] = dirDelta(c.dir);
-      if (c.x + dx === t.x && c.y + dy === t.y) out.push(c);
+      if (tableTiles.has(tkey(c.x + dx, c.y + dy))) out.push(c);
     }
     return out;
   }

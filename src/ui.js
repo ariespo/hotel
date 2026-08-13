@@ -12,10 +12,10 @@ import { loadPlayerProfile, savePlayerProfile } from './player-profile.js';
 import { canPersistSim } from './save-policy.js';
 import { advanceTutorialState, loadTutorialState, resetTutorialState, retreatTutorialState, saveTutorialState, TUTORIAL_STEPS, tutorialActionMatches } from './tutorial.js';
 import {
-  AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, SEASON_NAMES, STYLES,
+  AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, DUTIES, DUTY_LABEL, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, SEASON_NAMES, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
 } from './data.js';
-import { AGE_MAX, fairWageRange, restockPlan, staffAnalysis } from './sim.js';
+import { AGE_MAX, fairWageRange, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS } from './sim.js';
 import {                        } from './world.js';
 
 export const OWNER_SKILL_PRESETS = [
@@ -205,7 +205,7 @@ const ORDER_STAGE                         = {
   queued: '排队', prep: '备餐', cook: '下锅', ready: '待上菜', served: '已上菜', void: '作废',
 };
 
-export const PURCHASE_ACTIONS = Object.freeze(['hire', 'uproom', 'upfurn', 'buy', 'rstyle', 'adpost', 'rdgo']);
+export const PURCHASE_ACTIONS = Object.freeze(['hire', 'uproom', 'upfurn', 'buy', 'rstyle', 'adpost', 'rdgo', 'stafftrain', 'staffequip', 'staffperk']);
 
 export function nightInteractionAction(sim       , kind                   , owner       , target       , group        )            {
   if (!sim || sim.dayActive || !owner || !target) return '';
@@ -447,6 +447,11 @@ export class UI {
     else if (act === 'fire') this.openFireConfirm(parseInt(v, 10));
     else if (act === 'job') g.setJob(parseInt(t.dataset.id          , 10), v       );
     else if (act === 'prio') g.setPrio(parseInt(t.dataset.id          , 10), parseInt(v, 10));
+    else if (act === 'dutymode') g.setDutyMode(parseInt(t.dataset.id, 10), v);
+    else if (act === 'dutyprio') g.setDutyPriority(parseInt(t.dataset.id, 10), t.dataset.s, parseInt(v, 10));
+    else if (act === 'stafftrain') g.trainStaff(parseInt(t.dataset.id, 10), v);
+    else if (act === 'staffequip') g.buyStaffEquipment(parseInt(t.dataset.id, 10), v);
+    else if (act === 'staffperk') g.learnStaffPerk(parseInt(t.dataset.id, 10), v);
     else if (act === 'wage') g.setWage(parseInt(t.dataset.id          , 10), parseInt(v, 10));
     else if (act === 'sroom') g.setStaffRoom(parseInt(t.dataset.id          , 10), v === 'null' ? null : parseInt(v, 10));
     else if (act === 'uproom') g.upgradeRoom(parseInt(v, 10));
@@ -1033,6 +1038,11 @@ export class UI {
         <div class="row" style="flex-wrap:wrap">${SKILL_KEYS.map((k) => `<span>${SKILL_LABEL[k]} ${bar(st.skills[k], 100, '#F3B84B')} ${st.skills[k]}</span>`).join('')}</div>
         <div class="row" style="flex-wrap:wrap"><span>体力${bar(st.needs.stamina, 100, '#8DDB4A')}</span><span>饥饿${bar(st.needs.hunger, 100, '#E45AD1')}</span><span>压力${bar(st.needs.stress, 100, '#FF6B5A')}</span><span>士气${bar(st.needs.morale, 100, '#39D7D2')}</span></div>
         <div class="row" style="flex-wrap:wrap">岗位 ${JOBS.map((j) => `<button data-act="job" data-id="${st.id}" data-v="${j}" class="${st.job === j ? 'on' : ''}">${JOB_LABEL[j]}</button>`).join('')}</div>
+        <div class="row" style="flex-wrap:wrap">职责模式
+          <button data-act="dutymode" data-id="${st.id}" data-v="auto" class="${st.dutyMode !== 'manual' ? 'on' : ''}">全自动（岗位模板）</button>
+          <button data-act="dutymode" data-id="${st.id}" data-v="manual" class="${st.dutyMode === 'manual' ? 'on' : ''}">自定义优先级</button>
+        </div>
+        ${st.dutyMode === 'manual' ? `<div class="row" style="flex-wrap:wrap">${DUTIES.map((duty) => `<span>${DUTY_LABEL[duty]} ${[0, 1, 2, 3, 4].map((p) => `<button data-act="dutyprio" data-id="${st.id}" data-s="${duty}" data-v="${p}" class="${(st.dutyPriorities?.[duty] || 0) === p ? 'on' : ''}" title="${p === 0 ? '禁用此职责' : '数字越高越优先'}">${p}</button>`).join('')}</span>`).join('')}</div>` : '<div class="dim">当前按岗位自动安排；切换为自定义后，0 表示不做，4 表示最高优先。</div>'}
         <div class="row" style="flex-wrap:wrap">房间 <button data-act="sroom" data-id="${st.id}" data-v="null" class="${st.roomId ? '' : 'on'}">全店机动</button>
           ${rooms.map((r) => `<button data-act="sroom" data-id="${st.id}" data-v="${r.id}" class="${st.roomId === r.id ? 'on' : ''}">${ROOM_LABEL[r.kind]}#${r.id}</button>`).join('')}</div>
         <div class="row" title="数值越高，空闲时越先领取新任务">抢单优先级 ${[0, 1, 2, 3].map((p) => `<button data-act="prio" data-id="${st.id}" data-v="${p}" class="${st.prio === p ? 'on' : ''}">${p}</button>`).join('')}
@@ -1040,6 +1050,9 @@ export class UI {
           <button data-act="dress" data-v="${st.id}">换装</button>
           ${st.isOwner ? '' : `<button data-act="fire" data-v="${st.id}" class="warn">解雇</button>`}</div>
         ${st.isOwner ? '' : `<div class="dim">合理工资 ${wage.min}–${wage.max}（建议 ${wage.recommended}） · 当前全店日薪 ${totalWages} · 涨薪后 ${totalWages + 5}</div>`}
+        <div class="row" style="flex-wrap:wrap"><span class="dim">外出进修</span>${SKILL_KEYS.map((skill) => { const cost = Math.round(90 + st.skills[skill] * 2.2); return `<button data-act="stafftrain" data-id="${st.id}" data-v="${skill}" ${this.g.sim.dayActive || st.skills[skill] >= 100 ? 'disabled' : ''} title="${TRAINING_PROGRAMS[skill]}：能力 +3">${SKILL_LABEL[skill]}·${cost}</button>`; }).join('')}</div>
+        <div class="row" style="flex-wrap:wrap"><span class="dim">个人装备</span>${STAFF_EQUIPMENT.map((item) => `<button data-act="staffequip" data-id="${st.id}" data-v="${item.id}" ${this.g.sim.dayActive || st.equipment?.includes(item.id) ? 'disabled' : ''} title="${SKILL_LABEL[item.skill]} +${item.bonus}">${st.equipment?.includes(item.id) ? '✓ ' : ''}${item.name}·${item.cost}</button>`).join('')}</div>
+        <div class="row" style="flex-wrap:wrap"><span class="dim">职业技能</span>${STAFF_PERKS.map((perk) => `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${this.g.sim.dayActive || st.perks?.includes(perk.id) ? 'disabled' : ''} title="${perk.note}；要求 ${perk.need}">${st.perks?.includes(perk.id) ? '✓ ' : ''}${perk.name}·${perk.cost}</button>`).join('')}</div>
       </div></div>`;
   }
 
@@ -1675,6 +1688,9 @@ export class UI {
       const sameRoom = !!own && this.g.tavern.roomAt(Math.round(own.x), Math.round(own.y))?.id === this.g.tavern.roomAt(Math.round(st.x), Math.round(st.y))?.id;
       const lv = sim.affLevel(st.aff);
       const acts                     = [['chat2', '聊两句'], ['praise', '称赞'], ['urge', '催一催'], ['scold', '贬低']];
+      if (st.aff >= 25) acts.push(['care', '关心近况']);
+      if (st.aff >= 45) acts.push(['dreams', '谈谈理想']);
+      if (st.aff >= 65) acts.push(['secret', '交换秘密']);
       if (sameRoom && nightInteractionAction(sim, 'staff', own, st) === 'romance') acts.push(['romance', '邀请共度春宵']);
       this.showModal(`<div class="row"><img class="av" src="${avatarURL(st.app)}" width="64" height="64">
           <div style="flex:1"><h3 style="margin:0">${st.name}</h3>
@@ -1683,7 +1699,7 @@ export class UI {
         <div class="dim" style="margin-top:6px">${near ? '就在你身边，说点什么？' : `太远了（${d.toFixed(1)} 格）：走到 2.8 格内才能搭话。`}${st.affCd > 0 ? `｜深入互动冷却 ${Math.ceil(st.affCd)} 秒` : ''}</div>
         ${this.interactMsg ? `<div class="hi" style="margin-top:8px">${this.interactMsg}</div>` : ''}
         <div class="row" style="margin-top:10px;flex-wrap:wrap">
-          ${acts.map(([a, n]) => `<button data-act="iact" data-v="${a}" data-id="${st.id}" data-k="staff" ${near && (!['chat2', 'praise'].includes(a) || st.affCd <= 0) ? '' : 'disabled'}>${n}</button>`).join('')}
+          ${acts.map(([a, n]) => `<button data-act="iact" data-v="${a}" data-id="${st.id}" data-k="staff" ${near && (!['chat2', 'praise', 'care', 'dreams', 'secret'].includes(a) || st.affCd <= 0) ? '' : 'disabled'}>${n}</button>`).join('')}
         </div>
         <div class="row" style="margin-top:8px">
           <button data-act="detail" data-v="${st.id}">看详情</button>
@@ -1701,11 +1717,14 @@ export class UI {
     const w = wantById(gr.want);
     const pct = Math.round((gr.patience / gr.maxPatience) * 100);
     const cost = 12 + gr.size * 6;
-    const acts                     = [...(aiConfigured() ? [['gchat', '聊两句']] : []), ['gpraise', '称赞'], ['treat', `请一杯 -${cost}`], ['gmock', '贬低']];
+    const regular = gu.regularId ? sim.regulars.find((profile) => profile.id === gu.regularId) : null;
+    const acts                     = [...(aiConfigured() ? [['gchat', '聊两句']] : []), ['journey', '询问旅途'], ['gpraise', '称赞'], ['treat', `请一杯 -${cost}`], ['gmock', '贬低']];
+    if (regular?.visits >= 2) acts.push(['revisit', '聊起上次来访']);
+    if (regular?.offer && !gr.offerAccepted) acts.push(['commission', '接受专属委托']);
     if (sameRoom && nightInteractionAction(sim, 'guest', own, gu, gr) === 'raid') acts.push(['raid', '进行突袭']);
     this.showModal(`<div class="row"><img class="av" src="${avatarURL(gu.app)}" width="64" height="64">
         <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
-          <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}</div>
+          <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}${regular ? `｜常客·第 ${regular.visits} 次来访·好感 ${Math.round(regular.aff)}` : ''}</div>
           <div class="row"><span class="dim">耐心</span>${bar(gr.patience, gr.maxPatience, pct > 50 ? '#8DDB4A' : pct > 25 ? '#F3B84B' : '#FF6B5A')}<span>${pct}%</span></div></div></div>
       <div class="dim" style="margin-top:6px">${near ? '客人正看着你，要搭话吗？' : `太远了（${d.toFixed(1)} 格）：走到 2.8 格内才能搭话。`}${gr.intCd > 0 ? `｜刚聊过，${Math.ceil(gr.intCd)} 秒后才会再理你` : ''}</div>
       ${this.interactMsg ? `<div class="hi" style="margin-top:8px">${this.interactMsg}</div>` : ''}
@@ -1743,6 +1762,7 @@ export class UI {
       else if (action === 'praise') msg = sim.praiseStaff(id);
       else if (action === 'urge') msg = sim.urgeStaff(id);
       else if (action === 'scold') msg = sim.scoldStaff(id);
+      else if (['care', 'dreams', 'secret'].includes(action)) msg = sim.staffBondInteraction(id, action);
       this.openInteract('staff', id, msg);
       return;
     }
@@ -1753,6 +1773,7 @@ export class UI {
     if (action === 'gpraise') msg = sim.praiseGuest(gr.id);
     else if (action === 'gmock') msg = sim.mockGuest(gr.id);
     else if (action === 'treat') msg = sim.treatGuest(gr.id);
+    else if (['journey', 'revisit', 'commission'].includes(action)) msg = sim.guestBondInteraction(gr.id, id, action);
     this.openInteract('guest', id, msg);
   }
 

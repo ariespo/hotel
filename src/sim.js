@@ -5,7 +5,7 @@ import { Rng } from './pix.js';
 import {
   AD_REQ_MULT, AD_TIERS,              BED_KINDS, BED_PRICE_MULT, DISHES,            EVENTS,                               
   FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef,
-  GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName, SEASON_NAMES,                              SKILL_KEYS, SKILL_LABEL,
+  DUTIES, GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName, SEASON_NAMES,                              SKILL_KEYS, SKILL_LABEL,
   ROOM_CHARM, ROOM_LABEL, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
 } from './data.js';
 import {            Tavern, dirDelta, furnFootprint } from './world.js';
@@ -42,15 +42,15 @@ export const LONG_EVENT_CHAINS = [
 ];
 
 export const FACILITY_CHALLENGES = {
-  meal: { bubble: '就没有更好吃的菜了吗！？', label: '回应挑剔食客', skill: 'cook', difficulty: 52, reward: 110, rep: 6, penalty: 9 },
-  drink: { bubble: '这杯酒的层次还不够！', label: '重调客人的饮品', skill: 'mix', difficulty: 54, reward: 105, rep: 6, penalty: 8 },
-  bath: { bubble: '水温怎么突然失控了！？', label: '稳定温泉水温', skill: 'clean', difficulty: 50, reward: 90, rep: 5, penalty: 8 },
-  play: { bubble: '这张球桌是不是歪了！？', label: '校准台球设施', skill: 'carry', difficulty: 56, reward: 120, rep: 7, penalty: 9 },
-  stargaze: { bubble: '星图正在倒着旋转！', label: '重新校准星图', skill: 'calm', difficulty: 62, reward: 145, rep: 9, penalty: 11 },
-  game: { bubble: '机器要把我的分数吞了！', label: '抢修游艺机', skill: 'carry', difficulty: 60, reward: 135, rep: 8, penalty: 10 },
-  show: { bubble: '画面和声音完全不同步！', label: '恢复放映同步', skill: 'calm', difficulty: 55, reward: 115, rep: 7, penalty: 9 },
-  stroll: { bubble: '喷泉把我的行李卷走了！', label: '从喷泉取回行李', skill: 'carry', difficulty: 58, reward: 125, rep: 7, penalty: 9 },
-  brew: { bubble: '炼金釜里有什么在敲盖子！', label: '控制炼金异变', skill: 'calm', difficulty: 66, reward: 160, rep: 10, penalty: 12 },
+  meal: { bubble: '就没有更好吃的菜了吗！？', label: '回应挑剔食客', skill: 'cook', difficulty: 52, reward: 110, rep: 6, penalty: 4 },
+  drink: { bubble: '这杯酒的层次还不够！', label: '重调客人的饮品', skill: 'mix', difficulty: 54, reward: 105, rep: 6, penalty: 4 },
+  bath: { bubble: '水温怎么突然失控了！？', label: '稳定温泉水温', skill: 'clean', difficulty: 50, reward: 90, rep: 5, penalty: 4 },
+  play: { bubble: '这张球桌是不是歪了！？', label: '校准台球设施', skill: 'carry', difficulty: 56, reward: 120, rep: 7, penalty: 5 },
+  stargaze: { bubble: '星图正在倒着旋转！', label: '重新校准星图', skill: 'calm', difficulty: 62, reward: 145, rep: 9, penalty: 6 },
+  game: { bubble: '机器要把我的分数吞了！', label: '抢修游艺机', skill: 'carry', difficulty: 60, reward: 135, rep: 8, penalty: 5 },
+  show: { bubble: '画面和声音完全不同步！', label: '恢复放映同步', skill: 'calm', difficulty: 55, reward: 115, rep: 7, penalty: 5 },
+  stroll: { bubble: '喷泉把我的行李卷走了！', label: '从喷泉取回行李', skill: 'carry', difficulty: 58, reward: 125, rep: 7, penalty: 5 },
+  brew: { bubble: '炼金釜里有什么在敲盖子！', label: '控制炼金异变', skill: 'calm', difficulty: 66, reward: 160, rep: 10, penalty: 6 },
 };
 
                                                                                         
@@ -223,6 +223,26 @@ export function restockPlan(econ) {
   return { items, total, budget: configuredBudget, balanceAfter: Math.round((Number(econ?.coins) || 0) - total) };
 }
 
+/** 房间与家具的日常维护费：规模仍会产生压力，但开局布局不会吞掉整日营收。 */
+export function maintenanceCost(tavern) {
+  const rooms = Array.isArray(tavern?.rooms) ? tavern.rooms : [];
+  const furns = Array.isArray(tavern?.furns) ? tavern.furns : [];
+  const roomCost = rooms.reduce((sum, room) => sum + Math.round(2 + Math.max(1, room.w * room.h) * 0.18 + Math.max(1, room.quality || 1) * 1.5), 0);
+  const furnitureCost = furns.reduce((sum, furn) => sum + Math.round(0.5 + Math.max(1, furn.quality || 1) * 0.75), 0);
+  return roomCost + furnitureCost;
+}
+
+/** 日结声望变化；前三天设置损失上限，避免教学期一次差评清空全部声望。 */
+export function dayReputationDelta(avgScore, served, lost, day, stars = 0) {
+  const safeAvg = Number.isFinite(Number(avgScore)) ? Number(avgScore) : 3;
+  const safeServed = Math.max(0, Number(served) || 0);
+  const safeLost = Math.max(0, Number(lost) || 0);
+  let delta = Math.round((safeAvg - 3) * 6 + safeServed * 0.55 - safeLost * 1.25);
+  if (safeServed === 0) delta = Math.min(delta, -2);
+  const lossCap = day <= 1 ? 4 : day === 2 ? 6 : day === 3 ? 8 : Math.min(16, 10 + Math.max(0, stars) * 2);
+  return Math.max(-lossCap, delta);
+}
+
 export function fairWageRange(staff) {
   const skills = normalizedSkills(staff?.skills);
   const baseline = 18 + SKILL_KEYS.reduce((sum, key) => sum + skills[key], 0) * 0.13;
@@ -247,6 +267,35 @@ export function staffAnalysis(staff) {
     score: Math.max(1, Math.min(100, roles[0].score + traitBoost)), recommendedJob: roles[0].job,
     strengths: ordered.slice(0, 2), weaknesses: ordered.slice(-2).reverse(), roles,
   };
+}
+
+export const TRAINING_PROGRAMS = Object.freeze({
+  looks: '礼仪与仪表进修', cook: '异界料理研修', mix: '星港调饮课程', serve: '前厅服务实训',
+  clean: '高效清洁研修', carry: '搬运与路线训练', calm: '危机应对课程',
+});
+
+export const STAFF_EQUIPMENT = Object.freeze([
+  { id: 'service_pin', name: '银星领针', skill: 'serve', bonus: 3, cost: 180 },
+  { id: 'chef_knife', name: '折叠星钢厨刀', skill: 'cook', bonus: 3, cost: 210 },
+  { id: 'shaker', name: '月相调酒壶', skill: 'mix', bonus: 3, cost: 210 },
+  { id: 'cleaning_kit', name: '自净工具箱', skill: 'clean', bonus: 3, cost: 170 },
+  { id: 'porter_belt', name: '轻身搬运带', skill: 'carry', bonus: 3, cost: 190 },
+  { id: 'calm_charm', name: '静心护符', skill: 'calm', bonus: 3, cost: 220 },
+]);
+
+export const STAFF_PERKS = Object.freeze([
+  { id: 'warm_welcome', name: '宾至如归', skill: 'serve', need: 40, cost: 260, note: '接待、引座与结账速度 +12%' },
+  { id: 'swift_hands', name: '熟练手法', skill: 'carry', need: 40, cost: 260, note: '搬运与上菜动作速度 +12%' },
+  { id: 'spotless_route', name: '无尘路线', skill: 'clean', need: 40, cost: 260, note: '清洁与整理速度 +18%' },
+  { id: 'artisan', name: '匠心出品', skill: 'cook', need: 45, cost: 320, note: '烹饪与调酒动作速度 +10%' },
+]);
+
+const DUTY_TASK = Object.freeze({ greet: 'front', seat: 'front', checkout: 'front', order: 'service', serve: 'service', cook: 'cook', mix: 'mix', tidy: 'clean', clean: 'clean', bus: 'carry' });
+function defaultDutyPriorities(job = 'free') {
+  const rows = Object.fromEntries(DUTIES.map((duty) => [duty, 2]));
+  const primary = { front: 'front', greeter: 'front', server: 'service', cook: 'cook', bartender: 'mix', cleaner: 'clean', porter: 'carry' }[job];
+  if (primary) rows[primary] = 4;
+  return rows;
 }
 
                                                                                              
@@ -304,7 +353,8 @@ export function makeStaff(rng     , id        , isOwner         , app           
     age, race: RACE_NAMES[raceIdx], raceIdx,
     ht: Math.round([148, 168, 192][a.ht] + rng.range(-6, 6)), wt: Math.round([46, 62, 88][a.bd] + rng.range(-5, 8)),
     traits, skills, exp, wage: isOwner ? 0 : Math.round((18 + skillSum * 0.14 + rng.range(0, 12)) * (traits.includes('frugal') ? 0.88 : 1)),
-    app: a, job: isOwner ? 'greeter' : 'free', roomId: null, prio: isOwner ? 2 : plannedStaffPriority(skills, traits), isOwner,
+    app: a, job: isOwner ? 'greeter' : 'free', dutyMode: 'auto', dutyPriorities: defaultDutyPriorities(isOwner ? 'greeter' : 'free'),
+    equipment: [], perks: [], trainingCount: 0, roomId: null, prio: isOwner ? 2 : plannedStaffPriority(skills, traits), isOwner,
     x: 0, y: 0, dir: 0, pose: 'idle', animT: 0, path: [], carry: null, task: null, actT: 0, actTotal: 0,
     needs: { stamina: 100, hunger: 0, stress: 10, morale: 70 }, note: '', bubble: null,
     aff: isOwner ? 100 : Math.round(rng.range(4, 16)), affCd: 0, chats: 0, chatLog: [], aiChatLog: [], background: null, hireDay: 1,
@@ -358,6 +408,8 @@ export class Sim {
   /** 直控店主：开启后店主不再接派工，改由玩家按键驱动 */
   manualOwner = false;
   manualVec = { x: 0, y: 0 };
+  /** 当日各房间的真实使用量；只用于卫生模拟，不写入存档。 */
+  roomUsage = {};
   fx                                                      = [];
           nextId = 1;
 
@@ -801,6 +853,7 @@ export class Sim {
     this.aiEventRequested = false;
     this.queuedDynamicEvent = null;
     this.facilityChallenges = [];
+    this.roomUsage = {};
     this.dayActive = true;
     this.running = true;
     this.econ.revenue = 0; this.econ.served = 0; this.econ.lost = 0;
@@ -846,9 +899,7 @@ export class Sim {
     // 打烊：手上活儿全部放下，进入自由时间
     for (const s of this.staff) { s.task = null; s.path = []; s.carry = null; s.free = null; }
     const wages = this.staff.filter((s) => !s.isOwner).reduce((a, s) => a + s.wage, 0);
-    let maintenance = 0;
-    for (const r of this.tavern.rooms) maintenance += Math.round(6 + r.w * r.h * 0.9 + r.quality * 8);
-    for (const f of this.tavern.furns) maintenance += Math.round(2 + f.quality * 3);
+    const maintenance = maintenanceCost(this.tavern);
     let restock = 0;
     if (this.econ.autoRestock) {
       const plan = restockPlan(this.econ);
@@ -856,8 +907,7 @@ export class Sim {
       for (const k of ING_KEYS) this.econ.stock[k] += plan.items[k].amount;
     }
     const avg = this.scores.length ? this.scores.reduce((a, b) => a + b, 0) / this.scores.length : 3;
-    let repDelta = Math.round((avg - 3) * 9 + this.econ.served * 0.7 - this.econ.lost * 2.2);
-    if (this.econ.served === 0) repDelta = Math.min(repDelta, -4);
+    const repDelta = dayReputationDelta(avg, this.econ.served, this.econ.lost, this.econ.day, starsOf(this.econ.rep));
     this.econ.rep = Math.max(0, this.econ.rep + repDelta);
     // 客人结账时收入已经实时计入 coins；日结只扣除当日成本。
     // revenue 仅用于结算展示与统计，不能在这里再次入账。
@@ -881,7 +931,8 @@ export class Sim {
     }
     // 员工恢复 / 士气
     for (const s of this.staff) {
-      s.needs.stamina = clamp(s.needs.stamina + 55, 0, 100);
+      // 每次打烊视为完成一轮充分休整；次日所有店主与员工都以满体力开工。
+      s.needs.stamina = 100;
       s.needs.hunger = clamp(s.needs.hunger - 60, 0, 100);
       s.needs.stress = clamp(s.needs.stress - (s.traits.includes('stubborn') ? 13 : 22) - (s.traits.includes('resilient') ? 8 : 0), 0, 100);
       const fair = s.isOwner ? 0 : s.wage >= fairWageRange(s).min ? 6 : -7;
@@ -1104,8 +1155,8 @@ export class Sim {
     this.guests.push(...members);
     this.fx.push({ x: e.x, y: e.y, t: 0.6, kind: 'portal' });
     this.sounds.push('chime');
-    // 进店即自己往目标区域走（餐桌 / 客床 / 汤池 / 台球桌）；没位置才去前台排队
-    if (!this.tryPlace(g)) this.goWaitArea(g);
+    // 所有客人先到前台：由前台完成迎宾并引导入座/入房。
+    this.goWaitArea(g);
   }
 
   /** 当前能做出来的菜（库存 + 产出设备 + 星级 都满足） */
@@ -1312,7 +1363,7 @@ export class Sim {
   }
 
   /** 需求分派入口：设施型去设施，餐饮型去座位；住店客可能先去娱乐区续一摊 */
-          tryPlace(g       )          {
+  tryPlace(g       )          {
     if (g.want === 'sleep' && !g.detourDone) {
       g.detourDone = true;
       // 主要待客房，但店里有酒吧/温泉/台球室时，过半概率先去消费一发
@@ -1327,6 +1378,12 @@ export class Sim {
       }
     }
     return wantById(g.want).facility ? this.tryUseFacility(g) : this.trySelfSeat(g);
+  }
+
+  /** 只检查当前是否确有可用座位/设施，不改变客人需求与占用状态。 */
+  hasPlace(g) {
+    const want = wantById(g.want);
+    return want.facility ? !!this.findFacility(want, g.size) : !!this.findTable(g.size, want);
   }
 
   availableWants()              { return GUEST_WANTS.filter((w) => this.wantOk(w)); }
@@ -1437,12 +1494,7 @@ export class Sim {
         if (g.patience <= 0) { this.leave(g, g.state === 'wait' ? '在前台等太久' : '等菜太久'); continue; }
       }
       if (g.state === 'wait') {
-        // 有人吃完走了就自己补位；一直等不到座位才离店
-        g.seatCd -= dt;
-        if (g.seatCd <= 0) {
-          g.seatCd = 0.6;
-          if (this.tryPlace(g)) continue;
-        }
+        // 客人不会再自行找桌；迎宾后仍无空位时，前台会创建新的引座任务。
         if (g.patience < g.maxPatience * 0.3) { this.leave(g, '等不到座位'); continue; }
       }
       if (g.state === 'seating') {
@@ -1483,13 +1535,19 @@ export class Sim {
       }
       if (g.state === 'eating') {
         g.eatT -= dt;
-        if (g.eatT <= 0) this.pay(g);
+        if (g.eatT <= 0) { g.eatT = 0; g.state = 'checkout'; g.checkoutT = this.dayT; }
       }
       if (g.state === 'leaving') {
         this.tickLeavingGroup(g, dt);
         continue;
       }
-      for (const m of g.members) this.moveActor(m, dt, 2.1);
+      for (const m of g.members) {
+        this.moveActor(m, dt, 2.1);
+        if (g.state === 'wait' && !m.path.length) {
+          const seat = this.tavern.furnAt(Math.round(m.x), Math.round(m.y));
+          if (seat?.kind === 'bench') { m.pose = 'sit'; m.dir = seat.dir; }
+        }
+      }
     }
   }
 
@@ -1627,7 +1685,8 @@ export class Sim {
     this.recordScoreParts({ quality: taste, wait: waitPen, service: serveScore, hygiene, comfort, spectacle });
     if (table) table.dirty = (table.dirty || 0) + g.size;
     if (room) room.clean = clamp(room.clean - g.size * 0.8, 0, 100);
-    if (this.rng.chance(0.5)) this.tavern.addDirt(Math.round(g.members[0].x), Math.round(g.members[0].y));
+    // 餐桌会留下脏盘；地面污渍按实际用餐人数低概率出现，不再每桌五成概率硬刷。
+    if (this.rng.chance(Math.min(0.32, g.size * 0.09))) this.tavern.addDirt(Math.round(g.members[0].x), Math.round(g.members[0].y));
     this.fx.push({ x: table ? table.x : g.members[0].x, y: table ? table.y : g.members[0].y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
     if (score >= 3.6) this.sounds.push('happy');
     this.rememberGuests(g, score);
@@ -1671,8 +1730,11 @@ export class Sim {
     if (room) room.clean = clamp(room.clean - g.size * 0.7, 0, 100);
     const m0 = g.members[0];
     const dx = Math.round(m0.x), dy = Math.round(m0.y);
-    if (this.tavern.walkable(dx, dy)) this.tavern.addDirt(dx, dy);
-    else if (room) { const t = this.tavern.freeTileIn(room, this.rng.int(70)); this.tavern.addDirt(t.x, t.y); }
+    // 设施本身仍需要整理，但地面污渍只按使用人数概率产生；低频客房不会凭空变脏。
+    if (this.rng.chance(Math.min(0.28, 0.05 + g.size * 0.06))) {
+      if (this.tavern.walkable(dx, dy)) this.tavern.addDirt(dx, dy);
+      else if (room) { const t = this.tavern.freeTileIn(room, this.rng.int(70)); this.tavern.addDirt(t.x, t.y); }
+    }
     this.fx.push({ x: m0.x, y: m0.y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
     if (score >= 3.6) this.sounds.push('happy');
     this.rememberGuests(g, score);
@@ -1812,6 +1874,51 @@ export class Sim {
     return `店主请了这桌一轮（-${cost}）：客人举杯，耐心回了一大截。`;
   }
 
+  staffBondInteraction(id, kind) {
+    const s = this.staff.find((person) => person.id === id);
+    if (!s || s.isOwner) return '';
+    const required = { care: 25, dreams: 45, secret: 65 }[kind] || 999;
+    if (s.aff < required) return `关系还没到能谈这些的程度（需要好感 ${required}）。`;
+    if (s.affCd > 0) return '刚进行过深入交流，先给彼此一点时间。';
+    const lines = {
+      care: `${s.name}放松了肩膀，认真说起最近最累的一件事。你听完后替其调整了几处工作安排。`,
+      dreams: `${s.name}谈起尚未实现的愿望：有一天想独当一面，把自己的招牌留在万界旅人的记忆里。`,
+      secret: `${s.name}犹豫许久，终于告诉你一段从未写进入职档案的往事。你答应替其保守秘密。`,
+    };
+    const line = lines[kind];
+    s.aff = clamp(s.aff + (kind === 'care' ? 2.4 : 1.6), 0, 100);
+    s.needs.stress = clamp(s.needs.stress - (kind === 'care' ? 10 : 5), 0, 100);
+    s.needs.morale = clamp(s.needs.morale + (kind === 'dreams' ? 9 : 5), 0, 100);
+    if (kind === 'secret' && !s.background) s.background = `${s.name}曾在故乡卷入一场改变人生的事件，因此离开熟悉的世界，在多元便携旅店寻找重新开始的机会。`;
+    s.affCd = 36;
+    s.chatLog.unshift(`第${this.econ.day}天·深入交流：${line}`);
+    if (s.chatLog.length > 8) s.chatLog.pop();
+    s.bubble = { text: kind === 'care' ? '谢谢你愿意听。' : kind === 'dreams' ? '说出来轻松多了。' : '只告诉你。', t: 3.2 };
+    this.fx.push({ kind: 'heart', x: s.x, y: s.y - .6, t: .9 }); this.sounds.push('happy');
+    return line;
+  }
+
+  guestBondInteraction(groupId, guestId, kind) {
+    const g = this.groups.find((group) => group.id === groupId);
+    const guest = g?.members.find((person) => person.id === guestId);
+    const profile = guest?.regularId ? this.regulars.find((row) => row.id === guest.regularId) : null;
+    if (!g || !guest) return '';
+    if (g.intCd > 0) return '客人正在消化刚才的话题。';
+    let line = '';
+    if (kind === 'journey') line = `${guest.name}说起一路经过的位面：有倒悬的海、有整夜不熄的集市，也有只卖回忆的旧货铺。`;
+    else if (kind === 'revisit' && profile?.visits >= 2) line = `${guest.name}笑着提起上次来店时的服务与对话，还准确记得当时坐过的位置。`;
+    else if (kind === 'commission' && profile?.offer) {
+      g.offerAccepted = true;
+      line = `${guest.name}把专属委托交给你：「${profile.offer.text}」。完成得好，预计额外回报 ${profile.offer.reward} 界币。`;
+    } else return '还没有可以继续的话题。';
+    g.intCd = 22;
+    guest.aff = clamp((guest.aff || 0) + (kind === 'commission' ? 4 : 2), -100, 100);
+    g.patience = clamp(g.patience + g.maxPatience * .12, 0, g.maxPatience);
+    guest.bubble = { text: kind === 'commission' ? '这件事就拜托店主了。' : '你还记得，真好。', t: 3.2 };
+    this.fx.push({ kind: 'heart', x: guest.x, y: guest.y - .6, t: .9 }); this.sounds.push('happy');
+    return line;
+  }
+
   // ---------- 员工 ----------
   moveActor(a                                                                                     , dt        , speed        )       {
     if (!a.path.length) { if (a.pose === 'walk') a.pose = 'idle'; return; }
@@ -1858,6 +1965,10 @@ export class Sim {
     if (skill === 'clean' && s.traits.includes('clean_freak')) m *= 1.25;
     if ((skill === 'clean' || skill === 'carry') && s.traits.includes('organized')) m *= 1.1;
     if ((s.prio || 0) >= 2 && s.traits.includes('competitive')) m *= 1.08;
+    if (s.perks?.includes('warm_welcome') && skill === 'serve') m *= 1.12;
+    if (s.perks?.includes('swift_hands') && skill === 'carry') m *= 1.12;
+    if (s.perks?.includes('spotless_route') && skill === 'clean') m *= 1.18;
+    if (s.perks?.includes('artisan') && (skill === 'cook' || skill === 'mix')) m *= 1.1;
     if (s.needs.stamina < 25) m *= 0.8;
     return m;
   }
@@ -1896,7 +2007,12 @@ export class Sim {
       if ((s.boostT || 0) > 0) s.boostT = Math.max(0, (s.boostT          ) - dt);
       s.needs.stress = clamp(s.needs.stress + stressUp * dt, 0, 100);
       if (this.manualOwner && s.isOwner) { this.driveOwner(s, dt); continue; }
-      if (!s.task && open.length) this.assign(s, open);
+      // 疲惫员工先休息再抢下一项工作。前台任务近乎连续，若在 assign() 之后判断会永远轮不到休息。
+      if (!s.task && s.needs.stamina < 28) {
+        s.path = [];                 // 取消回岗位的待命路径，立即改道去自己的休息室
+        this.tryRest(s);
+      }
+      if (!s.task && open.length && s.needs.stamina >= 18) this.assign(s, open);
       if (s.task) this.runTask(s, dt);
       else {
         // 回到岗位房间 / 低体力去休息室
@@ -2003,6 +2119,8 @@ export class Sim {
   jobFit(kind        , job     )         {
     const table                                               = {
       greet: { front: 90, greeter: 60, free: 25, server: 15 },
+      seat: { front: 92, greeter: 55, server: 25, free: 18 },
+      checkout: { front: 95, server: 35, greeter: 18, free: 15 },
       tidy: { cleaner: 60, free: 25, porter: 18, server: 10, greeter: 8 },
       order: { server: 55, greeter: 25, free: 25, bartender: 10 },
       cook: { cook: 60, free: 18 },
@@ -2016,13 +2134,21 @@ export class Sim {
     return v === undefined ? -30 : v;
   }
 
+  dutyFit(kind, staff) {
+    if (!staff || staff.dutyMode !== 'manual') return this.jobFit(kind, staff?.job || 'free');
+    const duty = DUTY_TASK[kind];
+    if (!duty) return this.jobFit(kind, staff.job);
+    const priority = clamp(Math.round(Number(staff.dutyPriorities?.[duty]) || 0), 0, 4);
+    return priority <= 0 ? -30 : 15 + priority * 25;
+  }
+
   /** 只读的工作积压快照，供 UI 展示；不会像 buildTasks 那样改变订单状态。 */
   workQueue() {
     const byKey = new Map();
     const add = (key, kind, label, age = 0) => {
       if (!key || byKey.has(key)) return;
       const owner = this.staff.find((s) => s.task && s.task.key === key);
-      const eligible = this.staff.filter((s) => this.jobFit(kind, s.job) >= 0);
+      const eligible = this.staff.filter((s) => this.dutyFit(kind, s) >= 0);
       byKey.set(key, {
         key, kind, label, age: Math.max(0, age),
         staff: owner ? owner.name : '',
@@ -2034,7 +2160,9 @@ export class Sim {
     for (const s of this.staff) if (s.task) add(s.task.key, s.task.kind, s.task.label || '工作');
     for (const g of this.groups) {
       if (g.state === 'wait' && !g.greeted) add(`greet:${g.id}`, 'greet', '招呼客人', this.dayT - (g.enterT || this.dayT));
+      if (g.state === 'wait' && g.greeted) add(`seat:${g.id}`, 'seat', '引导入座', this.dayT - (g.enterT || this.dayT));
       if (g.state === 'seated' && !g.orderId) add(`order:${g.id}`, 'order', '点单', this.dayT - (g.enterT || this.dayT));
+      if (g.state === 'checkout') add(`checkout:${g.id}`, 'checkout', '前台结账', this.dayT - (g.checkoutT || this.dayT));
     }
     const challengeKind = { cook: 'cook', mix: 'mix', serve: 'order', clean: 'clean', carry: 'bus', calm: 'greet' };
     for (const challenge of this.facilityChallenges) if (challenge.state === 'open') {
@@ -2087,7 +2215,7 @@ export class Sim {
         } }],
       });
     }
-    // 迎宾：客人自己会找位子，所以迎宾专门去安抚在前台排队的客人（续耐心、加服务分）
+    // 迎宾并尝试立即引座；满座时先安抚，空位出现后再由前台执行引座任务。
     for (const g of this.groups) {
       if (g.state !== 'wait' || g.greeted) continue;
       const key = 'greet:' + g.id;
@@ -2105,8 +2233,26 @@ export class Sim {
             g.patience = Math.min(g.maxPatience, g.patience + g.maxPatience * 0.3);
             for (const mm of g.members) mm.mood = Math.min(1.4, mm.mood + 0.2);
             this.fx.push({ x: m.x, y: m.y, t: 0.6, kind: 'serve' });
+            this.tryPlace(g);
           },
         }],
+      });
+    }
+    // 已迎宾但之前满座：有位置时由前台再次上前引导，客人不会自行瞬移找桌。
+    for (const g of this.groups) {
+      if (g.state !== 'wait' || !g.greeted) continue;
+      const key = 'seat:' + g.id;
+      if (claimed.has(key)) continue;
+      if (!this.hasPlace(g)) continue;
+      const m = g.members[0];
+      if (m.path.length) continue;
+      const stand = this.nearStand(Math.round(m.x), Math.round(m.y));
+      if (!stand) continue;
+      out.push({
+        kind: 'seat', key, label: '引导入座', i: 0,
+        steps: [{ tx: stand.x, ty: stand.y }, { dur: 1.2, label: '确认座位', skill: 'serve', done: () => {
+          if (g.state === 'wait' && !this.tryPlace(g)) m.bubble = { text: '请再稍候片刻', t: 2 };
+        } }],
       });
     }
     // 点单
@@ -2142,6 +2288,20 @@ export class Sim {
       const dish = this.dishOf(o.dishId);
       const task = this.buildCookTask(o, dish, key);
       if (task) out.push(task);
+    }
+    // 食客用餐结束后由前台（或兼任服务员）到桌边结账，收入在任务完成时入账。
+    for (const g of this.groups) {
+      if (g.state !== 'checkout') continue;
+      const key = 'checkout:' + g.id;
+      if (claimed.has(key)) continue;
+      const table = this.tavern.furnById(g.tableId);
+      if (!table) continue;
+      const stand = this.nearStand(table.x, table.y);
+      if (!stand) continue;
+      out.push({ kind: 'checkout', key, label: '前台结账', i: 0, steps: [
+        { tx: stand.x, ty: stand.y },
+        { dur: 1.6, label: '核对账单', skill: 'serve', done: () => { if (g.state === 'checkout') this.pay(g); } },
+      ] });
     }
     // 上菜
     for (const o of this.orders) {
@@ -2249,7 +2409,7 @@ export class Sim {
     return out;
   }
 
-          buildCookTask(o       , dish      , key        )              {
+  buildCookTask(o       , dish      , key        )              {
     const kitchens = this.tavern.rooms.filter((r) => r.kind === (dish.drink ? 'bar' : 'kitchen'));
     if (!kitchens.length) return null;
     const shelves = this.tavern.furnsOfKind('shelf');
@@ -2257,9 +2417,9 @@ export class Sim {
     const preps = this.tavern.furnsOfKind('prep');
     const stoves = this.tavern.furnsOfKind(dish.drink ? 'keg' : 'stove');
     const passes = this.tavern.furnsOfKind('pass');
-    if ((!shelves.length && !iceboxes.length) || !stoves.length || !passes.length) return null;
+    if ((!shelves.length && !iceboxes.length) || !stoves.length || (!dish.drink && !passes.length)) return null;
     if (!dish.drink && !preps.length) return null;
-    const stove = stoves[0], passF = passes[0];
+    const stove = stoves[0], passF = dish.drink ? stove : passes[0];
     // 灶台同房间的冰柜优先：省掉往储藏室跑的那趟
     const stoveRoom = this.tavern.roomOfFurn(stove);
     const nearIce = iceboxes.find((f) => {
@@ -2268,11 +2428,11 @@ export class Sim {
     });
     const shelf = nearIce || shelves[0] || iceboxes[0];
     const prep = preps.length ? preps[0] : null;
-    const passCap = (furnDef('pass').cap            )[passF.quality - 1];
+    const passCap = (furnDef(dish.drink ? 'keg' : 'pass').cap            )[passF.quality - 1];
     if ((passF.plates || 0) >= passCap) return null;
     const sShelf = this.tavern.standTileNear(this.tavern.useTiles(shelf));
     const sStove = this.tavern.standTileNear(this.tavern.useTiles(stove));
-    const sPass = this.tavern.standTileNear(this.tavern.useTiles(passF));
+    const sPass = dish.drink ? sStove : this.tavern.standTileNear(this.tavern.useTiles(passF));
     const sPrep = prep ? this.tavern.standTileNear(this.tavern.useTiles(prep)) : null;
     if (!sShelf || !sStove || !sPass || (prep && !sPrep)) return null;
     // 库存检查
@@ -2313,16 +2473,23 @@ export class Sim {
           + (s.traits.includes('perfectionist') ? 0.4 : 0) + (s.traits.includes('creative') ? 0.25 : 0), 1, 5) * dish.taste;
         // 整蛊料理：出品质量大幅随机，客人反应两极
         if (dish.fun && dish.fun.includes('prank')) o.quality = clamp(o.quality * this.rng.range(0.7, 1.35), 1, 5);
+        if (dish.drink) {
+          o.stage = 'ready'; o.passId = stove.id;
+          stove.plates = (stove.plates || 0) + 1;
+          this.fx.push({ x: stove.x, y: stove.y, t: 0.5, kind: 'steam' });
+        }
       },
     });
-    steps.push({ tx: sPass.x, ty: sPass.y });
-    steps.push({
-      dur: 0.8, label: '出餐', skill: 'carry', done: () => {
-        o.stage = 'ready'; o.passId = passF.id;
-        passF.plates = (passF.plates || 0) + 1;
-        this.fx.push({ x: passF.x, y: passF.y, t: 0.5, kind: 'steam' });
-      },
-    });
+    if (!dish.drink) {
+      steps.push({ tx: sPass.x, ty: sPass.y });
+      steps.push({
+        dur: 0.8, label: '出餐', skill: 'carry', done: () => {
+          o.stage = 'ready'; o.passId = passF.id;
+          passF.plates = (passF.plates || 0) + 1;
+          this.fx.push({ x: passF.x, y: passF.y, t: 0.5, kind: 'steam' });
+        },
+      });
+    }
     return { kind: dish.drink ? 'mix' : 'cook', key, label: `${dish.drink ? '调制' : '烹饪'}·${dish.name}`, i: 0, steps };
   }
 
@@ -2349,7 +2516,7 @@ export class Sim {
           assign(s       , open        )       {
     let best              = null; let bestScore = -1e9;
     for (const t of open) {
-      const fit = this.jobFit(t.kind, s.job);
+      const fit = this.dutyFit(t.kind, s);
       if (fit < 0) continue;
       const first = t.steps.find((st) => st.tx !== undefined);
       const dist = first ? Math.abs((first.tx          ) - s.x) + Math.abs((first.ty          ) - s.y) : 0;
@@ -2438,15 +2605,63 @@ export class Sim {
     }
   }
 
-          tickWorld(dt        )       {
-    // 卫生随人流下降；脏污随机产生
-    const traffic = this.guests.length + this.staff.length;
-    if (this.rng.chance(dt * traffic * 0.012)) {
-      const room = this.tavern.rooms[this.rng.int(this.tavern.rooms.length)];
-      if (room) {
-        const t = this.tavern.freeTileIn(room, this.rng.int(60));
-        this.tavern.addDirt(t.x, t.y);
-      }
+  trainStaff(id, skill) {
+    const s = this.staff.find((person) => person.id === id);
+    if (!s || this.dayActive || !SKILL_KEYS.includes(skill) || s.skills[skill] >= 100) return false;
+    const cost = Math.round(90 + s.skills[skill] * 2.2);
+    if (this.econ.coins < cost) { this.toast(`进修需要 ${cost} 界币`); return false; }
+    this.econ.coins -= cost;
+    const before = s.skills[skill];
+    s.skills[skill] = Math.min(100, before + 3);
+    s.trainingCount = (s.trainingCount || 0) + 1;
+    s.needs.morale = clamp(s.needs.morale + 3, 0, 100);
+    this.toast(`${s.name}完成「${TRAINING_PROGRAMS[skill]}」：${SKILL_LABEL[skill]} ${before} → ${s.skills[skill]}（-${cost}）`);
+    return true;
+  }
+
+  buyStaffEquipment(id, equipmentId) {
+    const s = this.staff.find((person) => person.id === id);
+    const item = STAFF_EQUIPMENT.find((row) => row.id === equipmentId);
+    if (!s || !item || this.dayActive || s.equipment?.includes(item.id)) return false;
+    if (this.econ.coins < item.cost) { this.toast(`购买「${item.name}」需要 ${item.cost} 界币`); return false; }
+    this.econ.coins -= item.cost;
+    s.equipment = [...(s.equipment || []), item.id];
+    s.skills[item.skill] = Math.min(100, s.skills[item.skill] + item.bonus);
+    this.toast(`${s.name}装备了「${item.name}」：${SKILL_LABEL[item.skill]} +${item.bonus}`);
+    return true;
+  }
+
+  learnStaffPerk(id, perkId) {
+    const s = this.staff.find((person) => person.id === id);
+    const perk = STAFF_PERKS.find((row) => row.id === perkId);
+    if (!s || !perk || this.dayActive || s.perks?.includes(perk.id)) return false;
+    const related = perk.id === 'artisan' ? Math.max(s.skills.cook, s.skills.mix) : s.skills[perk.skill];
+    if (related < perk.need) { this.toast(`学习「${perk.name}」需要相关能力 ${perk.need}`); return false; }
+    if (this.econ.coins < perk.cost) { this.toast(`学习「${perk.name}」需要 ${perk.cost} 界币`); return false; }
+    this.econ.coins -= perk.cost;
+    s.perks = [...(s.perks || []), perk.id];
+    this.toast(`${s.name}学会了技能「${perk.name}」：${perk.note}`);
+    return true;
+  }
+
+  tickWorld(dt        )       {
+    // 卫生只随“房间内真实活动”变化。无人使用的休息室、客房不会被全店人流随机抽中。
+    const active = [];
+    const use = (actor, amount) => {
+      const room = this.tavern.roomAt(Math.round(actor.x), Math.round(actor.y));
+      if (!room) return;
+      active.push({ room, amount });
+      this.roomUsage[room.id] = (this.roomUsage[room.id] || 0) + amount * dt;
+    };
+    for (const guest of this.guests) use(guest, 1);
+    for (const staff of this.staff) use(staff, staff.task ? 0.45 : 0.1);
+    const traffic = active.reduce((sum, row) => sum + row.amount, 0);
+    if (active.length && this.rng.chance(dt * traffic * 0.0018)) {
+      let roll = this.rng.next() * traffic;
+      let room = active[active.length - 1].room;
+      for (const row of active) { roll -= row.amount; if (roll <= 0) { room = row.room; break; } }
+      const t = this.tavern.freeTileIn(room, this.rng.int(60));
+      this.tavern.addDirt(t.x, t.y);
     }
     for (const r of this.tavern.rooms) {
       const dirtHere = this.tavern.dirt.filter((d) => d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h).length;
@@ -2732,6 +2947,10 @@ export class Sim {
       exp: Object.fromEntries(SKILL_KEYS.map((key) => [key, Number.isFinite(Number(s.exp?.[key])) ? Number(s.exp[key]) : 0])),
       aff: s.aff === undefined ? (s.isOwner ? 100 : 10) : s.aff,
       prio: replan || s.prio === undefined ? (s.isOwner ? 2 : plannedStaffPriority(s.skills, s.traits || [])) : s.prio,
+      dutyMode: s.dutyMode === 'manual' ? 'manual' : 'auto',
+      dutyPriorities: { ...defaultDutyPriorities(s.job), ...(s.dutyPriorities || {}) },
+      equipment: Array.isArray(s.equipment) ? [...new Set(s.equipment)] : [],
+      perks: Array.isArray(s.perks) ? [...new Set(s.perks)] : [], trainingCount: Math.max(0, Number(s.trainingCount) || 0),
       affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], aiChatLog: s.aiChatLog || [], relationshipSummary: String(s.relationshipSummary || '').slice(0, 600), background: s.background || null, hireDay: s.hireDay || 1,
     });
     this.staff = data.staff.map((s) => fix(s, false));

@@ -1314,6 +1314,22 @@ class Game                    {
     const s = this.sim.staff.find((x) => x.id === id);
     if (s) { s.prio = Math.max(0, Math.min(3, p)); this.save(); }
   }
+  setDutyMode(id, mode) {
+    const s = this.sim.staff.find((person) => person.id === id);
+    if (!s || this.sim.dayActive) { if (this.sim.dayActive) this.sim.toast('营业中不能调整职责'); return; }
+    s.dutyMode = mode === 'manual' ? 'manual' : 'auto';
+    this.save(); this.ui.render(true);
+  }
+  setDutyPriority(id, duty, priority) {
+    const s = this.sim.staff.find((person) => person.id === id);
+    if (!s || this.sim.dayActive || !s.dutyPriorities || !(duty in s.dutyPriorities)) return;
+    s.dutyPriorities[duty] = Math.max(0, Math.min(4, priority));
+    s.dutyMode = 'manual';
+    this.save(); this.ui.render(true);
+  }
+  trainStaff(id, skill) { if (this.sim.trainStaff(id, skill)) { this.save(); this.ui.render(true); } }
+  buyStaffEquipment(id, equipmentId) { if (this.sim.buyStaffEquipment(id, equipmentId)) { this.save(); this.ui.render(true); } }
+  learnStaffPerk(id, perkId) { if (this.sim.learnStaffPerk(id, perkId)) { this.save(); this.ui.render(true); } }
   setWage(id        , w        )       {
     const s = this.sim.staff.find((x) => x.id === id);
     if (s && !s.isOwner) { s.wage = Math.max(5, w); this.save(); }

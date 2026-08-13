@@ -84,9 +84,9 @@ export const FURN_DEFS            = [
   { kind: 'stove', name: '灶台', rooms: ['kitchen'], cost: [180, 420, 900], note: '制作菜品', time: [8, 5.6, 4] },
   { kind: 'pass', name: '出餐台', rooms: ['kitchen'], cost: [100, 240, 520], note: '成品暂存，服务员取餐', cap: [2, 3, 4] },
   { kind: 'sink', name: '洗涤槽', rooms: ['kitchen'], cost: [110, 260, 540], note: '洗脏盘，脏盘堆积会降卫生', time: [6, 4.4, 3.2] },
-  { kind: 'table', name: '餐桌', rooms: ['dining', 'bar', 'parlor'], cost: [70, 170, 360], note: '一桌可配 1–4 张椅子', cap: [2, 3, 4] },
+  { kind: 'table', name: '餐桌', rooms: ['dining', 'bar', 'parlor'], cost: [70, 170, 360], note: '按实际椅子接待 1–4 人；基础餐桌也支持三人同行', cap: [3, 4, 4] },
   { kind: 'chair', name: '椅子', rooms: ['dining', 'bar', 'lounge', 'parlor'], cost: [30, 80, 170], note: '靠背朝向必须对着餐桌', cap: [1, 1, 1] },
-  { kind: 'keg', name: '酒桶', rooms: ['bar', 'parlor'], cost: [150, 340, 700], note: '出饮品，无需灶台', time: [4, 3, 2.2] },
+  { kind: 'keg', name: '酒桶', rooms: ['bar', 'parlor'], cost: [150, 340, 700], note: '调酒并暂存成品，服务员直接从吧台取酒', cap: [2, 3, 4], time: [4, 3, 2.2] },
   { kind: 'couch', name: '沙发', rooms: ['lounge'], cost: [140, 320, 640], note: '员工在此恢复体力/压力', time: [1, 1.4, 1.9] },
   { kind: 'fireplace', name: '壁炉', rooms: ['dining', 'bar', 'lounge', 'foyer', 'parlor', 'guestroom', 'onsen', 'billiard'], cost: [200, 460, 900], note: '暖光炉火，大幅提升同房间客人舒适度', charm: [0.5, 0.8, 1.2] },
   { kind: 'plant', name: '位面盆栽', rooms: ['dining', 'bar', 'lounge', 'foyer', 'kitchen', 'storage', 'parlor', 'guestroom', 'onsen', 'billiard', 'corridor'], cost: [40, 100, 220], note: '哪儿都能摆，小幅提升氛围', charm: [0.18, 0.3, 0.5] },
@@ -111,7 +111,7 @@ export const FURN_DEFS            = [
   { kind: 'aquarium', name: '水族箱', rooms: ['parlor', 'garden', 'lounge', 'foyer'], cost: [260, 560, 1100], note: '气泡常冒，看着就解压', charm: [0.4, 0.6, 0.9] },
   { kind: 'winecabinet', name: '酒柜', rooms: ['bar', 'parlor'], cost: [220, 480, 950], note: '各国位面的藏酒', charm: [0.3, 0.5, 0.8] },
   { kind: 'flowerbed', name: '花坛', rooms: ['garden'], cost: [140, 320, 640], note: '庭院点缀，客人爱拍照', charm: [0.35, 0.55, 0.85] },
-  { kind: 'bench', name: '长椅', rooms: ['garden', 'corridor', 'foyer'], cost: [110, 250, 500], note: '坐哪儿都行', charm: [0.15, 0.3, 0.5] },
+  { kind: 'bench', name: '长椅', rooms: ['garden', 'corridor', 'foyer'], cost: [110, 250, 500], note: '等候客人可以坐下，不会截断通道', charm: [0.15, 0.3, 0.5] },
   { kind: 'telescope', name: '望远镜', rooms: ['observatory'], cost: [420, 880, 1700], note: '客人排队看星星，用完需要校准', cap: [1, 2, 2], time: [24, 22, 20], charm: [0.4, 0.6, 0.9] },
   { kind: 'arcadem', name: '街机', rooms: ['arcade'], cost: [320, 680, 1350], note: '屏幕常年闪，客人来打电动，用完需要复位', cap: [1, 2, 2], time: [22, 20, 18], charm: [0.3, 0.5, 0.8] },
   { kind: 'cauldron', name: '炼金釜', rooms: ['alchemy'], cost: [480, 980, 1900], note: '咕嘟咕嘟冒泡，客人围观炼金，用完需要清洗', cap: [2, 3, 4], time: [26, 24, 22], charm: [0.5, 0.8, 1.2] },
@@ -248,6 +248,11 @@ export const SKILL_LABEL                           = {
 };
 
 export const JOBS = ['front', 'greeter', 'server', 'cook', 'bartender', 'cleaner', 'porter', 'free']         ;
+/** 《缺氧》式职责分类：岗位是自动模板，自定义模式则逐项设为 0–4。 */
+export const DUTIES = ['front', 'service', 'cook', 'mix', 'clean', 'carry']         ;
+export const DUTY_LABEL                         = {
+  front: '接待', service: '桌边服务', cook: '烹饪', mix: '调酒', clean: '清洁', carry: '搬运',
+};
                                       
 export const JOB_LABEL                      = {
   front: '前台', greeter: '迎宾', server: '服务', cook: '厨师', bartender: '调酒', cleaner: '清洁', porter: '搬运', free: '机动',
