@@ -16,6 +16,7 @@ import {
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
 } from './data.js';
 import { AGE_MAX, fairWageRange, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS } from './sim.js';
+import { portraitURL } from './portrait.js';
 import {                        } from './world.js';
 
 export const OWNER_SKILL_PRESETS = [
@@ -133,6 +134,8 @@ const CSS = `
 .bar i{display:block;height:100%;border-radius:5px;background:#5BB5AB}
 img.av{image-rendering:pixelated;border:2px solid #C9A176;border-radius:8px;background:#F0E2C8;object-fit:cover;object-position:50% 0}
 img.av.big{height:190px;object-position:50% 4%}
+img.portrait{image-rendering:pixelated;width:112px;height:144px;flex:0 0 112px;object-fit:contain;border:2px solid #94749A;border-radius:5px;background:#1B1932;box-shadow:0 5px 14px #35244655,inset 0 0 0 2px #e9c99455}
+img.portrait.compact{width:88px;height:113px;flex-basis:88px} .portrait-head{align-items:flex-start!important}.portrait-head>div{min-width:0}.portrait-note{padding:7px 9px;border-left:3px solid #94749A;background:#5d477018;border-radius:0 7px 7px 0}
 .pstrip{display:flex;gap:4px;flex-wrap:wrap}
 .pstrip img{width:44px;height:56px;object-fit:cover;object-position:50% 0;border:2px solid #E3C9A4;border-radius:8px;cursor:pointer;image-rendering:auto}
 .pstrip img.on{border-color:#7FB069}
@@ -1017,7 +1020,7 @@ export class UI {
       const gu = this.g.sim.guests.find((x) => x.id === sel.id);
       if (!gu) { this.setPanelHTML(this.bottom, '<div class="dim">客人已离店。</div>'); return; }
       const gr = this.g.sim.groups.find((x) => x.id === gu.groupId);
-      this.setPanelHTML(this.bottom, `<div class="row"><img class="av" src="${avatarURL(gu.app)}" width="64" height="64">
+      this.setPanelHTML(this.bottom, `<div class="row portrait-head"><img class="portrait compact" src="${portraitURL(gu.app)}" width="88" height="113">
         <div style="flex:1"><b>${gu.name}</b> <span class="dim">${gu.race}</span>
         <div class="dim">${gr ? `同行 ${gr.size} 人 · 状态 ${gr.state} · 耐心 ${Math.round(gr.patience)}s · 预算 ${gr.budget}` : ''}</div>
         <div class="dim">口味偏好：${gr ? gr.taste.map((t) => g.sim.dishOf(t).name).join('、') : ''}${gr && gr.flavors && gr.flavors.length ? `（${gr.flavors.map((f) => FLAVOR_LABEL[f] || f).join('/')}党）` : ''}</div></div></div>`);
@@ -1031,7 +1034,7 @@ export class UI {
     const wage = fairWageRange(st);
     const totalWages = this.g.sim.staff.filter((person) => !person.isOwner).reduce((sum, person) => sum + person.wage, 0);
     return `<div class="row" style="align-items:flex-start">
-      <img class="av" src="${avatarURL(st.app)}" width="76" height="76">
+      <img class="portrait compact" src="${portraitURL(st.app)}" width="88" height="113">
       <div style="flex:1">
         <div class="row"><b>${st.name}</b><span class="dim">${st.race}·${st.sex}·${st.age}岁·${st.ht}cm/${st.wt}kg·${HT_NAMES[st.app.ht]}${BD_NAMES[st.app.bd]}</span>
         <span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</span></div>
@@ -1385,7 +1388,7 @@ export class UI {
       this.aiStaffChatSession = { id, exchanges: 0, lastReply: '' };
     }
     const history = (st.aiChatLog || []).slice(0, 6).reverse();
-    this.showModal(`<div class="row"><img class="av" src="${avatarURL(st.app)}" width="64" height="64">
+    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(st.app)}" width="112" height="144">
         <div style="flex:1"><h3 style="margin:0">和 ${htmlText(st.name)} 聊聊</h3><div class="dim">${htmlText(st.race)}·${JOB_LABEL[st.job]}｜${this.g.sim.affLevel(st.aff).name} ${Math.round(st.aff)}</div></div></div>
       <div style="max-width:680px;max-height:260px;overflow:auto;margin-top:8px">
         ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${htmlText(st.name)}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有 AI 对话记录。说点什么吧。</div>'}
@@ -1470,7 +1473,7 @@ export class UI {
     }
     const history = (guest.aiChatLog || []).slice(0, 12).reverse();
     const affinity = this.guestAffinityFacts(guest, group);
-    this.showModal(`<div class="row"><img class="av" src="${avatarURL(guest.app)}" width="64" height="64">
+    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(guest.app)}" width="112" height="144">
         <div style="flex:1"><h3 style="margin:0">和 ${htmlText(guest.name)} 聊聊</h3><div class="dim">${htmlText(guest.race)}·${guest.regularId ? '常客' : '住店客'}｜${htmlText(affinity.level)} ${affinity.value}</div></div></div>
       ${guest.relationshipSummary ? `<div class="card"><b>长久记忆</b><div class="dim">${htmlText(guest.relationshipSummary)}</div></div>` : ''}
       <div style="max-width:680px;max-height:300px;overflow:auto;margin-top:8px">
@@ -1553,7 +1556,7 @@ export class UI {
     const person = this.personById(id);
     if (!person) return;
     const bg = person.background;
-    this.showModal(`<div class="row"><img class="av" src="${avatarURL(person.app)}" width="64" height="64"><div style="flex:1"><h3 style="margin:0">${htmlText(person.name)}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div></div></div>
+    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(person.app)}" width="112" height="144"><div style="flex:1"><h3 style="margin:0">${htmlText(person.name)}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div></div></div>
       ${bg ? `<div class="card" style="margin-top:9px"><b>来店之前</b><div style="white-space:pre-wrap;line-height:1.65">${htmlText(bg.background)}</div></div>
         <div class="row"><span class="dim">个人目标</span><span>${htmlText(bg.aspiration)}</span></div>
         <div class="row"><span class="dim">日常习惯</span><span>${htmlText(bg.quirk)}</span></div>` : '<div class="dim" style="margin-top:9px">尚未生成人物背景。</div>'}
@@ -1657,7 +1660,7 @@ export class UI {
         }).join('') : ''}
         ${st.chatLog.length ? `<h3 style="margin:8px 0 2px">互动记录</h3>${st.chatLog.map((l) => `<div class="dim">· ${l}</div>`).join('')}` : ''}`;
     }
-    this.showModal(`<div class="row"><img class="av" src="${avatarURL(st.app)}" width="76" height="76">
+    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(st.app)}" width="112" height="144">
         <div style="flex:1"><h3 style="margin:0">${st.name}${st.isOwner ? '<span class="hi">（店主）</span>' : ''}</h3>
           <div class="dim">${st.race}·${JOB_LABEL[st.job]}${st.isOwner ? '' : `｜<span style="color:${lv.color}">${lv.name}</span>`}</div></div></div>
       <div class="tabs">${tabs.map(([k, n]) => `<button data-act="dtab" data-v="${k}" class="${this.detailTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
@@ -1692,7 +1695,7 @@ export class UI {
       if (st.aff >= 45) acts.push(['dreams', '谈谈理想']);
       if (st.aff >= 65) acts.push(['secret', '交换秘密']);
       if (sameRoom && nightInteractionAction(sim, 'staff', own, st) === 'romance') acts.push(['romance', '邀请共度春宵']);
-      this.showModal(`<div class="row"><img class="av" src="${avatarURL(st.app)}" width="64" height="64">
+      this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(st.app)}" width="112" height="144">
           <div style="flex:1"><h3 style="margin:0">${st.name}</h3>
             <div class="dim">${st.race}·${JOB_LABEL[st.job]}｜<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>
             <div class="dim">${st.task ? '正在：' + st.task.label : '待命中'}｜压力 ${Math.round(st.needs.stress)}｜体力 ${Math.round(st.needs.stamina)}</div></div></div>
@@ -1722,7 +1725,7 @@ export class UI {
     if (regular?.visits >= 2) acts.push(['revisit', '聊起上次来访']);
     if (regular?.offer && !gr.offerAccepted) acts.push(['commission', '接受专属委托']);
     if (sameRoom && nightInteractionAction(sim, 'guest', own, gu, gr) === 'raid') acts.push(['raid', '进行突袭']);
-    this.showModal(`<div class="row"><img class="av" src="${avatarURL(gu.app)}" width="64" height="64">
+    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(gu.app)}" width="112" height="144">
         <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
           <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}${regular ? `｜常客·第 ${regular.visits} 次来访·好感 ${Math.round(regular.aff)}` : ''}</div>
           <div class="row"><span class="dim">耐心</span>${bar(gr.patience, gr.maxPatience, pct > 50 ? '#8DDB4A' : pct > 25 ? '#F3B84B' : '#FF6B5A')}<span>${pct}%</span></div></div></div>
@@ -2486,7 +2489,7 @@ export class UI {
         ctx.drawImage(pix.canvas, 0, 0, CANVAS_W, CANVAS_H, i * 128, 0, 128, 144);
       }
       const av = host.querySelector('img.big')                           ;
-      if (av) av.src = avatarURL(app);
+      if (av) av.src = portraitURL(app);
     };
     const captureCreatorInputs = () => {
       const currentName = host.querySelector('#crname')?.value;
@@ -2521,7 +2524,7 @@ export class UI {
       <div class="creator-presets">${PRESETS.map((ps) => `<button data-preset="${ps.id}">${ps.name}</button>`).join('')}</div>
       <div class="creator-layout">
         <section class="creator-preview">
-          <div class="creator-preview-art"><canvas class="prev" width="256" height="144"></canvas><img class="av big" src="${avatarURL(app)}" width="108" height="144"></div>
+          <div class="creator-preview-art"><canvas class="prev" width="256" height="144"></canvas><img class="portrait big" src="${portraitURL(app)}" width="112" height="144"></div>
           <div class="row creator-pose"><span class="dim">正面 / 背面</span><span>${['idle', 'walk', 'work'].map((p) => `<button data-pose="${p}" class="${pose === p ? 'on' : ''}">${p === 'idle' ? '待机' : p === 'walk' ? '行走' : '工作'}</button>`).join('')}</span></div>
           ${dressOnly ? '' : `<div class="creator-identity"><label><span>姓名</span><input id="crname" value="${htmlText(name)}" maxlength="20"></label><div>性别 ${['女', '男'].map((s) => `<button data-sex="${s}" class="${sex === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>
           <div class="creator-personality"><label><span class="dim">年龄</span><input id="crage" type="number" min="18" max="${AGE_MAX[app.race] || 100}" value="${age}"></label>
