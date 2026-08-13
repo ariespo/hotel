@@ -49,6 +49,7 @@ const SOFT_INK = '#453B4E';
 export const RASTER_PARTS_VALIDATED = true;
 export const FORMAL_RASTER_TRIPLES = Object.freeze([
   Object.freeze({ face: 'sharp', eye: 'round', fringe: 'part', hair: 'long' }),
+  Object.freeze({ face: 'oval', eye: 'almond', fringe: 'part', hair: 'bob' }),
 ]);
 
 const FACE_STYLE = [

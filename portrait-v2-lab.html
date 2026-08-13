@@ -31,7 +31,10 @@
     const sheet = document.querySelector('#sheet');
     const base = defaultAppearance();
     const sections = [
-      ['正式位图首套', [{ label: '尖脸＋圆瞳＋中分长直发', detail: 'formal raster triple 01', patch: { face: 3, eye: 0, fringe: 1, hairLen: 3 } }]],
+      ['正式位图组合', [
+        { label: '尖脸＋圆瞳＋中分长直发', detail: 'formal raster triple 01', patch: { face: 3, eye: 0, fringe: 1, hairLen: 3 } },
+        { label: '鹅蛋脸＋杏眼＋中分短波波头', detail: 'formal raster triple 02', patch: { face: 1, eye: 1, fringe: 1, hairLen: 2 } },
+      ]],
       ['完整预设', PRESETS.map((preset, index) => ({ label: preset.name, detail: `preset ${index}`, app: preset.make() }))],
       ['脸型', FACES.map((part, index) => ({ label: part.name, detail: `${part.id} · face ${index}`, patch: { face: index } }))],
       ['眼型', EYES.map((part, index) => ({ label: part.name, detail: `${part.id} · eye ${index}`, patch: { eye: index } }))],
