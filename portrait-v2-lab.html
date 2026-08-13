@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>立绘 V2 组合验收表</title>
+  <title>绔嬬粯 V2 缁勫悎楠屾敹琛?/title>
   <style>
     :root{color-scheme:dark;font-family:"Microsoft YaHei",system-ui,sans-serif;background:#17131d;color:#f5edf8}
     *{box-sizing:border-box}body{margin:0;padding:24px;background:radial-gradient(circle at top,#33283e,#17131d 55%)}
@@ -18,9 +18,9 @@
 </head>
 <body>
   <header>
-    <h1>立绘 V2 组合验收表</h1>
-    <p>每张以 3:4 原始比例展示。检查脸—耳—颈连接、双眼落位、发际线、遮脸、配饰层级与风格一致性。</p>
-    <p class="warning">首套正式位图仅对白名单组合“尖脸＋圆瞳＋中分＋长直发”启用；其他组合继续使用同坐标系程序化安全立绘，旧的独立生成部件不会参与混搭。</p>
+    <h1>绔嬬粯 V2 缁勫悎楠屾敹琛?/h1>
+    <p>姣忓紶浠?3:4 鍘熷姣斾緥灞曠ず銆傛鏌ヨ劯鈥旇€斥€旈杩炴帴銆佸弻鐪艰惤浣嶃€佸彂闄呯嚎銆侀伄鑴搞€侀厤楗板眰绾т笌椋庢牸涓€鑷存€с€?/p>
+    <p class="warning">棣栧姝ｅ紡浣嶅浘浠呭鐧藉悕鍗曠粍鍚堚€滃皷鑴革紜鍦嗙灣锛嬩腑鍒嗭紜闀跨洿鍙戔€濆惎鐢紱鍏朵粬缁勫悎缁х画浣跨敤鍚屽潗鏍囩郴绋嬪簭鍖栧畨鍏ㄧ珛缁橈紝鏃х殑鐙珛鐢熸垚閮ㄤ欢涓嶄細鍙備笌娣锋惌銆?/p>
   </header>
   <main id="sheet"></main>
   <script type="module">
@@ -32,19 +32,19 @@
     const base = defaultAppearance();
     const sections = [
       ['正式位图组合', [
-        { label: '尖脸＋圆瞳＋中分长直发', detail: 'formal raster triple 01', patch: { face: 3, eye: 0, fringe: 1, hairLen: 3 } },
-        { label: '鹅蛋脸＋杏眼＋中分短波波头', detail: 'formal raster triple 02', patch: { face: 1, eye: 1, fringe: 1, hairLen: 2 } },
+        ...FACES.map((part, face) => ({ label: `${part.name}＋圆瞳＋中分长直发`, detail: `formal face mapping ${face}`, patch: { face, eye: 0, fringe: 1, hairLen: 3 } })),
+        { label: '鹅蛋脸＋杏仁眼＋中分短波波头', detail: 'formal raster alternate 01', patch: { face: 1, eye: 1, fringe: 1, hairLen: 2 } },
       ]],
-      ['完整预设', PRESETS.map((preset, index) => ({ label: preset.name, detail: `preset ${index}`, app: preset.make() }))],
-      ['脸型', FACES.map((part, index) => ({ label: part.name, detail: `${part.id} · face ${index}`, patch: { face: index } }))],
-      ['眼型', EYES.map((part, index) => ({ label: part.name, detail: `${part.id} · eye ${index}`, patch: { eye: index } }))],
-      ['刘海', FRINGES.map((part, index) => ({ label: part.name, detail: `${part.id} · fringe ${index}`, patch: { fringe: index } }))],
-      ['发型', LENGTHS.map((part, index) => ({ label: part.name, detail: `${part.id} · hairLen ${index}`, patch: { hairLen: index } }))],
+      ['瀹屾暣棰勮', PRESETS.map((preset, index) => ({ label: preset.name, detail: `preset ${index}`, app: preset.make() }))],
+      ['鑴稿瀷', FACES.map((part, index) => ({ label: part.name, detail: `${part.id} 路 face ${index}`, patch: { face: index } }))],
+      ['鐪煎瀷', EYES.map((part, index) => ({ label: part.name, detail: `${part.id} 路 eye ${index}`, patch: { eye: index } }))],
+      ['鍒樻捣', FRINGES.map((part, index) => ({ label: part.name, detail: `${part.id} 路 fringe ${index}`, patch: { fringe: index } }))],
+      ['鍙戝瀷', LENGTHS.map((part, index) => ({ label: part.name, detail: `${part.id} 路 hairLen ${index}`, patch: { hairLen: index } }))],
     ];
 
     for (const [title, entries] of sections) {
       const section = document.createElement('section'); section.className = 'section';
-      const heading = document.createElement('h2'); heading.textContent = `${title} · ${entries.length}`; section.append(heading);
+      const heading = document.createElement('h2'); heading.textContent = `${title} 路 ${entries.length}`; section.append(heading);
       const grid = document.createElement('div'); grid.className = 'grid'; section.append(grid);
       for (const entry of entries) {
         const app = entry.app ? cloneApp(entry.app) : Object.assign(cloneApp(base), entry.patch);
