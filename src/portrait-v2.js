@@ -416,6 +416,16 @@ export function drawIllustratedPortrait(a) {
 }
 
 const FACE_ASSET = ['round', 'oval', 'square', 'sharp', 'chubby', 'cat'];
+const EYE_ASSET = {
+  round: 'round', almond: 'almond', sharp: 'sharp', up: 'sharp', droop: 'droop', big: 'round',
+  sleepy: 'sleepy', slit: 'sharp', glow: 'round', dull: 'sleepy', star: 'round', moon: 'sleepy',
+  gem: 'round', fox: 'fox', puppy: 'droop', mono: 'almond', heart: 'round', wink: 'almond',
+};
+const HAIR_ASSET = [
+  'bob', 'bob', 'bob', 'long', 'high-pony', 'twin', 'wavy', 'bob', 'long', 'high-pony', 'wavy',
+  'wavy', 'bob', 'braid', 'bob', 'high-pony', 'wavy', 'high-pony', 'braid', 'bob', 'wavy', 'wavy',
+  'braid', 'high-pony', 'long', 'bob', 'twin', 'high-pony', 'twin', 'wavy', 'high-pony', 'twin', 'braid', 'wavy',
+];
 
 const layerImages = new Map();
 const tintedLayers = new Map();
@@ -474,22 +484,20 @@ function drawLayeredPortrait(a) {
   if (typeof document === 'undefined') return null;
   const faceId = FACE_ASSET[safeIndex(a.face, FACE_ASSET.length)];
   const eyeId = EYES[safeIndex(a.eye, EYES.length)]?.id || 'almond';
-  const hairId = LENGTHS[safeIndex(a.hairLen, LENGTHS.length)]?.id || 'short';
-  const fringeId = FRINGES[safeIndex(a.fringe, FRINGES.length)]?.id || 'part';
+  const eyeAsset = EYE_ASSET[eyeId] || 'almond';
+  const hairAsset = HAIR_ASSET[safeIndex(a.hairLen, HAIR_ASSET.length)] || 'bob';
   const face = requestLayer(`assets/portrait-v2/faces/${faceId}.png`);
-  const eyes = requestLayer(`assets/portrait-v2/eyes/${eyeId}.png`);
-  const hair = requestLayer(`assets/portrait-v2/hair/${hairId}.png`);
-  const fringe = hairId === 'bald' ? null : requestLayer(`assets/portrait-v2/fringes/${fringeId}.png`);
-  if (!face || !eyes || !hair || (hairId !== 'bald' && !fringe)) return null;
+  const eyes = requestLayer(`assets/portrait-v2/eyes/${eyeAsset}.png`);
+  const hair = requestLayer(`assets/portrait-v2/hair/${hairAsset}.png`);
+  if (!face || !eyes || !hair) return null;
   const pal = palette(a), canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   drawBackdrop(ctx, pal);
   drawBody(ctx, a, pal);
-  ctx.drawImage(tintLayer(hair, 'hair', pal.hair), 0, 0);
   ctx.drawImage(tintLayer(face, 'skin', pal.skin), 0, 0);
   ctx.drawImage(tintLayer(eyes, 'iris', pal.iris), 0, 0);
-  if (fringe) ctx.drawImage(tintLayer(fringe, 'hair', pal.hair), 0, 0);
+  ctx.drawImage(tintLayer(hair, 'hair', pal.hair), 0, 0);
   drawRaceFront(ctx, safeIndex(a.race, 18), pal);
   drawAccessory(ctx, a, pal);
   drawFinish(ctx);
