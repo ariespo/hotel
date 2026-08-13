@@ -33,3 +33,4 @@ python scripts/build-portrait-v2-formal-layers.py
 - Ears are extracted from the approved face master into `ears/sharp.png`.
 - The face layer no longer owns ear pixels.
 - Runtime order is face, eyes, hair, then ears, so the helix remains readable when hair passes behind it.
+- `chroma/hair-long-filled-v2.png` is the production source: hair stays continuous behind both ears and contains no ear-shaped transparency holes.
