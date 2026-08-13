@@ -43,11 +43,13 @@ const CX = 192;
 const INK = '#211C2A';
 const SOFT_INK = '#453B4E';
 
-// Independently generated raster parts do not share a trustworthy anatomical
-// template. Keep them out of the runtime until a full combination sheet has
-// passed visual review. The procedural portrait below uses one coordinate
-// system, so the eyes, ears, face, hair and neck remain attached.
-export const RASTER_PARTS_VALIDATED = false;
+// Formal raster parts are enabled only as exact reviewed triples. Unreviewed
+// faces, eyes, fringes and hairstyles stay on the procedural safety renderer;
+// they must never be mixed with independently generated legacy assets.
+export const RASTER_PARTS_VALIDATED = true;
+export const FORMAL_RASTER_TRIPLES = Object.freeze([
+  Object.freeze({ face: 'sharp', eye: 'round', fringe: 'part', hair: 'long' }),
+]);
 
 const FACE_STYLE = [
   { id: 'round', temple: 91, cheek: 108, jaw: 91, chin: 48, earW: 24, earH: 51, nose: 'soft', mouth: 'warm' },
@@ -489,13 +491,17 @@ function tintLayer(image, kind, color) {
 function drawLayeredPortrait(a) {
   if (!RASTER_PARTS_VALIDATED) return null;
   if (typeof document === 'undefined') return null;
-  const faceId = FACE_ASSET[safeIndex(a.face, FACE_ASSET.length)];
-  const eyeId = EYES[safeIndex(a.eye, EYES.length)]?.id || 'almond';
-  const eyeAsset = EYE_ASSET[eyeId] || 'almond';
-  const hairAsset = HAIR_ASSET[safeIndex(a.hairLen, HAIR_ASSET.length)] || 'bob';
-  const face = requestLayer(`assets/portrait-v2/faces/${faceId}.png`);
-  const eyes = requestLayer(`assets/portrait-v2/eyes/${eyeAsset}.png`);
-  const hair = requestLayer(`assets/portrait-v2/hair/${hairAsset}.png`);
+  const faceId = FACES[safeIndex(a.face, FACES.length)]?.id || 'round';
+  const eyeId = EYES[safeIndex(a.eye, EYES.length)]?.id || 'round';
+  const fringeId = FRINGES[safeIndex(a.fringe, FRINGES.length)]?.id || 'straight';
+  const hairId = LENGTHS[safeIndex(a.hairLen, LENGTHS.length)]?.id || 'bald';
+  const approved = FORMAL_RASTER_TRIPLES.find((part) => (
+    part.face === faceId && part.eye === eyeId && part.fringe === fringeId && part.hair === hairId
+  ));
+  if (!approved) return null;
+  const face = requestLayer(`assets/portrait-v2-formal/faces/${faceId}.png`);
+  const eyes = requestLayer(`assets/portrait-v2-formal/eyes/${eyeId}.png`);
+  const hair = requestLayer(`assets/portrait-v2-formal/hair/${hairId}.png`);
   if (!face || !eyes || !hair) return null;
   const pal = palette(a), canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');

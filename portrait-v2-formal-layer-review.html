@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>立绘 V2 正式透明部件验收</title>
+  <style>
+    :root{color-scheme:dark;font-family:"Microsoft YaHei",system-ui,sans-serif;background:#10141a;color:#eff3f8}*{box-sizing:border-box}body{margin:0;padding:24px;background:radial-gradient(circle at top,#263341,#10141a 55%)}main{max-width:1450px;margin:auto}header{padding:18px 22px;margin-bottom:20px;border:1px solid #586979;border-radius:14px;background:#151d25}h1{margin:0 0 8px}p{margin:4px 0;color:#bbc8d2;line-height:1.6}.grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.card{padding:10px;border:1px solid #4d5c69;border-radius:12px;background:#151c23}.board{background-color:#d5d8de;background-image:linear-gradient(45deg,#f1f2f5 25%,transparent 25%),linear-gradient(-45deg,#f1f2f5 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#f1f2f5 75%),linear-gradient(-45deg,transparent 75%,#f1f2f5 75%);background-size:24px 24px;background-position:0 0,0 12px,12px -12px,-12px 0}.card img{display:block;width:100%;aspect-ratio:1085/1450;object-fit:contain;border:1px solid #73808b;border-radius:8px}.card h2{font-size:17px;margin:9px 0 3px}.card small{color:#9eafbd}@media(max-width:950px){.grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:560px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body><main>
+  <header><h1>Pipeline E · 首套正式透明部件</h1><p>尖脸、圆瞳、中分长直发均使用相同画布与锚点。棋盘格用于检查透明边缘、错位、残留皮肤与跨模块投影。</p></header>
+  <section class="grid">
+    <article class="card board"><img src="docs/art/portrait-v2-master-review/pipeline-e-layers/alpha-master/faces-sharp.png" alt="尖脸透明层"><h2>脸型 · sharp</h2><small>由确认母版确定性提取，保留鼻口耳颈结构</small></article>
+    <article class="card board"><img src="docs/art/portrait-v2-master-review/pipeline-e-layers/alpha-master/eyes-round.png" alt="圆瞳透明层"><h2>眼型 · round</h2><small>固定眼部窗口，保留完整眼睛细节</small></article>
+    <article class="card board"><img src="docs/art/portrait-v2-master-review/pipeline-e-layers/alpha-master/hair-long.png" alt="中分长直发透明层"><h2>发型 · long</h2><small>按发色所有权提取，无面部残留</small></article>
+    <article class="card board"><img src="docs/art/portrait-v2-master-review/pipeline-e-layers/04-layered-alpha-composite.png" alt="三层合成验收"><h2>三层合成</h2><small>检查眼位、发际线、耳部开口和整体对齐</small></article>
+  </section>
+</main></body>
+</html>

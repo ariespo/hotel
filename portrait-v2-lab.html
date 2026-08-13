@@ -20,7 +20,7 @@
   <header>
     <h1>立绘 V2 组合验收表</h1>
     <p>每张以 3:4 原始比例展示。检查脸—耳—颈连接、双眼落位、发际线、遮脸、配饰层级与风格一致性。</p>
-    <p class="warning">独立生成的位图部件当前强制停用；本页使用同坐标系程序化完整立绘。位图层只有完成本表的逐格人工验收后才允许重新启用。</p>
+    <p class="warning">首套正式位图仅对白名单组合“尖脸＋圆瞳＋中分＋长直发”启用；其他组合继续使用同坐标系程序化安全立绘，旧的独立生成部件不会参与混搭。</p>
   </header>
   <main id="sheet"></main>
   <script type="module">
@@ -31,6 +31,7 @@
     const sheet = document.querySelector('#sheet');
     const base = defaultAppearance();
     const sections = [
+      ['正式位图首套', [{ label: '尖脸＋圆瞳＋中分长直发', detail: 'formal raster triple 01', patch: { face: 3, eye: 0, fringe: 1, hairLen: 3 } }]],
       ['完整预设', PRESETS.map((preset, index) => ({ label: preset.name, detail: `preset ${index}`, app: preset.make() }))],
       ['脸型', FACES.map((part, index) => ({ label: part.name, detail: `${part.id} · face ${index}`, patch: { face: index } }))],
       ['眼型', EYES.map((part, index) => ({ label: part.name, detail: `${part.id} · eye ${index}`, patch: { eye: index } }))],
@@ -49,6 +50,7 @@
         const label = document.createElement('strong'); label.textContent = entry.label;
         const detail = document.createElement('small'); detail.textContent = entry.detail;
         card.append(img, label, detail); grid.append(card);
+        setTimeout(() => { img.src = portraitURL(app); }, 900);
       }
       sheet.append(section);
     }
