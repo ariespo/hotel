@@ -27,3 +27,9 @@
 ```powershell
 python scripts/build-portrait-v2-formal-layers.py
 ```
+
+## Ear ownership update
+
+- Ears are extracted from the approved face master into `ears/sharp.png`.
+- The face layer no longer owns ear pixels.
+- Runtime order is face, eyes, hair, then ears, so the helix remains readable when hair passes behind it.

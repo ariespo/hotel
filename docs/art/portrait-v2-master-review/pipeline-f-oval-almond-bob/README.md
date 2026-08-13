@@ -1,17 +1,13 @@
-# Pipeline F · 鹅蛋脸、杏眼与短波波头
+# Pipeline F · Oval face, almond eyes and bob hair
 
-第二套正式位图组合：
+Approved formal combination: `oval + almond + part + bob`.
 
-- 脸型：`oval`（鹅蛋脸）
-- 眼型：`almond`（杏眼）
-- 刘海：`part`（中分）
-- 发型：`bob`（短波波头）
+All masters use the registered `1085×1450` canvas. Runtime layers are deterministically extracted and resized to `384×512`.
 
-三阶段母版统一为 `1085×1450`：裸头母版、正式杏眼、完整短波波头角色。透明图层通过确定性构建脚本提取并缩放为 `384×512`，不直接使用生成式抠图。
+## Ownership and registration
 
-## 验收边界
-
-- 鹅蛋脸只改变面颊、下颌与下巴轮廓，不移动耳朵、眼位、鼻口和颈肩锚点。
-- 杏眼保留上下眼线、成组睫毛、湿润线、虹膜纹理、瞳孔与多点高光，不携带皮肤阴影。
-- 波波头完整露出双眼和大部分耳朵，不投影到面部，发尾收在下颌附近。
-- 只有 `oval + almond + part + bob` 精确组合进入正式白名单，禁止与未验收部件混搭。
+- The face layer owns the skull, facial outline, nose, mouth and neck, but no ear pixels.
+- Ears are isolated in `ears/oval.png` and composited after hair.
+- The eye layer keeps lashes, iris texture and highlights without skin shadow.
+- The bob crown uses the same top clearance as the approved long hairstyle while retaining its jaw-length endpoint.
+- Only the exact approved combination may activate these raster layers.

@@ -25,7 +25,7 @@ export const PORTRAIT_V2_SPEC = Object.freeze({
   }),
   layers: Object.freeze([
     'backdrop', 'raceBack', 'hairBack', 'body', 'faceBase', 'eyes',
-    'hairSide', 'fringe', 'raceFront', 'accessory', 'finish',
+    'hairSide', 'fringe', 'earsFront', 'raceFront', 'accessory', 'finish',
   ]),
   recolor: Object.freeze(['skin', 'iris', 'hair', 'clothA', 'clothB', 'accent']),
 });
@@ -489,9 +489,10 @@ function drawLayeredPortrait(a) {
   ));
   if (!approved) return null;
   const face = requestLayer(`assets/portrait-v2-formal/faces/${faceId}.png`);
+  const ears = requestLayer(`assets/portrait-v2-formal/ears/${faceId}.png`);
   const eyes = requestLayer(`assets/portrait-v2-formal/eyes/${eyeId}.png`);
   const hair = requestLayer(`assets/portrait-v2-formal/hair/${hairId}.png`);
-  if (!face || !eyes || !hair) return null;
+  if (!face || !ears || !eyes || !hair) return null;
   const pal = palette(a), canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
@@ -500,6 +501,7 @@ function drawLayeredPortrait(a) {
   ctx.drawImage(tintLayer(face, 'skin', pal.skin), 0, 0);
   ctx.drawImage(tintLayer(eyes, 'iris', pal.iris), 0, 0);
   ctx.drawImage(tintLayer(hair, 'hair', pal.hair), 0, 0);
+  ctx.drawImage(tintLayer(ears, 'skin', pal.skin), 0, 0);
   drawRaceFront(ctx, safeIndex(a.race, 18), pal);
   drawAccessory(ctx, a, pal);
   drawFinish(ctx);
