@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>立绘 V2 · 脸型 × 眼型实验室</title>
+  <style>
+    :root{color-scheme:dark;font-family:"Microsoft YaHei",system-ui,sans-serif;background:#100f15;color:#f5f1f7}
+    *{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 50% -10%,#342b41,#100f15 52%);min-height:100vh}
+    header{position:sticky;top:0;z-index:5;padding:14px 22px;background:#17141ddd;border-bottom:1px solid #62536e;backdrop-filter:blur(10px)}
+    h1{margin:0 0 5px;font-size:22px}p{margin:0;color:#c9bed0;line-height:1.5}.warn{color:#ffc889}
+    .controls{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;align-items:end}.control{display:grid;gap:5px;font-size:12px;color:#c9bed0}
+    select,input{height:36px;border:1px solid #786784;border-radius:7px;background:#211c29;color:#fff;padding:0 10px}input[type=color]{width:58px;padding:3px}
+    main{max-width:1540px;margin:auto;padding:22px}.focus{display:grid;grid-template-columns:minmax(260px,384px) 1fr;gap:24px;align-items:start}
+    .stage,.card{border:1px solid #584b62;background:#1b1721;border-radius:12px;overflow:hidden;box-shadow:0 8px 28px #0006}
+    canvas{display:block;width:100%;aspect-ratio:3/4;background:linear-gradient(#203240,#111c27)}
+    .meta{padding:10px 12px}.meta strong{display:block}.meta small{color:#a99bb2}
+    h2{margin:8px 0 12px;font-size:18px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:12px}
+    .card{cursor:pointer;transition:.15s transform,.15s border-color}.card:hover{transform:translateY(-2px);border-color:#b69ac6}.card.active{border-color:#ffd18b;box-shadow:0 0 0 2px #ffd18b44}
+    .card canvas{aspect-ratio:3/4}.detail{padding:14px 16px;border:1px solid #4d4257;border-radius:10px;background:#18141e}.detail code{color:#ffd18b}
+    @media(max-width:780px){.focus{grid-template-columns:1fr}.stage{max-width:384px;margin:auto}main{padding:14px}.grid{grid-template-columns:repeat(2,1fr)}}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>立绘 V2 · 脸型 × 眼型实验室</h1>
+    <p>六种现有脸型与 22 种眼型的独立组合测试。点击卡片切换主预览；这里不改变正式游戏白名单。</p>
+    <p class="warn">当前眼睛为实验提取层，请重点检查眼位、眉眼匹配、脸型兼容性、透明边缘与缩小后的辨识度。</p>
+    <div class="controls">
+      <label class="control">脸型<select id="face"></select></label>
+      <label class="control">主预览眼型<select id="eye"></select></label>
+      <label class="control">瞳色<input id="iris" type="color" value="#63c9e9"></label>
+      <label class="control">背景<input id="backdrop" type="color" value="#172734"></label>
+    </div>
+  </header>
+  <main>
+    <section class="focus">
+      <article class="stage"><canvas id="focus" width="384" height="512"></canvas><div class="meta" id="focusMeta"></div></article>
+      <div class="detail"><h2>测试说明</h2><p>脸型切换会刷新下方全部眼型。瞳色只替换图层中可识别的蓝青虹膜，不改变眉毛、眼线和高光。</p><p>资源路径：<code>assets/portrait-v2-eye-lab/eyes/</code></p><p>若某一款出现肤色方块、双重五官、眼位漂移或眉毛缺损，即说明实验提取层不合格。</p></div>
+    </section>
+    <h2>当前脸型的全部眼型</h2>
+    <section class="grid" id="grid"></section>
+  </main>
+  <script type="module">
+    const FACES=[['round','圆脸'],['oval','鹅蛋脸'],['square','方脸'],['sharp','尖脸'],['chubby','圆润脸'],['cat','猫系脸']];
+    const EYES=[['round','圆瞳'],['almond','杏眼'],['sharp','细长锐眼'],['up','上扬眼'],['droop','垂眼'],['big','大眼'],['sleepy','困眼'],['slit','兽瞳'],['glow','妖瞳'],['dull','呆眼'],['star','星芒瞳'],['moon','月牙瞳'],['gem','宝石瞳'],['fox','狐媚眼'],['puppy','无辜眼'],['mono','机械瞳'],['heart','心形瞳'],['wink','俏皮眨眼'],['menace','危险眯眼'],['sanpaku','三白眼'],['monolid','单眼皮'],['diamond','菱形眼']];
+    const $=s=>document.querySelector(s), face=$('#face'),eye=$('#eye'),iris=$('#iris'),backdrop=$('#backdrop'),grid=$('#grid'),focus=$('#focus');
+    for(const [id,name] of FACES)face.add(new Option(name,id)); for(const [id,name] of EYES)eye.add(new Option(name,id));
+    const cache=new Map(), tinted=new Map();
+    function load(src){if(cache.has(src))return cache.get(src);const promise=new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=reject;img.src=src});cache.set(src,promise);return promise}
+    async function tintEye(id,color){const key=id+color;if(tinted.has(key))return tinted.get(key);const img=await load(`assets/portrait-v2-eye-lab/eyes/${id}.png`),c=document.createElement('canvas');c.width=384;c.height=512;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0);const pix=x.getImageData(0,0,384,512),d=pix.data,n=color.slice(1),tr=parseInt(n.slice(0,2),16),tg=parseInt(n.slice(2,4),16),tb=parseInt(n.slice(4,6),16);for(let i=0;i<d.length;i+=4){if(d[i+3]<8)continue;const r=d[i],g=d[i+1],b=d[i+2],lum=r*.299+g*.587+b*.114;if(b>r+10&&g>r+3&&lum>55){const light=Math.max(.38,Math.min(1.55,lum/150));d[i]=Math.min(255,tr*light);d[i+1]=Math.min(255,tg*light);d[i+2]=Math.min(255,tb*light)}}x.putImageData(pix,0,0);tinted.set(key,c);return c}
+    async function draw(canvas,faceId,eyeId){const x=canvas.getContext('2d');x.clearRect(0,0,384,512);x.fillStyle=backdrop.value;x.fillRect(0,0,384,512);const [base,eyes,ears]=await Promise.all([load(`assets/portrait-v2-formal/faces/${faceId}.png`),tintEye(eyeId,iris.value),load(`assets/portrait-v2-formal/ears/${faceId}.png`)]);x.drawImage(base,0,0);x.drawImage(eyes,0,0);x.drawImage(ears,0,0)}
+    async function render(){const jobs=[];grid.innerHTML='';for(const [id,name]of EYES){const card=document.createElement('article');card.className='card'+(id===eye.value?' active':'');const c=document.createElement('canvas');c.width=384;c.height=512;card.append(c);const m=document.createElement('div');m.className='meta';m.innerHTML=`<strong>${name}</strong><small>${id}</small>`;card.append(m);card.onclick=()=>{eye.value=id;render()};grid.append(card);jobs.push(draw(c,face.value,id))}jobs.push(draw(focus,face.value,eye.value));await Promise.all(jobs);const f=FACES.find(x=>x[0]===face.value),e=EYES.find(x=>x[0]===eye.value);$('#focusMeta').innerHTML=`<strong>${f[1]} × ${e[1]}</strong><small>${f[0]} + ${e[0]}</small>`}
+    face.onchange=render;eye.onchange=render;backdrop.oninput=render;iris.oninput=()=>{tinted.clear();render()};render();
+  </script>
+</body>
+</html>
