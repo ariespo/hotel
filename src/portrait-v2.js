@@ -415,16 +415,111 @@ export function drawIllustratedPortrait(a) {
   return canvas;
 }
 
+const FACE_ASSET = ['round', 'oval', 'square', 'sharp', 'chubby', 'cat'];
+const EYE_ASSET = {
+  round: 'round', almond: 'almond', sharp: 'sharp', up: 'sharp', droop: 'droop', big: 'round',
+  sleepy: 'sleepy', slit: 'sharp', glow: 'round', dull: 'sleepy', star: 'round', moon: 'sleepy',
+  gem: 'round', fox: 'fox', puppy: 'droop', mono: 'almond', heart: 'round', wink: 'almond',
+};
+const HAIR_ASSET = [
+  'bob', 'bob', 'bob', 'long', 'high-pony', 'twin', 'wavy', 'bob', 'long', 'high-pony', 'wavy',
+  'wavy', 'bob', 'braid', 'bob', 'high-pony', 'wavy', 'high-pony', 'braid', 'bob', 'wavy', 'wavy',
+  'braid', 'high-pony', 'long', 'bob', 'twin', 'high-pony', 'twin', 'wavy', 'high-pony', 'twin', 'braid', 'wavy',
+];
+
+const layerImages = new Map();
+const tintedLayers = new Map();
+function requestLayer(src) {
+  if (typeof Image === 'undefined') return null;
+  const known = layerImages.get(src);
+  if (known) return known.complete && known.naturalWidth ? known : null;
+  const image = new Image(); image.decoding = 'async'; image.src = src; layerImages.set(src, image);
+  return null;
+}
+
+function tintLayer(image, kind, color) {
+  const key = `${image.src}|${kind}|${color}`;
+  const hit = tintedLayers.get(key);
+  if (hit) return hit;
+  const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return image;
+  ctx.drawImage(image, 0, 0, W, H);
+  const pixels = ctx.getImageData(0, 0, W, H), data = pixels.data;
+  const target = color.replace('#', '');
+  const tr = parseInt(target.slice(0, 2), 16), tg = parseInt(target.slice(2, 4), 16), tb = parseInt(target.slice(4, 6), 16);
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] < 8) continue;
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const lum = r * .299 + g * .587 + b * .114;
+    if (kind === 'hair') {
+      if (lum < 20) continue;
+      const light = Math.max(.24, Math.min(1.42, lum / 76));
+      data[i] = Math.min(255, tr * light); data[i + 1] = Math.min(255, tg * light); data[i + 2] = Math.min(255, tb * light);
+      if (lum > 75) { data[i] = (data[i] + 130) / 2; data[i + 1] = (data[i + 1] + 142) / 2; data[i + 2] = (data[i + 2] + 220) / 2; }
+    } else if (kind === 'iris') {
+      if (!(b > r + 12 && g > r + 5 && lum > 70)) continue;
+      const light = Math.max(.42, Math.min(1.55, lum / 155));
+      data[i] = Math.min(255, tr * light); data[i + 1] = Math.min(255, tg * light); data[i + 2] = Math.min(255, tb * light);
+    } else if (kind === 'skin') {
+      if (lum < 70) continue;
+      const saturation = (Math.max(r, g, b) - Math.min(r, g, b)) / Math.max(1, Math.max(r, g, b));
+      const light = Math.max(.38, Math.min(1.45, lum / 226));
+      if (r > g + 12 && saturation > .12) {
+        data[i] = Math.min(255, (tr * light) * .62 + r * .38);
+        data[i + 1] = Math.min(255, (tg * light) * .62 + g * .38);
+        data[i + 2] = Math.min(255, (tb * light) * .62 + b * .38);
+      } else {
+        data[i] = Math.min(255, tr * light); data[i + 1] = Math.min(255, tg * light); data[i + 2] = Math.min(255, tb * light);
+      }
+    }
+  }
+  ctx.putImageData(pixels, 0, 0);
+  tintedLayers.set(key, canvas);
+  if (tintedLayers.size > 180) tintedLayers.clear();
+  return canvas;
+}
+
+function drawLayeredPortrait(a) {
+  if (typeof document === 'undefined') return null;
+  const faceId = FACE_ASSET[safeIndex(a.face, FACE_ASSET.length)];
+  const eyeId = EYES[safeIndex(a.eye, EYES.length)]?.id || 'almond';
+  const eyeAsset = EYE_ASSET[eyeId] || 'almond';
+  const hairAsset = HAIR_ASSET[safeIndex(a.hairLen, HAIR_ASSET.length)] || 'bob';
+  const face = requestLayer(`assets/portrait-v2/faces/${faceId}.png`);
+  const eyes = requestLayer(`assets/portrait-v2/eyes/${eyeAsset}.png`);
+  const hair = requestLayer(`assets/portrait-v2/hair/${hairAsset}.png`);
+  if (!face || !eyes || !hair) return null;
+  const pal = palette(a), canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+  drawBackdrop(ctx, pal);
+  drawBody(ctx, a, pal);
+  ctx.drawImage(tintLayer(face, 'skin', pal.skin), 0, 0);
+  ctx.drawImage(tintLayer(eyes, 'iris', pal.iris), 0, 0);
+  ctx.drawImage(tintLayer(hair, 'hair', pal.hair), 0, 0);
+  drawRaceFront(ctx, safeIndex(a.race, 18), pal);
+  drawAccessory(ctx, a, pal);
+  drawFinish(ctx);
+  return canvas;
+}
+
 const cache = new Map();
+const proceduralCache = new Map();
 export function portraitURL(a) {
   const key = `v2:${appKey(a)}`;
   const hit = cache.get(key);
   if (hit) return hit;
   try {
-    const url = drawIllustratedPortrait(a).toDataURL('image/png');
-    cache.set(key, url);
-    if (cache.size > 240) cache.clear();
-    return url;
+    const layered = drawLayeredPortrait(a);
+    if (layered) {
+      const url = layered.toDataURL('image/png'); cache.set(key, url);
+      if (cache.size > 240) cache.clear();
+      return url;
+    }
+    const fallback = proceduralCache.get(key) || drawIllustratedPortrait(a).toDataURL('image/png');
+    proceduralCache.set(key, fallback);
+    return fallback;
   } catch (err) {
     console.warn('illustrated portrait fallback', err);
     return pixelPortraitURL(a);
