@@ -43,6 +43,12 @@ const CX = 192;
 const INK = '#211C2A';
 const SOFT_INK = '#453B4E';
 
+// Independently generated raster parts do not share a trustworthy anatomical
+// template. Keep them out of the runtime until a full combination sheet has
+// passed visual review. The procedural portrait below uses one coordinate
+// system, so the eyes, ears, face, hair and neck remain attached.
+export const RASTER_PARTS_VALIDATED = false;
+
 const FACE_STYLE = [
   { id: 'round', temple: 91, cheek: 108, jaw: 91, chin: 48, earW: 24, earH: 51, nose: 'soft', mouth: 'warm' },
   { id: 'oval', temple: 90, cheek: 98, jaw: 76, chin: 39, earW: 21, earH: 54, nose: 'straight', mouth: 'calm' },
@@ -481,6 +487,7 @@ function tintLayer(image, kind, color) {
 }
 
 function drawLayeredPortrait(a) {
+  if (!RASTER_PARTS_VALIDATED) return null;
   if (typeof document === 'undefined') return null;
   const faceId = FACE_ASSET[safeIndex(a.face, FACE_ASSET.length)];
   const eyeId = EYES[safeIndex(a.eye, EYES.length)]?.id || 'almond';
