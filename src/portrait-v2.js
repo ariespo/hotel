@@ -423,18 +423,6 @@ export function drawIllustratedPortrait(a) {
   return canvas;
 }
 
-const FACE_ASSET = ['round', 'oval', 'square', 'sharp', 'chubby', 'cat'];
-const EYE_ASSET = {
-  round: 'round', almond: 'almond', sharp: 'sharp', up: 'sharp', droop: 'droop', big: 'round',
-  sleepy: 'sleepy', slit: 'sharp', glow: 'round', dull: 'sleepy', star: 'round', moon: 'sleepy',
-  gem: 'round', fox: 'fox', puppy: 'droop', mono: 'almond', heart: 'round', wink: 'almond',
-};
-const HAIR_ASSET = [
-  'bob', 'bob', 'bob', 'long', 'high-pony', 'twin', 'wavy', 'bob', 'long', 'high-pony', 'wavy',
-  'wavy', 'bob', 'braid', 'bob', 'high-pony', 'wavy', 'high-pony', 'braid', 'bob', 'wavy', 'wavy',
-  'braid', 'high-pony', 'long', 'bob', 'twin', 'high-pony', 'twin', 'wavy', 'high-pony', 'twin', 'braid', 'wavy',
-];
-
 const layerImages = new Map();
 const tintedLayers = new Map();
 function requestLayer(src) {
