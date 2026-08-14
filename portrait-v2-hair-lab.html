@@ -7,12 +7,13 @@
   <style>
     :root{color-scheme:dark;font-family:"Microsoft YaHei",system-ui,sans-serif;background:#100f15;color:#f5f1f7}*{box-sizing:border-box}
     body{margin:0;background:radial-gradient(circle at 50% -10%,#342b41,#100f15 52%);min-height:100vh}
-    header{position:sticky;top:0;z-index:5;padding:14px 22px;background:#17141ddd;border-bottom:1px solid #62536e;backdrop-filter:blur(10px)}
+    header{padding:14px 22px;background:#17141ddd;border-bottom:1px solid #62536e}
     h1{margin:0 0 5px;font-size:22px}p{margin:0;color:#c9bed0;line-height:1.5}.warn{color:#ffc889}.controls{display:flex;flex-wrap:wrap;gap:12px;margin-top:12px;align-items:end}
     label{display:grid;gap:5px;font-size:12px;color:#c9bed0}select,input{height:36px;border:1px solid #786784;border-radius:7px;background:#211c29;color:#fff;padding:0 10px}input[type=color]{width:58px;padding:3px}
-    main{max-width:1540px;margin:auto;padding:22px}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.card{border:1px solid #584b62;background:#1b1721;border-radius:12px;overflow:hidden;box-shadow:0 8px 28px #0006}
-    canvas{display:block;width:100%;aspect-ratio:3/4;background:#172734}.meta{padding:10px 12px}.meta strong{display:block}.meta small{color:#a99bb2}.swatches{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 12px 12px}.swatch{border:1px solid #4d4257;border-radius:7px;padding:7px;text-align:center;font-size:11px;color:#ddd;background:#211c29}.dot{display:block;height:10px;border-radius:5px;margin-bottom:5px}
-    @media(max-width:680px){main{padding:12px}.grid{grid-template-columns:1fr}}
+    button{border:1px solid #786784;border-radius:7px;background:#2a2332;color:#fff;padding:9px 13px;cursor:pointer}button:hover{background:#392f43}.primary{background:#8e537b;border-color:#bd78a5}.primary:hover{background:#a8618e}
+    main{max-width:1540px;margin:auto;padding:22px}.calibrator{display:grid;grid-template-columns:minmax(300px,520px) minmax(320px,1fr);gap:20px;align-items:start;margin-bottom:24px}.preview{border:1px solid #685873;background:#1b1721;border-radius:12px;overflow:hidden}.preview canvas{max-height:70vh;object-fit:contain}.panel{position:sticky;top:12px;border:1px solid #685873;background:#1b1721;border-radius:12px;padding:18px}.panel h2{margin:0 0 14px;font-size:18px}.field{display:grid;grid-template-columns:70px 1fr 76px;gap:10px;align-items:center;margin:13px 0}.field input[type=range]{width:100%;padding:0}.field input[type=number]{width:76px}.nudge{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,38px);justify-content:center;gap:6px;margin:17px 0}.nudge button{padding:0;font-size:18px}.nudge [data-dx="-1"]{grid-column:1;grid-row:2}.nudge [data-dy="-1"]{grid-column:2;grid-row:1}.nudge [data-dy="1"]{grid-column:2;grid-row:3}.nudge [data-dx="1"]{grid-column:3;grid-row:2}.actions{display:flex;flex-wrap:wrap;gap:9px;margin-top:14px}.status{min-height:24px;margin-top:12px;color:#ffc889}.import-label{display:inline-grid;align-items:center;border:1px solid #786784;border-radius:7px;background:#2a2332;color:#fff;padding:8px 13px;cursor:pointer}.import-label input{display:none}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:16px}.card{display:block;width:100%;padding:0;text-align:left;border:1px solid #584b62;background:#1b1721;border-radius:12px;overflow:hidden;box-shadow:0 8px 28px #0006}.card.active{border-color:#d68ab8;box-shadow:0 0 0 2px #d68ab855}.card canvas{pointer-events:none}
+    canvas{display:block;width:100%;aspect-ratio:3/4;background:#172734}.meta{padding:10px 12px}.meta strong{display:block}.meta small{color:#a99bb2}
+    @media(max-width:820px){main{padding:12px}.calibrator{grid-template-columns:1fr}.panel{position:static}.grid{grid-template-columns:1fr}}
   </style>
 </head>
 <body>
@@ -24,19 +25,54 @@
       <label>脸型<select id="face"></select></label><label>眼型<select id="eye"></select></label><label>耳朵层<select id="ears"><option value="off">关闭（默认）</option><option value="under">头发下</option><option value="over">头发上</option></select></label><label>自定义发色<input id="color" type="color" value="#b24f79"></label><label>背景<input id="backdrop" type="color" value="#172734"></label>
     </div>
   </header>
-  <main><section class="grid" id="grid"></section></main>
+  <main>
+    <section class="calibrator">
+      <div class="preview"><canvas id="preview" width="384" height="512" aria-label="当前发型定位预览"></canvas></div>
+      <div class="panel">
+        <h2>逐款定位</h2>
+        <label>当前发型<select id="hair"></select></label>
+        <div class="field"><span>左右 X</span><input id="xRange" type="range" min="-96" max="96" step="1"><input id="xNumber" type="number" min="-96" max="96" step="1"></div>
+        <div class="field"><span>上下 Y</span><input id="yRange" type="range" min="-96" max="96" step="1"><input id="yNumber" type="number" min="-96" max="96" step="1"></div>
+        <div class="nudge" aria-label="逐像素移动">
+          <button type="button" data-dy="-1" aria-label="上移一像素">↑</button>
+          <button type="button" data-dx="-1" aria-label="左移一像素">←</button>
+          <button type="button" data-dx="1" aria-label="右移一像素">→</button>
+          <button type="button" data-dy="1" aria-label="下移一像素">↓</button>
+        </div>
+        <div class="actions">
+          <button id="save" type="button" class="primary">保存当前定位</button>
+          <button id="reset" type="button">归零并保存</button>
+          <button id="export" type="button">导出定位 JSON</button>
+          <label class="import-label">导入定位 JSON<input id="import" type="file" accept="application/json"></label>
+        </div>
+        <p class="status" id="status"></p>
+      </div>
+    </section>
+    <section class="grid" id="grid"></section>
+  </main>
   <script type="module">
     const FACES=[['round','圆脸'],['oval','鹅蛋脸'],['square','方脸'],['sharp','尖脸'],['chubby','圆润脸'],['cat','猫系脸']];
     const EYES=[['round','圆瞳'],['almond','杏眼'],['sharp','锐眼'],['droop','垂眼'],['sleepy','困眼'],['diamond','菱形眼']];
     const HAIRS=[['short','中短层次发'],['bob','波波头'],['long','长直发'],['tail','高马尾'],['twin','双马尾'],['messy','蓬乱层次发'],['buzz','寸头'],['undercut','削边背头'],['topknot','武士髻'],['wolf','狼尾'],['curly','卷毛'],['mohawk','莫霍克'],['braid','长辫'],['spike','刺猬头'],['tall','冲天马尾'],['shaggy','披肩乱发'],['halfup','半扎发'],['viking','维京辫'],['slick','油头'],['afro','爆炸头'],['hime','姬发式'],['dread','脏辫'],['pompadour','飞机头'],['sidelock','双侧长发'],['crop','短碎盖'],['drill','螺旋双卷'],['lowtail','低束马尾'],['butterfly','蝴蝶结双髻'],['jellyfish','水母姬'],['crown','王冠盘发'],['feather','羽状层次发'],['sidebraid','侧编长辫'],['cloud','云朵卷发']];
     const PALETTE=[['银灰','#aeb3bd'],['浅金','#d8b86a'],['深棕','#4b2b26'],['自定',null]];
-    const $=s=>document.querySelector(s),face=$('#face'),eye=$('#eye'),ears=$('#ears'),color=$('#color'),backdrop=$('#backdrop'),grid=$('#grid');
-    for(const [id,n] of FACES)face.add(new Option(n,id));for(const [id,n] of EYES)eye.add(new Option(n,id));
+    const $=s=>document.querySelector(s),face=$('#face'),eye=$('#eye'),ears=$('#ears'),color=$('#color'),backdrop=$('#backdrop'),hairSelect=$('#hair'),preview=$('#preview'),grid=$('#grid'),xRange=$('#xRange'),xNumber=$('#xNumber'),yRange=$('#yRange'),yNumber=$('#yNumber'),status=$('#status');
+    for(const [id,n] of FACES)face.add(new Option(n,id));for(const [id,n] of EYES)eye.add(new Option(n,id));for(const [id,n] of HAIRS)hairSelect.add(new Option(n,id));
+    const STORAGE_KEY='portrait-v2-hair-offsets-v1';let offsets=JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'),draft={x:0,y:0};
     const cache=new Map(),tints=new Map();function load(src){if(cache.has(src))return cache.get(src);const p=new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=src});cache.set(src,p);return p}
     function mix(a,b,t){return a.map((v,i)=>Math.round(v+(b[i]-v)*t))}function rgb(hex){return[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16))}
     async function tintHair(id,hex){const key=id+hex;if(tints.has(key))return tints.get(key);const img=await load(`assets/portrait-v2-hair-lab/hair/${id}.png`),c=document.createElement('canvas');c.width=384;c.height=512;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0);const pix=x.getImageData(0,0,384,512),d=pix.data,target=rgb(hex),shadow=mix(target,[18,16,22],.62),light=mix(target,[250,248,244],.58),spec=mix(target,[255,255,255],.84);for(let i=0;i<d.length;i+=4){if(d[i+3]<4)continue;const y=d[i]*.299+d[i+1]*.587+d[i+2]*.114;let out;if(y<42)out=mix([10,9,13],shadow,Math.max(0,y/42));else if(y<132)out=mix(shadow,target,(y-42)/90);else if(y<210)out=mix(target,light,(y-132)/78);else out=mix(light,spec,(y-210)/45);d[i]=out[0];d[i+1]=out[1];d[i+2]=out[2]}x.putImageData(pix,0,0);tints.set(key,c);return c}
-    async function draw(canvas,hairId,hex){const x=canvas.getContext('2d');x.fillStyle=backdrop.value;x.fillRect(0,0,384,512);const [base,eyeLayer,hair,earLayer]=await Promise.all([load(`assets/portrait-v2-formal/faces/${face.value}.png`),load(`assets/portrait-v2-eye-lab/eyes/${eye.value}.png`),tintHair(hairId,hex),load(`assets/portrait-v2-formal/ears/${face.value}.png`)]);x.drawImage(base,0,0);if(ears.value==='under')x.drawImage(earLayer,0,0);x.drawImage(eyeLayer,0,0);x.drawImage(hair,0,0);if(ears.value==='over')x.drawImage(earLayer,0,0)}
-    async function render(){grid.innerHTML='';const jobs=[];for(const [id,name]of HAIRS){for(const [label,fixed]of PALETTE){const hex=fixed||color.value,card=document.createElement('article');card.className='card';const c=document.createElement('canvas');c.width=384;c.height=512;card.append(c);const meta=document.createElement('div');meta.className='meta';meta.innerHTML=`<strong>${name} · ${label}</strong><small>${id} · ${hex}</small>`;card.append(meta);grid.append(card);jobs.push(draw(c,id,hex))}}await Promise.all(jobs)}
-    face.onchange=render;eye.onchange=render;ears.onchange=render;color.oninput=()=>{tints.clear();render()};backdrop.oninput=render;render();
+    function savedOffset(id){return offsets[id]||{x:0,y:0}}
+    async function draw(canvas,hairId,hex,offset=savedOffset(hairId)){const x=canvas.getContext('2d');x.fillStyle=backdrop.value;x.fillRect(0,0,384,512);const [base,eyeLayer,hair,earLayer]=await Promise.all([load(`assets/portrait-v2-formal/faces/${face.value}.png`),load(`assets/portrait-v2-eye-lab/eyes/${eye.value}.png`),tintHair(hairId,hex),load(`assets/portrait-v2-formal/ears/${face.value}.png`)]);x.drawImage(base,0,0);if(ears.value==='under')x.drawImage(earLayer,0,0);x.drawImage(eyeLayer,0,0);x.drawImage(hair,offset.x,offset.y);if(ears.value==='over')x.drawImage(earLayer,0,0)}
+    function syncInputs(){xRange.value=xNumber.value=draft.x;yRange.value=yNumber.value=draft.y;status.textContent=`当前草稿：X ${draft.x}px，Y ${draft.y}px`}
+    function selectHair(id){hairSelect.value=id;draft={...savedOffset(id)};syncInputs();draw(preview,id,color.value,draft);document.querySelectorAll('.card').forEach(card=>card.classList.toggle('active',card.dataset.hair===id))}
+    function moveTo(x,y){draft={x:Number(x),y:Number(y)};syncInputs();draw(preview,hairSelect.value,color.value,draft)}
+    async function render(){grid.innerHTML='';const jobs=[];for(const [id,name]of HAIRS){for(const [label,fixed]of PALETTE){const hex=fixed||color.value,card=document.createElement('button');card.type='button';card.className='card';card.dataset.hair=id;const c=document.createElement('canvas');c.width=384;c.height=512;card.append(c);const meta=document.createElement('div'),pos=savedOffset(id);meta.className='meta';meta.innerHTML=`<strong>${name} · ${label}</strong><small>${id} · ${hex} · X ${pos.x} / Y ${pos.y}</small>`;card.append(meta);card.onclick=()=>selectHair(id);grid.append(card);jobs.push(draw(c,id,hex))}}await Promise.all(jobs);selectHair(hairSelect.value)}
+    hairSelect.onchange=()=>selectHair(hairSelect.value);xRange.oninput=()=>moveTo(xRange.value,draft.y);xNumber.oninput=()=>moveTo(xNumber.value,draft.y);yRange.oninput=()=>moveTo(draft.x,yRange.value);yNumber.oninput=()=>moveTo(draft.x,yNumber.value);
+    document.querySelectorAll('.nudge button').forEach(button=>button.onclick=()=>moveTo(draft.x+Number(button.dataset.dx||0),draft.y+Number(button.dataset.dy||0)));
+    $('#save').onclick=async()=>{offsets[hairSelect.value]={...draft};localStorage.setItem(STORAGE_KEY,JSON.stringify(offsets));await render();status.textContent=`已保存：X ${draft.x}px，Y ${draft.y}px`};
+    $('#reset').onclick=async()=>{draft={x:0,y:0};offsets[hairSelect.value]={...draft};localStorage.setItem(STORAGE_KEY,JSON.stringify(offsets));await render();status.textContent='已归零并保存'};
+    $('#export').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(offsets,null,2)],{type:'application/json'}));a.download='portrait-v2-hair-offsets.json';a.click();URL.revokeObjectURL(a.href)};
+    $('#import').onchange=async event=>{offsets=JSON.parse(await event.target.files[0].text());localStorage.setItem(STORAGE_KEY,JSON.stringify(offsets));draft={...savedOffset(hairSelect.value)};render()};
+    face.onchange=render;eye.onchange=render;ears.onchange=render;color.oninput=()=>{tints.clear();render()};backdrop.oninput=render;hairSelect.value=HAIRS[0][0];render();
   </script>
 </body></html>
