@@ -218,10 +218,10 @@
   },
   "sidebraid": {
     "x": -15,
-    "y": 36,
-    "scale": 98,
-    "stretchX": 90,
-    "stretchY": 108
+    "y": 34,
+    "scale": 100,
+    "stretchX": 91,
+    "stretchY": 98
   },
   "cloud": {
     "x": -1,

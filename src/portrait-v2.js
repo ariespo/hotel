@@ -43,19 +43,12 @@ const CX = 192;
 const INK = '#211C2A';
 const SOFT_INK = '#453B4E';
 
-// Formal raster parts are enabled only as exact reviewed triples. Unreviewed
-// faces, eyes, fringes and hairstyles stay on the procedural safety renderer;
-// they must never be mixed with independently generated legacy assets.
 export const RASTER_PARTS_VALIDATED = true;
-export const FORMAL_RASTER_TRIPLES = Object.freeze([
-  Object.freeze({ face: 'round', eye: 'round', fringe: 'part', hair: 'long' }),
-  Object.freeze({ face: 'oval', eye: 'round', fringe: 'part', hair: 'long' }),
-  Object.freeze({ face: 'square', eye: 'round', fringe: 'part', hair: 'long' }),
-  Object.freeze({ face: 'sharp', eye: 'round', fringe: 'part', hair: 'long' }),
-  Object.freeze({ face: 'chubby', eye: 'round', fringe: 'part', hair: 'long' }),
-  Object.freeze({ face: 'cat', eye: 'round', fringe: 'part', hair: 'long' }),
-  Object.freeze({ face: 'oval', eye: 'almond', fringe: 'part', hair: 'bob' }),
-]);
+export const FORMAL_RASTER_PARTS = Object.freeze({
+  faces: Object.freeze(FACES.map((part) => part.id)),
+  eyes: Object.freeze(EYES.map((part) => part.id)),
+  hairs: Object.freeze(LENGTHS.map((part) => part.id)),
+});
 
 const FACE_STYLE = [
   { id: 'round', temple: 91, cheek: 108, jaw: 91, chin: 48, earW: 24, earH: 51, nose: 'soft', mouth: 'warm' },
@@ -450,15 +443,22 @@ function tintLayer(image, kind, color) {
   const pixels = ctx.getImageData(0, 0, W, H), data = pixels.data;
   const target = color.replace('#', '');
   const tr = parseInt(target.slice(0, 2), 16), tg = parseInt(target.slice(2, 4), 16), tb = parseInt(target.slice(4, 6), 16);
+  const blend = (from, to, amount) => from.map((value, index) => Math.round(value + (to[index] - value) * amount));
+  const hairTarget = [tr, tg, tb];
+  const hairShadow = blend(hairTarget, [18, 16, 22], .62);
+  const hairLight = blend(hairTarget, [250, 248, 244], .58);
+  const hairSpec = blend(hairLight, [255, 255, 255], .84);
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] < 8) continue;
     const r = data[i], g = data[i + 1], b = data[i + 2];
     const lum = r * .299 + g * .587 + b * .114;
     if (kind === 'hair') {
-      if (lum < 20) continue;
-      const light = Math.max(.24, Math.min(1.42, lum / 76));
-      data[i] = Math.min(255, tr * light); data[i + 1] = Math.min(255, tg * light); data[i + 2] = Math.min(255, tb * light);
-      if (lum > 75) { data[i] = (data[i] + 130) / 2; data[i + 1] = (data[i + 1] + 142) / 2; data[i + 2] = (data[i + 2] + 220) / 2; }
+      let out;
+      if (lum < 42) out = blend([10, 9, 13], hairShadow, Math.max(0, lum / 42));
+      else if (lum < 132) out = blend(hairShadow, hairTarget, (lum - 42) / 90);
+      else if (lum < 210) out = blend(hairTarget, hairLight, (lum - 132) / 78);
+      else out = blend(hairLight, hairSpec, (lum - 210) / 45);
+      data[i] = out[0]; data[i + 1] = out[1]; data[i + 2] = out[2];
     } else if (kind === 'iris') {
       if (!(b > r + 12 && g > r + 5 && lum > 70)) continue;
       const light = Math.max(.42, Math.min(1.55, lum / 155));
@@ -487,11 +487,10 @@ function drawLayeredPortrait(a) {
   if (typeof document === 'undefined') return null;
   const faceId = FACES[safeIndex(a.face, FACES.length)]?.id || 'round';
   const eyeId = EYES[safeIndex(a.eye, EYES.length)]?.id || 'round';
-  const fringeId = FRINGES[safeIndex(a.fringe, FRINGES.length)]?.id || 'straight';
   const hairId = LENGTHS[safeIndex(a.hairLen, LENGTHS.length)]?.id || 'bald';
-  const approved = FORMAL_RASTER_TRIPLES.find((part) => (
-    part.face === faceId && part.eye === eyeId && part.fringe === fringeId && part.hair === hairId
-  ));
+  const approved = FORMAL_RASTER_PARTS.faces.includes(faceId)
+    && FORMAL_RASTER_PARTS.eyes.includes(eyeId)
+    && FORMAL_RASTER_PARTS.hairs.includes(hairId);
   if (!approved) return null;
   const face = requestLayer(`assets/portrait-v2-formal/faces/${faceId}.png`);
   const ears = requestLayer(`assets/portrait-v2-formal/ears/${faceId}.png`);
@@ -504,9 +503,9 @@ function drawLayeredPortrait(a) {
   drawBackdrop(ctx, pal);
   drawBody(ctx, a, pal);
   ctx.drawImage(tintLayer(face, 'skin', pal.skin), 0, 0);
+  ctx.drawImage(tintLayer(ears, 'skin', pal.skin), 0, 0);
   ctx.drawImage(tintLayer(eyes, 'iris', pal.iris), 0, 0);
   ctx.drawImage(tintLayer(hair, 'hair', pal.hair), 0, 0);
-  ctx.drawImage(tintLayer(ears, 'skin', pal.skin), 0, 0);
   drawRaceFront(ctx, safeIndex(a.race, 18), pal);
   drawAccessory(ctx, a, pal);
   drawFinish(ctx);
