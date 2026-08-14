@@ -7,7 +7,7 @@ import {
 import { Rng } from './pix.js';
 import { AI_PRESETS, loadAIConfig, presetById, refreshAIModels, saveAIConfig } from './ai.js';
 import { aiConfigured, ownerCreatorCatalogs, requestGameAI } from './ai-game.js';
-import { loadPromptTasks, PROMPT_TASKS, resetPromptTasks, savePromptTasks } from './prompt-settings.js';
+import { composeNightPromptModules, loadPromptTasks, NIGHT_PROMPT_MODULES, parseNightPromptModules, PROMPT_TASKS, resetPromptTasks, savePromptTasks } from './prompt-settings.js';
 import { loadPlayerProfile, savePlayerProfile } from './player-profile.js';
 import { canPersistSim } from './save-policy.js';
 import { advanceTutorialState, loadTutorialState, resetTutorialState, retreatTutorialState, saveTutorialState, TUTORIAL_STEPS, tutorialActionMatches } from './tutorial.js';
@@ -229,12 +229,13 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui.compact.scrimOn #scrim{display:block}
 .prompt-editor{display:block;margin:5px 0 12px;width:100%;min-height:88px;box-sizing:border-box;resize:vertical;line-height:1.55}
 .prompt-card{padding:8px 10px;border:2px solid #E3C9A4;border-left:5px solid #8A74B8;border-radius:10px;background:#FFF8E9;margin-top:8px}
+.prompt-tabs{display:flex;gap:6px;position:sticky;top:-12px;z-index:2;padding:8px 0;background:#F5E6C8;flex-wrap:wrap}.prompt-tabs button{min-width:100px}.prompt-tabs button.on{background:#7A4BE0;color:#fff;border-color:#5E3EA0}.prompt-pane{display:none}.prompt-pane.on{display:block}.prompt-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.prompt-module{padding:8px 9px;border:2px solid #E3C9A4;border-radius:9px;background:#FFF8E9}.prompt-module textarea{width:100%;min-height:112px;box-sizing:border-box;margin-top:5px;resize:vertical;line-height:1.5}
 #tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper2.png');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 120px}html.portrait-v2 .creator-preview img.big{width:120px;height:160px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
 .owner-skill-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0}.owner-skill-presets button{text-align:left;white-space:normal}.owner-skill-presets small{display:block;color:#87684e;margin-top:2px}.owner-growth{position:relative;overflow:hidden;border-left-color:#7A4BE0!important;background:linear-gradient(115deg,#fff7db,#efe3ff,#fff7db);animation:ownerGrowthGlow 1.6s ease-in-out infinite alternate}.owner-growth:after{content:'✦';position:absolute;right:12px;top:7px;color:#7A4BE0;font-size:24px;animation:ownerGrowthSpark 1.2s ease-in-out infinite}@keyframes ownerGrowthGlow{to{box-shadow:0 0 18px #9e72e866,inset 0 0 12px #fff}}@keyframes ownerGrowthSpark{50%{transform:scale(1.3) rotate(15deg);opacity:.45}}
 .creator-background,.creator-ai-design{padding:9px 10px;border:2px solid #D9BC91;border-radius:11px;background:#FFF8E9;margin-bottom:9px}.creator-background-presets{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.creator-background label{display:block;margin-top:6px}.creator-background input,.creator-background textarea,.creator-ai-design textarea{width:100%;box-sizing:border-box}.creator-background textarea{min-height:116px;resize:vertical;line-height:1.55}.creator-ai-design{border-color:#A78BD0;background:linear-gradient(135deg,#FFF8E9,#F2EAFE)}.creator-ai-design textarea{min-height:86px;resize:vertical;line-height:1.5}.creator-ai-skills{margin-top:5px;padding:5px 7px;border-radius:7px;background:#7A4BE014;color:#6A4B91}.creator-ai-status{margin-top:6px}.creator-ai-design button{border-color:#8D6CC0}.creator-ai-design.generating{animation:ownerGrowthGlow 1.4s ease-in-out infinite alternate}
-@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 92px}html.portrait-v2 .creator-preview img.big{width:92px;height:123px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
+@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.prompt-module-grid{grid-template-columns:1fr}.prompt-tabs button{flex:1;min-width:84px}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 92px}html.portrait-v2 .creator-preview img.big{width:92px;height:123px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
 `;
 
 function el(html        )              {
@@ -566,8 +567,9 @@ export class UI {
     else if (act === 'importpick') this.modal?.querySelector(`[data-save-import][data-v="${v}"]`)?.click();
     else if (act === 'help') this.openHelp();
     else if (act === 'prompts') this.openPromptSettings();
+    else if (act === 'prompttab') this.switchPromptTab(v);
     else if (act === 'promptsave') this.savePromptSettings();
-    else if (act === 'promptreset') { resetPromptTasks(); this.openPromptSettings('已恢复默认任务文本；玩家身份与背景保持不变。'); }
+    else if (act === 'promptreset') { const tab = this.activePromptTab(); resetPromptTasks(); this.openPromptSettings('已恢复默认任务文本；玩家身份与背景保持不变。', false, tab); }
     else if (act === 'settings') this.openSettings();
     else if (act === 'aipreset') {
       const current = this.syncAIForm();
@@ -2148,27 +2150,57 @@ export class UI {
     this.openStaffDetail(owner.id);
   }
 
-  openPromptSettings(status = '', isError = false) {
+  openPromptSettings(status = '', isError = false, activeTab = 'general') {
     const tasks = loadPromptTasks();
     const profile = loadPlayerProfile(this.g.currentSlot);
     const owner = this.g.sim.staff.find((person) => person.isOwner);
-    const cards = Object.entries(PROMPT_TASKS).map(([key, meta]) => `<section class="prompt-card">
+    const cards = Object.entries(PROMPT_TASKS).filter(([key]) => !key.startsWith('night_')).map(([key, meta]) => `<section class="prompt-card">
       <div class="row"><b>${htmlText(meta.label)}</b><span class="dim">最多 2000 字</span></div>
       ${meta.description ? `<div class="dim">${htmlText(meta.description)}</div>` : ''}
       <textarea class="prompt-editor" data-prompt-key="${key}" maxlength="2000" spellcheck="false">${htmlText(tasks[key])}</textarea>
     </section>`).join('');
+    const nightPane = (key, tab, intro) => {
+      const modules = parseNightPromptModules(tasks[key]);
+      const fields = NIGHT_PROMPT_MODULES.map(({ id, label }) => `<label class="prompt-module"><b>${htmlText(label)}</b><textarea data-night-task="${key}" data-night-module="${id}" maxlength="1600" spellcheck="false">${htmlText(modules[id])}</textarea></label>`).join('');
+      return `<div class="prompt-pane ${activeTab === tab ? 'on' : ''}" data-prompt-pane="${tab}"><div class="dim">${htmlText(intro)} JSON 输出结构与解析由游戏固定。</div><div class="prompt-module-grid">${fields}</div></div>`;
+    };
     this.showModal(`<h3>提示词</h3>
-      <div class="dim">这里可以设定玩家身份背景，并修改 AI 的任务模块。JSON 返回格式与解析由游戏固定；夜袭的叙事模块均在对应文本中直接编辑。</div>
+      <div class="dim">修改 AI 的任务和叙事模块。夜间剧情除 JSON 输出外均可分模块编辑。</div>
       ${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
-      <section class="prompt-card" style="border-left-color:#7A4BE0">
+      <div class="prompt-tabs"><button data-act="prompttab" data-v="general" class="${activeTab === 'general' ? 'on' : ''}">通用</button><button data-act="prompttab" data-v="raid" class="${activeTab === 'raid' ? 'on' : ''}">夜袭</button><button data-act="prompttab" data-v="romance" class="${activeTab === 'romance' ? 'on' : ''}">共度春宵</button></div>
+      <div class="prompt-pane ${activeTab === 'general' ? 'on' : ''}" data-prompt-pane="general"><section class="prompt-card" style="border-left-color:#7A4BE0">
         <div class="row"><b>玩家身份与背景</b><span class="dim">档位 ${this.g.currentSlot} 独立保存</span></div>
         <div class="dim">固定角色：${htmlText(owner?.name || '店主')}｜${htmlText(owner?.sex || '未知')}｜${htmlText(owner?.race || '未知')}｜旅店所有者与经营者。AI 不得把你当成来消费的客人。</div>
         <label style="display:block;margin-top:8px"><span class="dim">身份定位</span><input data-player-role maxlength="100" value="${htmlText(profile.role)}" style="width:100%;box-sizing:border-box;margin-top:4px"></label>
         <label style="display:block;margin-top:8px"><span class="dim">背景设定</span><textarea class="prompt-editor" data-player-background maxlength="2400" placeholder="可以直接写完整设定，也可以只写出身、经历、经营动机和待人方式的大概，再让 AI 完善。">${htmlText(profile.background)}</textarea></label>
         <div class="row"><span class="dim">该设定会进入员工、客人和夜间互动上下文，不会修改经营数值。</span>${aiConfigured() ? '<button data-act="aiprofilepolish">AI 完善背景</button>' : '<button data-act="settings">设置 AI 后完善</button>'}</div>
       </section>
-      ${cards}
+      ${cards}</div>
+      ${nightPane('night_raid', 'raid', '分别设定夜袭的八个叙事模块。')}
+      ${nightPane('night_romance', 'romance', '分别设定共度春宵的八个叙事模块。')}
       <div class="row" style="margin-top:12px"><button data-act="promptreset" class="warn">恢复默认</button><span style="flex:1"></span><button data-act="promptsave">保存任务文本</button><button data-act="closemodal">关闭</button></div>`);
+  }
+
+  activePromptTab() {
+    return this.modal?.querySelector('.prompt-tabs button.on')?.dataset.v || 'general';
+  }
+
+  switchPromptTab(tab) {
+    if (!this.modal || !['general', 'raid', 'romance'].includes(tab)) return;
+    for (const button of this.modal.querySelectorAll('.prompt-tabs button')) button.classList.toggle('on', button.dataset.v === tab);
+    for (const pane of this.modal.querySelectorAll('[data-prompt-pane]')) pane.classList.toggle('on', pane.dataset.promptPane === tab);
+  }
+
+  readPromptTasksForm() {
+    const current = loadPromptTasks();
+    if (!this.modal) return current;
+    for (const input of this.modal.querySelectorAll('[data-prompt-key]')) current[input.dataset.promptKey] = input.value;
+    for (const task of ['night_raid', 'night_romance']) {
+      const modules = {};
+      for (const input of this.modal.querySelectorAll(`[data-night-task="${task}"]`)) modules[input.dataset.nightModule] = input.value;
+      current[task] = composeNightPromptModules(modules);
+    }
+    return current;
   }
 
   syncPlayerProfileForm()       {
@@ -2182,8 +2214,7 @@ export class UI {
 
   async polishPlayerProfile()       {
     if (!aiConfigured()) { this.openPromptSettings('请先在设置中接入 AI 并选择模型。', true); return; }
-    const tasks = loadPromptTasks();
-    if (this.modal) for (const input of this.modal.querySelectorAll('[data-prompt-key]')) tasks[input.dataset.promptKey] = input.value;
+    const tasks = this.readPromptTasksForm();
     savePromptTasks(tasks);
     const draft = this.syncPlayerProfileForm();
     const owner = this.g.sim.staff.find((person) => person.isOwner);
@@ -2202,13 +2233,11 @@ export class UI {
   }
 
   savePromptSettings() {
-    const current = loadPromptTasks();
-    if (this.modal) {
-      for (const input of this.modal.querySelectorAll('[data-prompt-key]')) current[input.dataset.promptKey] = input.value;
-    }
+    const tab = this.activePromptTab();
+    const current = this.readPromptTasksForm();
     savePromptTasks(current);
     this.syncPlayerProfileForm();
-    this.openPromptSettings('玩家身份背景与任务文本已保存。');
+    this.openPromptSettings('玩家身份背景与任务模块已保存。', false, tab);
   }
 
   openSettings()       {

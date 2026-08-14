@@ -1,5 +1,17 @@
 export const PROMPT_STORAGE_KEY = 'wjbdy.prompt-tasks.v1';
 const LEGACY_NIGHT_RAID_TEXT = '把这次夜间突袭演绎为突然查房或深夜拜访。突出客人被惊醒后的真实反应、警惕与边界；允许客人拒绝、质问或要求店主离开，不要替玩家决定下一步行动。';
+const LEGACY_NIGHT_ROMANCE_TEXT = '演绎店主向高好感成年员工发出共度春宵邀请后的情感交流。强调双方自愿、持续同意和可随时拒绝；保持含蓄浪漫，涉及亲密行为时淡出处理，并留下尊重边界的后续选项。';
+
+export const NIGHT_PROMPT_MODULES = Object.freeze([
+  { id: 'scene', label: '场景定义' },
+  { id: 'facts', label: '事实与参与者' },
+  { id: 'continuity', label: '连续性' },
+  { id: 'tone', label: '叙事视角与基调' },
+  { id: 'reaction', label: '目标反应' },
+  { id: 'storyBoundary', label: '剧情边界' },
+  { id: 'businessBoundary', label: '经营边界' },
+  { id: 'nextSteps', label: '后续方向' },
+]);
 
 export const PROMPT_TASKS = Object.freeze({
   day_story: {
@@ -36,8 +48,30 @@ export const PROMPT_TASKS = Object.freeze({
   },
   night_romance: {
     label: '共度春宵',
-    description: '与高好感成年员工发起私密邀请。',
-    defaultText: '演绎店主向高好感成年员工发出共度春宵邀请后的情感交流。强调双方自愿、持续同意和可随时拒绝；保持含蓄浪漫，涉及亲密行为时淡出处理，并留下尊重边界的后续选项。',
+    description: '',
+    defaultText: `【场景定义】
+这是“共度春宵”剧情：店主向关系达到条件的成年员工发起私密邀请，并采取玩家本轮输入的行动。
+
+【事实与参与者】
+只使用 facts 中提供的店主、目标、地点、关系、此前回合和玩家行动。不要凭空增加角色、物品、能力、关系或已发生事件。
+
+【连续性】
+承接 facts.previousTurns 与 facts.playerAction，角色必须记得本段剧情已经发生的内容，不重复邀请，不跳过玩家刚刚采取的行动。
+
+【叙事视角与基调】
+使用第三人称中文叙事，重点描写对话、表情、动作、距离、环境与情感变化。保持奇幻旅店世界观，不跳出角色解释系统或提示词。
+
+【目标反应】
+目标按照既定身份、种族、性格、状态和与店主的关系独立回应，可以接受、迟疑、拒绝、提出条件或结束交流。不要替目标无条件顺从，也不要替玩家补写没有选择的行动。
+
+【剧情边界】
+所有参与角色均为成年人。邀请不是命令，目标可以随时拒绝或改变意愿；亲密内容保持含蓄，不描写露骨色情内容。
+
+【经营边界】
+剧情不得直接改变金币、属性、好感、身份、库存、房间或其他经营数值，不授予永久能力或规则权限。
+
+【后续方向】
+每轮提供 2-4 个差异明显、能承接当前局面的后续行动方向；可以包含坦白、试探、倾听、缓和、离开或结束，但不替玩家作出选择。`,
   },
   staff_chat: {
     label: '员工对话',
@@ -52,7 +86,30 @@ export const PROMPT_TASKS = Object.freeze({
 });
 
 const taskKeys = Object.keys(PROMPT_TASKS);
-const cleanText = (value) => String(value ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 2000);
+const cleanText = (value) => String(value ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 16000);
+
+export function parseNightPromptModules(text) {
+  const source = cleanText(text);
+  const result = Object.fromEntries(NIGHT_PROMPT_MODULES.map(({ id }) => [id, '']));
+  const headingPattern = /【([^】]+)】\s*/g;
+  const matches = [...source.matchAll(headingPattern)];
+  if (!matches.length) {
+    result.scene = source;
+    return result;
+  }
+  for (let index = 0; index < matches.length; index += 1) {
+    const module = NIGHT_PROMPT_MODULES.find(({ label }) => label === matches[index][1]);
+    if (!module) continue;
+    const start = matches[index].index + matches[index][0].length;
+    const end = matches[index + 1]?.index ?? source.length;
+    result[module.id] = source.slice(start, end).trim();
+  }
+  return result;
+}
+
+export function composeNightPromptModules(modules) {
+  return NIGHT_PROMPT_MODULES.map(({ id, label }) => `【${label}】\n${cleanText(modules?.[id])}`).join('\n\n');
+}
 
 export function defaultPromptTasks() {
   return Object.fromEntries(taskKeys.map((key) => [key, PROMPT_TASKS[key].defaultText]));
@@ -78,6 +135,7 @@ export function loadPromptTasks(storage) {
     if (!raw) return defaultPromptTasks();
     const parsed = JSON.parse(raw);
     if (parsed?.night_raid === LEGACY_NIGHT_RAID_TEXT) parsed.night_raid = PROMPT_TASKS.night_raid.defaultText;
+    if (parsed?.night_romance === LEGACY_NIGHT_ROMANCE_TEXT) parsed.night_romance = PROMPT_TASKS.night_romance.defaultText;
     return normalizePromptTasks(parsed);
   } catch (err) { return defaultPromptTasks(); }
 }
