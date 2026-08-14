@@ -127,7 +127,7 @@ export const GREETING_FAILSAFE_SECONDS = 10;
 export const AGE_MAX = [100, 600, 150, 90, 600, 600, 600, 900, 400, 900, 80, 90, 300, 300, 900, 500, 150, 300, 600];
 
 /** 打烊自由活动的心里话（按活动分池） */
-const FREE_THOUGHTS                           = {
+export const FREE_THOUGHTS                           = {
   rest: ['这沙发是真软……', '腿都不是自己的了', '眯十分钟，就十分钟', '明天应该能轻松点吧', '被窝在召唤我', '今天走了得有三万步', '腰……我的老腰', '安安静静坐会儿真好'],
   cook: ['这锅汤再加一撮以太试试', '火候……就是现在！', '我好像悟到新菜了', '先替客人尝尝，嗯——', '刀工还得再练练', '这次少放盐', '香气出来了！', '明天的招牌菜有了'],
   mix: ['这杯就叫「位面晚霞」', '摇匀一点……嗯，香', '这配方得记下来', '加片星檬会不会更好', '杯沿要擦到能照人', '三分醉意刚刚好', '这颜色，绝了', '明天就推这款特调'],
@@ -143,9 +143,18 @@ const FREE_THOUGHTS                           = {
   brew: ['这锅会不会炸……', '加点星尘试试', '颜色变得真好看', '这瓶卖给矮人准火', '闻着就有点上头'],
   watch: ['这段我看哭了', '结局怎么是这样！', '放映机该上油了', '这片子真敢拍', '下一场什么时候'],
   stroll: ['花儿今天开得真好', '喷泉声真解压', '这庭院修得值', '空气都是甜的', '在这儿站一会儿就不想走'],
+  fire: ['炉火一响，整个人都松下来了', '靴子烤暖了再走', '今天的疲惫都烧掉吧', '这火光很像故乡的夜', '再添一块柴就刚好', '围炉的时候最适合讲故事'],
+  aquarium: ['那条蓝色的小鱼又躲起来了', '它们游得慢悠悠，真羡慕', '这个气泡像一颗小星球', '嘘，别吓到它们', '看久了连呼吸都慢下来了', '明天给水族箱擦擦玻璃'],
+  billiards: ['这一杆角度漂亮', '轻一点，别把球打飞了', '我就不信进不了这个袋', '再练一局就收杆', '台呢平，输赢得认', '下次拉个人来对局'],
+  soak: ['水温正好，肩膀终于松了', '泡完这一轮能再干一天', '别问，问就是不想起来', '热气把烦心事都蒸走了', '这池子果然得自己试过才懂', '再数十下就出去'],
+  flowers: ['这朵花今天开得最精神', '香气比餐厅的甜点还轻', '把歪掉的枝叶扶正', '花坛边很适合发呆', '明天记得来看看新芽', '不同位面的花居然能开在一起'],
+  crystal: ['水晶里的光在跟着呼吸', '安静听，好像有很远的回声', '掌心都被照暖了', '杂念慢慢沉下去了', '这块晶簇记得很多故事吧', '光纹和昨天不一样'],
+  wine: ['只闻香，不算偷喝', '这瓶年份比我工龄还长', '酒柜最里面那瓶是什么味道', '标签得重新排整齐', '一小杯，敬今天顺利收工', '这香气适合配烤肉'],
+  cards: ['这一手可不能让你们看见', '今晚手气肯定不错', '少一张牌，是谁藏袖子里了', '再来一局就散场', '输了的人明天洗杯子', '别催，我正在算牌'],
+  sketch: ['这个角度画下来一定好看', '先把轮廓记住', '灯影落在墙上像另一扇门', '画歪了也算异世界风格', '给今天留一张小速写', '明天再把颜色补上'],
 };
 /** 闲聊对白：投缘的 / 呛起来的 */
-const CHAT_GOOD                     = [
+export const CHAT_GOOD                     = [
   ['今天那桌矮人真能喝', '可不是，结账也爽快'],
   ['你上次那锅炖菜绝了', '想吃下次给你留一碗'],
   ['打烊后的星星最好看了', '是啊，就适合聊天'],
@@ -154,8 +163,24 @@ const CHAT_GOOD                     = [
   ['今天小费比昨天多', '客人的笑脸也越来越多了'],
   ['你那间卧室朝北吧', '嗯，晚上凉快得很'],
   ['下周发工资想吃顿好的', '算上我，我知道一家好馆子'],
+  ['你今天跑了多少趟', '没数，腿已经替我记住了'],
+  ['刚才那个客人夸你了', '真的？那我明天再认真点'],
+  ['厨房剩的夜宵还有吗', '给你藏了一份，别声张'],
+  ['你觉得老板今天心情怎样', '看结账数字，应该还不错'],
+  ['这家店以后会变成什么样', '至少会比今天更热闹'],
+  ['你的家乡也看得到星星吗', '看得到，只是颜色不一样'],
+  ['明天我帮你收一轮台', '那我替你留杯热茶'],
+  ['今天差点忙昏头', '我看见了，所以顺手补了位'],
+  ['你最近没那么累了吧', '有人问这句，就已经轻松些了'],
+  ['休息室那本书你看完了吗', '差最后一章，结局不许剧透'],
+  ['要不要下班后打一局', '先说好，输了不许赖账'],
+  ['你身上怎么有花香', '刚去庭院替花坛修了枝'],
+  ['刚才那杯特调叫什么', '还没名字，等你帮我想'],
+  ['今天配合得挺顺', '嗯，连转身都没撞上你'],
+  ['等发薪日一起逛集市吧', '行，我正想换双耐走的鞋'],
+  ['谢谢你刚才来救场', '同事嘛，别客气'],
 ];
-const CHAT_BAD                     = [
+export const CHAT_BAD                     = [
   ['你上菜又踩我脚', '明明是你挡道'],
   ['碗能不能洗干净点', '你行你上啊'],
   ['别老抢我灶台', '谁先抢到算谁的'],
@@ -164,7 +189,34 @@ const CHAT_BAD                     = [
   ['你打鼾隔壁都听见了', '有本事你换间卧室'],
   ['你又用我的杯子', '洗洗不就得了'],
   ['干活就你最慢', '催什么催，要不你来'],
+  ['别把脏盘堆我这边', '那边明明离水槽更近'],
+  ['你又擅自改了我的摆法', '不改的话客人根本过不去'],
+  ['说好来补位，人呢', '我也被三桌人同时叫住了'],
+  ['夜宵是不是你吃完的', '证据呢，别看着我说'],
+  ['你能不能小声一点', '这店又不是图书馆'],
+  ['别碰我的调酒壶', '我只是帮你擦干净'],
+  ['你把排班表看反了', '字写成这样谁看得懂'],
+  ['每次都把活留到最后', '每次都有人急着当监工'],
 ];
+
+const CHAT_CLOSE = [
+  ['如果哪天我离开这家店', '那我就先替你把行李扣下'],
+  ['有你在，忙起来也没那么慌', '彼此彼此，别突然说得这么认真'],
+  ['我给你留了家乡寄来的点心', '那我可要慢慢吃'],
+  ['下次休假一起去看位面潮汐吧', '说定了，谁反悔谁请客'],
+  ['刚来时我还觉得待不久', '现在呢？'],
+  ['你最近笑得比以前多', '大概是这里终于像个家了'],
+];
+
+const CHAT_JOB = {
+  cook: [['明天的备料够吗', '我刚核过，还差两筐蔬菜'], ['你觉得今天火候怎么样', '第三锅最好，香气全出来了']],
+  bartender: [['酒桶还撑得住明天吗', '撑得住，人可能撑不住'], ['那杯客人点了两次', '我已经写进招牌候选了']],
+  front: [['门口那队客人等急了吗', '还好，我提前解释过了'], ['今天带位路线顺多了', '桌子没堵门，当然顺']],
+  server: [['三号桌叫了你几遍', '四遍，最后一遍只是想道谢'], ['出餐台一满我就头疼', '明天我会把节奏错开']],
+  attendant: [['温泉那边收尾了吗', '水面和毛巾都整理好了'], ['台球室今天挺热闹', '是啊，摆球都摆了三轮']],
+  cleaner: [['你怎么总能找到灰', '灰也总能找到客人看得见的地方'], ['今天地板挺亮', '因为我追着脚印擦了一圈']],
+  porter: [['那只酒桶到底多重', '重到我现在还不想抬手'], ['今天通道没堵住', '因为我提前挪开了三只箱子']],
+};
 
 export function phaseOf(t        )         {
   if (t < 45) return '暖场';
@@ -674,6 +726,38 @@ export class Sim {
   }
 
   // ---------- 打烊后的员工自由时间 ----------
+  freeChatPair(s, mate, quarrel = false) {
+    if (quarrel) return CHAT_BAD[this.rng.int(CHAT_BAD.length)];
+    const rel = this.relOf(s.id, mate.id);
+    if (rel >= 25 && this.rng.chance(rel >= 60 ? 0.7 : 0.45)) return CHAT_CLOSE[this.rng.int(CHAT_CLOSE.length)];
+    const sharedJob = s.job === mate.job ? s.job : null;
+    const job = sharedJob && CHAT_JOB[sharedJob] ? sharedJob
+      : CHAT_JOB[s.job] ? s.job
+        : CHAT_JOB[mate.job] ? mate.job : null;
+    if (job && this.rng.chance(sharedJob ? 0.72 : 0.42)) {
+      const pool = CHAT_JOB[job];
+      return pool[this.rng.int(pool.length)];
+    }
+    return CHAT_GOOD[this.rng.int(CHAT_GOOD.length)];
+  }
+
+  recordFreeChat(s, mate, pair, quarrel = false) {
+    const mark = quarrel ? '拌嘴' : '闲聊';
+    s.chatLog.unshift(`第${this.econ.day}天·和${mate.name}${mark}：${pair[0]}`);
+    mate.chatLog.unshift(`第${this.econ.day}天·和${s.name}${mark}：${pair[1]}`);
+    if (s.chatLog.length > 8) s.chatLog.pop();
+    if (mate.chatLog.length > 8) mate.chatLog.pop();
+  }
+
+  speakFreeThought(s, f) {
+    const pool = FREE_THOUGHTS[f.kind] || FREE_THOUGHTS.wander;
+    const alternatives = pool.filter((line) => line !== f.lastThought);
+    const th = (alternatives.length ? alternatives : pool)[this.rng.int((alternatives.length ? alternatives : pool).length)];
+    f.lastThought = th;
+    s.bubble = { text: th, t: 2.8 };
+    this.say(`${s.name}：${th}`);
+  }
+
           tickFreeTime(dt        )       {
     for (const s of this.staff) {
       if (s.isOwner) continue;
@@ -718,7 +802,8 @@ export class Sim {
         // 面对面站着聊
         s.dir = mate.x >= s.x ? 1 : -1;
         s.pose = 'idle';
-        if (this.rng.chance(0.5 * dt)) {
+        f.chatCd = Math.max(0, (f.chatCd || 0) - dt);
+        if ((f.spoken || 0) < 2 && f.chatCd <= 0 && this.rng.chance(0.5 * dt)) {
           const rel = this.relOf(s.id, mate.id);
           const chem = this.chemistry(s, mate);
           let quarrel = chem <= -2 ? 0.5 : chem < 0 ? 0.26 : rel <= -30 ? 0.3 : 0.06;
@@ -729,10 +814,11 @@ export class Sim {
             s.needs.stress = clamp(s.needs.stress + 3, 0, 100);
             mate.needs.stress = clamp(mate.needs.stress + 3, 0, 100);
             this.fx.push({ kind: 'angry', x: (s.x + mate.x) / 2, y: s.y - 0.5, t: 0.9 });
-            const spat = CHAT_BAD[this.rng.int(CHAT_BAD.length)];
+            const spat = this.freeChatPair(s, mate, true);
             s.bubble = { text: spat[0], t: 2.6 };
             mate.bubble = { text: spat[1], t: 2.8 };
             this.say(`${s.name}：${spat[0]}　／　${mate.name}：${spat[1]}`);
+            this.recordFreeChat(s, mate, spat, true);
             this.log.unshift(`${s.name}和${mate.name}拌了几句嘴（关系 ${this.relLabel(this.relOf(s.id, mate.id))}）`);
             if (this.log.length > 60) this.log.pop();
           } else {
@@ -744,23 +830,36 @@ export class Sim {
             s.needs.morale = clamp(s.needs.morale + 2, 0, 100);
             mate.needs.morale = clamp(mate.needs.morale + 2, 0, 100);
             this.fx.push({ kind: 'heart', x: (s.x + mate.x) / 2, y: s.y - 0.5, t: 0.9 });
-            const pair = CHAT_GOOD[this.rng.int(CHAT_GOOD.length)];
+            const pair = this.freeChatPair(s, mate);
             s.bubble = { text: pair[0], t: 2.6 };
             mate.bubble = { text: pair[1], t: 2.8 };
             this.say(`${s.name}：${pair[0]}　／　${mate.name}：${pair[1]}`);
+            this.recordFreeChat(s, mate, pair);
             if (v >= 25 && v - gain < 25) this.toast(`${s.name}和${mate.name}成了合得来的同事`);
             if (v >= 60 && v - gain < 60) this.toast(`${s.name}和${mate.name}成了挚友`);
           }
+          f.spoken = (f.spoken || 0) + 1;
+          f.chatCd = 2.4;
         }
-      } else if (f.kind === 'stargaze' || f.kind === 'game' || f.kind === 'brew' || f.kind === 'watch' || f.kind === 'stroll') {
+      } else if (['stargaze', 'game', 'brew', 'watch', 'stroll', 'fire', 'aquarium', 'billiards', 'soak', 'flowers', 'crystal', 'wine', 'cards', 'sketch'].includes(f.kind)) {
         if (f.kind === 'watch') s.pose = 'sit';
-        else if (f.kind === 'game' || f.kind === 'brew') s.pose = 'work';
+        else if (f.kind === 'fire' || f.kind === 'soak' || f.kind === 'cards') s.pose = 'sit';
+        else if (f.kind === 'game' || f.kind === 'brew' || f.kind === 'billiards' || f.kind === 'flowers' || f.kind === 'wine' || f.kind === 'sketch') s.pose = 'work';
         else s.pose = 'idle';
         if (f.kind === 'stargaze') { s.needs.stress = clamp(s.needs.stress - 1.4 * dt, 0, 100); if (this.rng.chance(0.02 * dt)) this.sounds.push('chime'); }
         if (f.kind === 'game') { s.needs.morale = clamp(s.needs.morale + 1.6 * dt, 0, 100); if (this.rng.chance(0.03 * dt)) this.sounds.push('chime'); }
         if (f.kind === 'brew') { s.needs.stress = clamp(s.needs.stress - 0.8 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.8 * dt, 0, 100); }
         if (f.kind === 'watch') s.needs.morale = clamp(s.needs.morale + 1.2 * dt, 0, 100);
         if (f.kind === 'stroll') { s.needs.stress = clamp(s.needs.stress - 1.2 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.4 * dt, 0, 100); }
+        if (f.kind === 'fire') { s.needs.stress = clamp(s.needs.stress - 1.4 * dt, 0, 100); s.needs.stamina = clamp(s.needs.stamina + 0.6 * dt, 0, 100); }
+        if (f.kind === 'aquarium') s.needs.stress = clamp(s.needs.stress - 1.5 * dt, 0, 100);
+        if (f.kind === 'billiards') s.needs.morale = clamp(s.needs.morale + 1.3 * dt, 0, 100);
+        if (f.kind === 'soak') { s.needs.stress = clamp(s.needs.stress - 1.8 * dt, 0, 100); s.needs.stamina = clamp(s.needs.stamina + 1 * dt, 0, 100); }
+        if (f.kind === 'flowers') { s.needs.stress = clamp(s.needs.stress - 1.2 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.6 * dt, 0, 100); }
+        if (f.kind === 'crystal') s.needs.stress = clamp(s.needs.stress - 1.4 * dt, 0, 100);
+        if (f.kind === 'wine') s.needs.morale = clamp(s.needs.morale + 0.8 * dt, 0, 100);
+        if (f.kind === 'cards') s.needs.morale = clamp(s.needs.morale + 1.2 * dt, 0, 100);
+        if (f.kind === 'sketch') { s.needs.stress = clamp(s.needs.stress - 0.8 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.7 * dt, 0, 100); }
       } else if (f.kind === 'piano' || f.kind === 'tend' || f.kind === 'snack' || f.kind === 'read' || f.kind === 'tea' || f.kind === 'groom') {
         s.pose = 'work';
         if (f.kind === 'piano') {
@@ -768,12 +867,16 @@ export class Sim {
           if (this.rng.chance(0.03 * dt)) this.sounds.push('chime');
         }
         if (f.kind === 'tend') s.needs.stress = clamp(s.needs.stress - 1.2 * dt, 0, 100);
-        if (f.kind === 'snack') s.needs.hunger = clamp(s.needs.hunger + 3 * dt, 0, 100);
+        if (f.kind === 'snack') s.needs.hunger = clamp(s.needs.hunger - 3 * dt, 0, 100);
         if (f.kind === 'read') s.needs.stress = clamp(s.needs.stress - 1.6 * dt, 0, 100);
-        if (f.kind === 'tea') { s.needs.hunger = clamp(s.needs.hunger + 2.2 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.6 * dt, 0, 100); }
+        if (f.kind === 'tea') { s.needs.hunger = clamp(s.needs.hunger - 2.2 * dt, 0, 100); s.needs.morale = clamp(s.needs.morale + 0.6 * dt, 0, 100); }
         if (f.kind === 'groom') s.needs.morale = clamp(s.needs.morale + 1.4 * dt, 0, 100);
       } else {
         s.pose = 'idle';   // wander/wait：到了就发会儿呆
+      }
+      if (f.kind !== 'chat' && !f.midSpoken && f.total > 1 && f.t <= f.total * 0.55) {
+        f.midSpoken = true;
+        if (this.rng.chance(0.58)) this.speakFreeThought(s, f);
       }
       if (f.t <= 0) s.free = null;
     }
@@ -834,9 +937,14 @@ export class Sim {
       const t = spot(['keg']);
       if (t) opts.push({ kind: 'mix', w: 2, tx: t.x, ty: t.y });
     }
-    // 没人正朝我走来的同事才可当聊伴（已被认领的不抢）
-    // 设施房玩耍：星象台观星/游艺厅打电动/炼金房鼓捣/放映厅看片/庭院散步
-    for (const [fk, kind, w] of [['telescope', 'stargaze', 1.4], ['arcadem', 'game', 1.9], ['cauldron', 'brew', 1.2], ['screen', 'watch', 1.5], ['fountain', 'stroll', 1.3]]                              ) {
+    // 设施房和公共区域都会成为打烊后的去处。
+    for (const [fk, kind, w] of [
+      ['telescope', 'stargaze', 1.4], ['arcadem', 'game', 1.9], ['cauldron', 'brew', 1.2],
+      ['screen', 'watch', 1.5], ['fountain', 'stroll', 1.3], ['fireplace', 'fire', 1.6],
+      ['aquarium', 'aquarium', 1.5], ['billiardtable', 'billiards', 1.8], ['pool', 'soak', 1.5],
+      ['flowerbed', 'flowers', 1.3], ['crystal', 'crystal', 1.2], ['winecabinet', 'wine', 1.1],
+      ['table', 'cards', 1.2], ['statue', 'sketch', 0.9],
+    ]                              ) {
       if (this.tavern.furnsOfKind(fk).length) {
         const t = spot([fk]);
         if (t) opts.push({ kind, w, tx: t.x, ty: t.y });
@@ -861,17 +969,13 @@ export class Sim {
     let pick = opts[opts.length - 1];
     for (const o of opts) { roll -= o.w; if (roll <= 0) { pick = o; break; } }
     if (!pick) { s.free = null; return; }
+    const duration = pick.kind === 'wander' ? 1 : this.rng.range(6, 12);
     s.free = {
       kind: pick.kind, tx: pick.tx, ty: pick.ty, partner: pick.partner,
-      t: pick.kind === 'wander' ? 1 : this.rng.range(6, 12),
+      t: duration, total: duration, spoken: 0, chatCd: 0, midSpoken: false,
     };
     // 冒出一句心里话：头顶气泡 + 底部信息栏
-    if (pick.kind !== 'chat' && this.rng.chance(0.55)) {
-      const pool = FREE_THOUGHTS[pick.kind] || FREE_THOUGHTS.wander;
-      const th = pool[this.rng.int(pool.length)];
-      s.bubble = { text: th, t: 2.8 };
-      this.say(`${s.name}：${th}`);
-    }
+    if (pick.kind !== 'chat' && this.rng.chance(0.72)) this.speakFreeThought(s, s.free);
   }
 
   // ---------- 营业日 ----------

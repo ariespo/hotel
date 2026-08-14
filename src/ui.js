@@ -1037,7 +1037,9 @@ export class UI {
     return { rest: '打烊偷闲：回房休息', cook: '打烊偷闲：厨房研菜', mix: '打烊偷闲：吧台调酒', chat: '打烊偷闲：串门聊天', wander: '打烊偷闲：随便逛逛',
       piano: '打烊偷闲：练琴', tend: '打烊偷闲：照料盆栽', snack: '打烊偷闲：偷吃零嘴',
       read: '打烊偷闲：翻书', tea: '打烊偷闲：泡茶歇脚', groom: '打烊偷闲：对镜梳妆', wait: '打烊偷闲：驻足等人',
-      stargaze: '打烊偷闲：观星', game: '打烊偷闲：打电动', brew: '打烊偷闲：鼓捣炼金', watch: '打烊偷闲：看放映', stroll: '打烊偷闲：庭院散步' }[kind] || '打烊偷闲';
+      stargaze: '打烊偷闲：观星', game: '打烊偷闲：打电动', brew: '打烊偷闲：鼓捣炼金', watch: '打烊偷闲：看放映', stroll: '打烊偷闲：庭院散步',
+      fire: '打烊偷闲：围炉取暖', aquarium: '打烊偷闲：看鱼放空', billiards: '打烊偷闲：练台球', soak: '打烊偷闲：泡汤放松',
+      flowers: '打烊偷闲：逛花坛', crystal: '打烊偷闲：对着水晶冥想', wine: '打烊偷闲：整理藏酒', cards: '打烊偷闲：桌边玩牌', sketch: '打烊偷闲：画店内速写' }[kind] || '打烊偷闲';
   }
 
           renderBottom()       {
