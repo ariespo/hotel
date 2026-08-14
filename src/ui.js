@@ -2754,7 +2754,15 @@ export class UI {
     });
     host.addEventListener('input', (e) => {
       const target = e.target;
-      if (target.id === 'crrole') { ownerRole = target.value; backgroundPreset = 'custom'; }
+      if (target.id === 'crname' && employeeRecruit) {
+        const special = specialEmployeeRecruit(target.value);
+        if (!special) return;
+        app = cloneApp(special.appearance); name = special.name; sex = special.sex; age = special.options.age;
+        traits = [...special.options.traits]; aiSkills = { ...special.options.skills }; aiDesigned = true;
+        ownerRole = special.options.profile.role; ownerBackground = special.options.profile.background; backgroundPreset = 'samb';
+        remember(); rerender(false);
+      }
+      else if (target.id === 'crrole') { ownerRole = target.value; backgroundPreset = 'custom'; }
       else if (target.id === 'crbackground') { ownerBackground = target.value; backgroundPreset = 'custom'; }
       else if (target.id === 'craidraft') aiDraft = target.value;
     });
