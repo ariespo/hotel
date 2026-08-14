@@ -1,0 +1,233 @@
+{
+  "short": {
+    "x": -1,
+    "y": -8,
+    "scale": 100,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "bob": {
+    "x": 0,
+    "y": -24,
+    "scale": 100,
+    "stretchX": 92,
+    "stretchY": 100
+  },
+  "long": {
+    "x": 0,
+    "y": 27,
+    "scale": 100,
+    "stretchX": 104,
+    "stretchY": 97
+  },
+  "tail": {
+    "x": 0,
+    "y": 5,
+    "scale": 100,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "twin": {
+    "x": 0,
+    "y": 19,
+    "scale": 100,
+    "stretchX": 109,
+    "stretchY": 100
+  },
+  "messy": {
+    "x": 0,
+    "y": -24,
+    "scale": 90,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "buzz": {
+    "x": -1,
+    "y": -65,
+    "scale": 100,
+    "stretchX": 75,
+    "stretchY": 82
+  },
+  "undercut": {
+    "x": -3,
+    "y": -60,
+    "scale": 74,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "topknot": {
+    "x": 0,
+    "y": -78,
+    "scale": 83,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "wolf": {
+    "x": 0,
+    "y": -5,
+    "scale": 91,
+    "stretchX": 103,
+    "stretchY": 100
+  },
+  "curly": {
+    "x": 0,
+    "y": 1,
+    "scale": 98,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "mohawk": {
+    "x": 0,
+    "y": -81,
+    "scale": 86,
+    "stretchX": 101,
+    "stretchY": 100
+  },
+  "braid": {
+    "x": 0,
+    "y": 39,
+    "scale": 99,
+    "stretchX": 113,
+    "stretchY": 102
+  },
+  "spike": {
+    "x": 0,
+    "y": -16,
+    "scale": 90,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "tall": {
+    "x": 38,
+    "y": 17,
+    "scale": 126,
+    "stretchX": 101,
+    "stretchY": 106
+  },
+  "shaggy": {
+    "x": -2,
+    "y": -17,
+    "scale": 88,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "halfup": {
+    "x": -1,
+    "y": -20,
+    "scale": 100,
+    "stretchX": 95,
+    "stretchY": 100
+  },
+  "viking": {
+    "x": 2,
+    "y": 13,
+    "scale": 92,
+    "stretchX": 95,
+    "stretchY": 100
+  },
+  "slick": {
+    "x": -2,
+    "y": -47,
+    "scale": 68,
+    "stretchX": 96,
+    "stretchY": 91
+  },
+  "afro": {
+    "x": 0,
+    "y": -30,
+    "scale": 87,
+    "stretchX": 98,
+    "stretchY": 100
+  },
+  "hime": {
+    "x": 0,
+    "y": -2,
+    "scale": 86,
+    "stretchX": 104,
+    "stretchY": 102
+  },
+  "dread": {
+    "x": 0,
+    "y": -22,
+    "scale": 88,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "pompadour": {
+    "x": -1,
+    "y": -96,
+    "scale": 66,
+    "stretchX": 108,
+    "stretchY": 100
+  },
+  "sidelock": {
+    "x": 0,
+    "y": 34,
+    "scale": 93,
+    "stretchX": 104,
+    "stretchY": 100
+  },
+  "crop": {
+    "x": -2,
+    "y": -74,
+    "scale": 69,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "drill": {
+    "x": 0,
+    "y": -5,
+    "scale": 96,
+    "stretchX": 100,
+    "stretchY": 100
+  },
+  "lowtail": {
+    "x": 0,
+    "y": 0,
+    "scale": 89,
+    "stretchX": 102,
+    "stretchY": 105
+  },
+  "butterfly": {
+    "x": 0,
+    "y": -61,
+    "scale": 85,
+    "stretchX": 99,
+    "stretchY": 89
+  },
+  "jellyfish": {
+    "x": -1,
+    "y": -10,
+    "scale": 86,
+    "stretchX": 93,
+    "stretchY": 100
+  },
+  "crown": {
+    "x": 0,
+    "y": -87,
+    "scale": 72,
+    "stretchX": 105,
+    "stretchY": 100
+  },
+  "feather": {
+    "x": 0,
+    "y": -16,
+    "scale": 89,
+    "stretchX": 96,
+    "stretchY": 100
+  },
+  "sidebraid": {
+    "x": -15,
+    "y": 36,
+    "scale": 98,
+    "stretchX": 90,
+    "stretchY": 108
+  },
+  "cloud": {
+    "x": -1,
+    "y": 11,
+    "scale": 102,
+    "stretchX": 92,
+    "stretchY": 100
+  }
+}
