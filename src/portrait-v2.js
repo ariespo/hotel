@@ -404,7 +404,7 @@ export function drawIllustratedPortrait(a) {
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('2d context unavailable');
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-  const pal = palette(a), race = safeIndex(a.race, 18), hair = safeIndex(a.hairLen, LENGTHS.length);
+  const pal = palette(a), race = safeIndex(a.race, 19), hair = safeIndex(a.hairLen, LENGTHS.length);
   drawBackdrop(ctx, pal);
   drawRaceBack(ctx, race, pal);
   drawHairBack(ctx, hair, pal);
@@ -517,7 +517,7 @@ function drawLayeredPortrait(a) {
   ctx.drawImage(tintLayer(ears, 'skin', pal.skin), 0, 0);
   ctx.drawImage(tintLayer(eyes, 'iris', pal.iris), 0, 0);
   ctx.drawImage(tintLayer(hair, 'hair', pal.hair), 0, 0);
-  drawRaceFront(ctx, safeIndex(a.race, 18), pal);
+  drawRaceFront(ctx, safeIndex(a.race, 19), pal);
   drawAccessory(ctx, a, pal);
   drawFinish(ctx);
   return canvas;

@@ -121,7 +121,7 @@ export const DAY_LEN = 300;
 export const GREETING_FAILSAFE_SECONDS = 10;
 
 /** 种族寿命上限：人族硬封顶 100；长生种上限高但年龄分布压向年轻段，过百岁少见 */
-export const AGE_MAX = [100, 600, 150, 90, 600, 600, 600, 900, 400, 900, 80, 90, 300, 300, 900, 500, 150, 300];
+export const AGE_MAX = [100, 600, 150, 90, 600, 600, 600, 900, 400, 900, 80, 90, 300, 300, 900, 500, 150, 300, 600];
 
 /** 打烊自由活动的心里话（按活动分池） */
 const FREE_THOUGHTS                           = {
@@ -527,6 +527,7 @@ export class Sim {
     const person = makeStaff(this.rng, this.id(), false, app, name, {
       sex, age: options.age, traits: options.traits, skills: options.skills,
     });
+    if (options.profile) person.background = { ...options.profile };
     const fee = person.wage * 3;
     if (this.econ.coins < fee) { this.toast(`界币不足：定向员工入职费需要 ${fee}`); return false; }
     this.pool.push(person);

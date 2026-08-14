@@ -40,6 +40,30 @@ export const TARGET_RECRUIT_SKILL_PRESETS = [
   { id: 'support', name: '后勤清洁', note: '擅长清洁、搬运和稳定现场。', skills: { looks: 38, cook: 44, mix: 38, serve: 42, clean: 72, carry: 68, calm: 48 } },
 ];
 
+export function specialEmployeeRecruit(name) {
+  if (String(name).trim().toLowerCase() !== 'samb') return null;
+  const appearance = PRESETS.find((preset) => preset.id === 'loli').make();
+  appearance.race = RACE_NAMES.indexOf('吸血鬼');
+  return {
+    appearance,
+    name: 'SAMB',
+    sex: '女',
+    options: {
+      age: 300,
+      traits: ['lazy', 'clumsy'],
+      skillPreset: 'samb',
+      skills: { looks: 90, cook: 45, mix: 45, serve: 45, clean: 45, carry: 45, calm: 10 },
+      backgroundPreset: 'samb',
+      profile: {
+        role: '作为摆设的杂鱼吸血鬼',
+        background: '曾经参与了某个王国的建设，但因为被友人背叛，王国分裂，从此一蹶不振，兜兜转转来到了多元旅店。傲娇，喜欢自称“妾身”，自傲于高阶吸血鬼的身份，但是实力却很杂鱼。',
+        aspiration: '维持高阶吸血鬼的体面，同时在旅店里找回一点干劲。',
+        quirk: '习惯自称“妾身”，嘴上自傲，实际经常偷懒和闯小祸。',
+      },
+    },
+  };
+}
+
 export const OWNER_BACKGROUND_PRESETS = [
   {
     id: 'wanderer', name: '位面旅人', role: '多元便携旅店的店主与见多识广的位面旅人',
@@ -1662,7 +1686,7 @@ export class UI {
         <div class="row"><span class="dim">体力</span>${bar(st.needs.stamina, 100, '#8DDB4A')}<span class="dim">士气</span>${bar(st.needs.morale, 100, '#39D7D2')}</div>
         <div class="row"><span class="dim">压力</span>${bar(st.needs.stress, 100, '#FF6B5A')}<span class="dim">饥饿</span>${bar(st.needs.hunger, 100, '#F3B84B')}</div>
         <div class="dim">${st.task ? '正在：' + st.task.label : st.note || '待命中'}</div>
-        ${st.isOwner ? `<div class="card" style="margin-top:7px;border-left-color:#7A4BE0"><div class="row"><b>店主身份与背景</b><button data-act="ownerprofile">修改设定</button></div><div><span class="dim">身份定位：</span>${htmlText(playerProfile.role)}</div><div class="dim" style="margin-top:5px;white-space:pre-wrap">${playerProfile.background ? htmlText(playerProfile.background) : '尚未填写背景设定。'}</div></div>` : st.background ? `<div class="card" style="margin-top:7px"><b>人物背景</b><div class="dim">${htmlText(st.background.background)}</div><button data-act="viewbg" data-v="${st.id}">查看完整背景</button></div>` : aiConfigured() ? `<button data-act="aibg" data-v="${st.id}" style="margin-top:7px">AI 生成员工背景</button>` : ''}`;
+        ${st.isOwner ? `<div class="card" style="margin-top:7px;border-left-color:#7A4BE0"><div class="row"><b>店主身份与背景</b><button data-act="ownerprofile">修改设定</button></div><div><span class="dim">身份定位：</span>${htmlText(playerProfile.role)}</div><div class="dim" style="margin-top:5px;white-space:pre-wrap">${playerProfile.background ? htmlText(playerProfile.background) : '尚未填写背景设定。'}</div></div>` : st.background ? `<div class="card" style="margin-top:7px"><b>人物背景</b>${st.background.role ? `<div><span class="dim">身份定位：</span>${htmlText(st.background.role)}</div>` : ''}<div class="dim">${htmlText(st.background.background)}</div><button data-act="viewbg" data-v="${st.id}">查看完整背景</button></div>` : aiConfigured() ? `<button data-act="aibg" data-v="${st.id}" style="margin-top:7px">AI 生成员工背景</button>` : ''}`;
     } else if (this.detailTab === 'skill') {
       body = SKILL_KEYS.map((k) => `<div class="row"><span class="dim" style="width:52px">${SKILL_LABEL[k]}</span>${bar(st.skills[k], 100, '#F3B84B')}<span style="width:56px">${st.skills[k]}<span class="dim">+${Math.floor(st.exp[k] || 0)}</span></span></div>`).join('')
         + `<div class="dim">干活会攒经验，熟练度越高上菜/翻台/清洁越快。好感加成：当前 +${Math.round(st.aff / 4)}% 动作速度。</div>`;
@@ -2027,6 +2051,8 @@ export class UI {
     if (sim.staff.length >= sim.maxStaff()) { sim.toast('先准备一间空的员工休息室'); return; }
     const app = randomAppearance(new Rng(Math.floor(Math.random() * 1e9)), undefined, false);
     this.openCreator(app, '新员工', (appearance, name, sex, options) => {
+      const special = specialEmployeeRecruit(name);
+      if (special) ({ appearance, name, sex, options } = special);
       if (this.g.targetedRecruit(appearance, name, sex, options)) this.render(true);
     }, false, '女', { employeeRecruit: true, age: 24, traits: ['diligent', 'cheerful'], skillPreset: 'balanced' });
   }
