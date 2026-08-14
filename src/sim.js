@@ -6,7 +6,7 @@ import {
   AD_REQ_MULT, AD_TIERS,              BED_KINDS, BED_PRICE_MULT, DISHES,            EVENTS,                               
   FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef,
   DUTIES, GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName, SEASON_NAMES,                              SKILL_KEYS, SKILL_LABEL,
-  ROOM_CHARM, ROOM_LABEL, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
+  ROOM_CHARM, ROOM_LABEL, STAR_CERTIFICATIONS, STAR_THRESHOLDS, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
 } from './data.js';
 import {            Tavern, dirDelta, furnFootprint } from './world.js';
 
@@ -42,16 +42,19 @@ export const LONG_EVENT_CHAINS = [
 ];
 
 export const FACILITY_CHALLENGES = {
-  meal: { bubble: '就没有更好吃的菜了吗！？', label: '回应挑剔食客', skill: 'cook', difficulty: 52, reward: 110, rep: 6, penalty: 4 },
-  drink: { bubble: '这杯酒的层次还不够！', label: '重调客人的饮品', skill: 'mix', difficulty: 54, reward: 105, rep: 6, penalty: 4 },
-  bath: { bubble: '水温怎么突然失控了！？', label: '稳定温泉水温', skill: 'clean', difficulty: 50, reward: 90, rep: 5, penalty: 4 },
-  play: { bubble: '这张球桌是不是歪了！？', label: '校准台球设施', skill: 'carry', difficulty: 56, reward: 120, rep: 7, penalty: 5 },
-  stargaze: { bubble: '星图正在倒着旋转！', label: '重新校准星图', skill: 'calm', difficulty: 62, reward: 145, rep: 9, penalty: 6 },
-  game: { bubble: '机器要把我的分数吞了！', label: '抢修游艺机', skill: 'carry', difficulty: 60, reward: 135, rep: 8, penalty: 5 },
-  show: { bubble: '画面和声音完全不同步！', label: '恢复放映同步', skill: 'calm', difficulty: 55, reward: 115, rep: 7, penalty: 5 },
-  stroll: { bubble: '喷泉把我的行李卷走了！', label: '从喷泉取回行李', skill: 'carry', difficulty: 58, reward: 125, rep: 7, penalty: 5 },
-  brew: { bubble: '炼金釜里有什么在敲盖子！', label: '控制炼金异变', skill: 'calm', difficulty: 66, reward: 160, rep: 10, penalty: 6 },
+  meal: { bubble: '就没有更好吃的菜了吗！？', label: '回应挑剔食客', skill: 'cook', difficulty: 52, reward: 70 },
+  drink: { bubble: '这杯酒的层次还不够！', label: '重调客人的饮品', skill: 'mix', difficulty: 54, reward: 65 },
+  bath: { bubble: '水温怎么突然失控了！？', label: '稳定温泉水温', skill: 'clean', difficulty: 50, reward: 50 },
+  play: { bubble: '这张球桌是不是歪了！？', label: '校准台球设施', skill: 'carry', difficulty: 56, reward: 60 },
+  stargaze: { bubble: '星图正在倒着旋转！', label: '重新校准星图', skill: 'calm', difficulty: 62, reward: 75 },
+  game: { bubble: '机器要把我的分数吞了！', label: '抢修游艺机', skill: 'carry', difficulty: 60, reward: 70 },
+  show: { bubble: '画面和声音完全不同步！', label: '恢复放映同步', skill: 'calm', difficulty: 55, reward: 60 },
+  stroll: { bubble: '喷泉把我的行李卷走了！', label: '从喷泉取回行李', skill: 'carry', difficulty: 58, reward: 65 },
+  brew: { bubble: '炼金釜里有什么在敲盖子！', label: '控制炼金异变', skill: 'calm', difficulty: 66, reward: 80 },
 };
+
+const SPECIAL_FACILITY_WANTS = new Set(['bath', 'play', 'show', 'stroll', 'stargaze', 'game', 'brew']);
+const FACILITY_FURN_KINDS = new Set(['pool', 'billiardtable', 'screen', 'fountain', 'telescope', 'arcadem', 'cauldron']);
 
                                                                                         
 
@@ -254,7 +257,7 @@ const JOB_SKILL_WEIGHTS = {
   front: { looks: .25, serve: .4, calm: .35 }, greeter: { looks: .4, serve: .4, calm: .2 },
   server: { serve: .45, carry: .25, calm: .3 }, cook: { cook: .6, clean: .15, calm: .25 },
   bartender: { mix: .6, looks: .2, calm: .2 }, cleaner: { clean: .65, carry: .25, calm: .1 },
-  porter: { carry: .65, clean: .2, calm: .15 },
+  attendant: { carry: .35, clean: .3, calm: .35 }, porter: { carry: .65, clean: .2, calm: .15 },
 };
 
 export function staffAnalysis(staff) {
@@ -291,10 +294,10 @@ export const STAFF_PERKS = Object.freeze([
   { id: 'artisan', name: '匠心出品', skill: 'cook', need: 45, cost: 320, note: '烹饪与调酒动作速度 +10%' },
 ]);
 
-const DUTY_TASK = Object.freeze({ greet: 'front', seat: 'front', checkout: 'front', order: 'service', serve: 'service', cook: 'cook', mix: 'mix', tidy: 'clean', clean: 'clean', bus: 'carry' });
+const DUTY_TASK = Object.freeze({ greet: 'front', seat: 'front', checkout: 'front', order: 'service', serve: 'service', cook: 'cook', mix: 'mix', facility: 'facility', tidy: 'clean', clean: 'clean', bus: 'carry' });
 function defaultDutyPriorities(job = 'free') {
   const rows = Object.fromEntries(DUTIES.map((duty) => [duty, 2]));
-  const primary = { front: 'front', greeter: 'front', server: 'service', cook: 'cook', bartender: 'mix', cleaner: 'clean', porter: 'carry' }[job];
+  const primary = { front: 'front', greeter: 'front', server: 'service', cook: 'cook', bartender: 'mix', attendant: 'facility', cleaner: 'clean', porter: 'carry' }[job];
   if (primary) rows[primary] = 4;
   return rows;
 }
@@ -355,7 +358,7 @@ export function makeStaff(rng     , id        , isOwner         , app           
     ht: Math.round([148, 168, 192][a.ht] + rng.range(-6, 6)), wt: Math.round([46, 62, 88][a.bd] + rng.range(-5, 8)),
     traits, skills, exp, wage: isOwner ? 0 : Math.round((18 + skillSum * 0.14 + rng.range(0, 12)) * (traits.includes('frugal') ? 0.88 : 1)),
     app: a, job: isOwner ? 'greeter' : 'free', dutyMode: 'auto', dutyPriorities: defaultDutyPriorities(isOwner ? 'greeter' : 'free'),
-    equipment: [], perks: [], trainingCount: 0, roomId: null, prio: isOwner ? 2 : plannedStaffPriority(skills, traits), isOwner,
+    equipment: [], perks: [], trainingCount: 0, roomId: null, roomMode: 'prefer', prio: isOwner ? 2 : plannedStaffPriority(skills, traits), isOwner,
     x: 0, y: 0, dir: 0, pose: 'idle', animT: 0, path: [], carry: null, task: null, actT: 0, actTotal: 0,
     needs: { stamina: 100, hunger: 0, stress: 10, morale: 70 }, note: '', bubble: null,
     aff: isOwner ? 100 : Math.round(rng.range(4, 16)), affCd: 0, chats: 0, chatLog: [], aiChatLog: [], background: null, hireDay: 1,
@@ -385,6 +388,9 @@ export class Sim {
   seatOwner = new Map                ();
   /** 设施占用：家具 id -> 组 id（客床/汤池/台球桌） */
   facOwner = new Map                ();
+  pendingFacilityReset = new Map                ();
+  /** 营业期工位预留：家具 id -> 订单 id。 */
+  stationOwner = new Map                ();
   /** 打烊闲聊：名字＋台词，屏幕底部信息条滚动展示，uiTick 计时 */
   chatter                                = [];
   /** 员工之间的关系值 -100..100（key = 小 id-大 id）。店里只有友情与同事情，没有爱情线 */
@@ -418,6 +424,9 @@ export class Sim {
   constructor(tavern        , econ      ) {
     this.tavern = tavern;
     this.econ = econ;
+    const certified = Number(this.econ.certifiedStars);
+    this.econ.certifiedStars = Math.max(0, Math.min(5, Number.isFinite(certified) ? Math.round(certified) : starsOf(this.econ.rep)));
+    this.econ.certificationHistory = Array.isArray(this.econ.certificationHistory) ? this.econ.certificationHistory : [];
     this.rng = new Rng(econ.seed || 12345);
   }
 
@@ -871,6 +880,8 @@ export class Sim {
     this.aiEventRequested = false;
     this.queuedDynamicEvent = null;
     this.facilityChallenges = [];
+    this.stationOwner.clear();
+    this.pendingFacilityReset.clear();
     this.roomUsage = {};
     this.dayActive = true;
     this.running = true;
@@ -884,6 +895,8 @@ export class Sim {
         staff: this.staff.map((s) => ({ id: s.id, name: s.name, job: s.job, skills: { ...s.skills }, needs: { ...s.needs } })),
       },
       work: {}, dishSales: {}, facilitySales: {}, stockUsed: {}, lostReasons: {}, events: [], moments: [],
+      facilityByFurn: {},
+      facilityService: { started: 0, completed: 0, byType: {} }, facilityChallenges: { started: 0, resolved: 0, failed: 0 },
     };
     // 过夜住宿客保留，开门即按住宿价统一结账送客；其余客人清场
     const lodgers = this.groups.filter((g) => g.overnight);
@@ -925,17 +938,16 @@ export class Sim {
       for (const k of ING_KEYS) this.econ.stock[k] += plan.items[k].amount;
     }
     const avg = this.scores.length ? this.scores.reduce((a, b) => a + b, 0) / this.scores.length : 3;
-    const repDelta = dayReputationDelta(avg, this.econ.served, this.econ.lost, this.econ.day, starsOf(this.econ.rep));
+    const repDelta = dayReputationDelta(avg, this.econ.served, this.econ.lost, this.econ.day, this.stars());
     this.econ.rep = Math.max(0, this.econ.rep + repDelta);
     // 客人结账时收入已经实时计入 coins；日结只扣除当日成本。
     // revenue 仅用于结算展示与统计，不能在这里再次入账。
     this.econ.coins -= wages + maintenance + restock;
-    const creditLine = -(150 + starsOf(this.econ.rep) * 150);
+    const creditLine = -(150 + this.stars() * 150);
     if (this.econ.coins < creditLine) this.econ.strikes++; else this.econ.strikes = 0;
     const sealed = this.econ.strikes >= 3;
     if (sealed) this.sealed = true;
-    const fiveStarReached = !this.endingSeen && starsOf(this.econ.rep) >= 5;
-    if (fiveStarReached) this.endingSeen = true;
+    let fiveStarReached = false;
     // 店长每完成一场经营都会获得全能力成长。独立记录，供日结特效和叙事说明使用。
     const owner = this.staff.find((s) => s.isOwner);
     const ownerSkillGrowth = {};
@@ -978,6 +990,13 @@ export class Sim {
       coinsAfter: this.econ.coins, sealed, creditLine, scoreBreakdown, fiveStarReached, ownerSkillGrowth,
     };
     stat.report = this.finishDayReport(stat);
+    stat.certification = this.evaluateCertification(stat);
+    if (stat.certification.achieved) {
+      this.econ.certifiedStars = stat.certification.level;
+      fiveStarReached = !this.endingSeen && this.stars() >= 5;
+      if (fiveStarReached) this.endingSeen = true;
+      stat.fiveStarReached = fiveStarReached;
+    }
     this.lastStat = stat;
     return stat;
   }
@@ -1004,6 +1023,7 @@ export class Sim {
     const report = this.dayReport || {
       day: stat.day, started: { coins: stat.coinsAfter - (stat.revenue - stat.wages - stat.maintenance - stat.restock), rep: this.econ.rep - stat.repDelta, stock: {}, staff: [] },
       work: {}, dishSales: {}, facilitySales: {}, stockUsed: {}, lostReasons: {}, events: [], moments: [],
+      facilityByFurn: {}, facilityService: { started: 0, completed: 0, byType: {} }, facilityChallenges: { started: 0, resolved: 0, failed: 0 },
     };
     const byId = new Map(this.staff.map((s) => [s.id, s]));
     report.finished = {
@@ -1031,7 +1051,43 @@ export class Sim {
     return report;
   }
 
-  stars()         { return starsOf(this.econ.rep); }
+  stars()         { return Math.max(0, Math.min(5, Math.round(Number(this.econ.certifiedStars) || 0))); }
+
+  evaluateCertification(stat = this.lastStat) {
+    const level = Math.min(5, this.stars() + 1);
+    if (!stat || this.stars() >= 5) return { level: this.stars(), achieved: false, complete: true, requirements: [] };
+    const rule = STAR_CERTIFICATIONS[level];
+    const report = stat.report || this.dayReport || {};
+    const add = (label, current, target, met) => ({ label, current, target, met: !!met });
+    const requirements = [
+      add('声望', Math.round(this.econ.rep), STAR_THRESHOLDS[level], this.econ.rep >= STAR_THRESHOLDS[level]),
+      add('单日服务人数', stat.served, rule.served, stat.served >= rule.served),
+      add('平均评分', Number(stat.avgScore.toFixed(2)), rule.avgScore, stat.avgScore >= rule.avgScore),
+    ];
+    if (rule.requireDrinkOrStay) {
+      const drank = Object.keys(report.dishSales || {}).some((id) => this.dishOf(id)?.drink && (report.dishSales[id]?.count || 0) > 0);
+      const stayed = (report.facilitySales?.sleep?.count || 0) > 0;
+      requirements.push(add('饮品或住宿消费', drank || stayed ? 1 : 0, 1, drank || stayed));
+    }
+    const specialTypes = Object.entries(report.facilitySales || {}).filter(([id, row]) => SPECIAL_FACILITY_WANTS.has(id) && (row.count || 0) > 0).length;
+    if (rule.specialTypes) requirements.push(add('特殊设施消费种类', specialTypes, rule.specialTypes, specialTypes >= rule.specialTypes));
+    if (Number.isFinite(rule.maxLost)) requirements.push(add('客人流失', stat.lost, `≤${rule.maxLost}`, stat.lost <= rule.maxLost));
+    if (rule.minFacilityCompletion) {
+      const service = report.facilityService || { started: 0, completed: 0 };
+      const ratio = service.started ? service.completed / service.started : 0;
+      requirements.push(add('设施服务完成率', `${Math.round(ratio * 100)}%`, `${Math.round(rule.minFacilityCompletion * 100)}%`, ratio >= rule.minFacilityCompletion));
+    }
+    if (rule.requireNoOpenChallenges) {
+      const c = report.facilityChallenges || { started: 0, resolved: 0, failed: 0 };
+      const open = Math.max(0, c.started - c.resolved - c.failed);
+      requirements.push(add('未解决设施事故', open, 0, open === 0));
+    }
+    const achieved = requirements.every((row) => row.met);
+    const result = { day: stat.day, level, achieved, complete: false, requirements };
+    this.econ.certificationHistory.push(result);
+    if (this.econ.certificationHistory.length > 40) this.econ.certificationHistory.shift();
+    return result;
+  }
 
   // ---------- 主循环 ----------
   update(dt        )       {
@@ -1206,7 +1262,7 @@ export class Sim {
 
   /** 菜品供应状态：上架 / 设施 / 厨师技能 / 库存 四道闸，菜单面板与出品过滤共用 */
   dishStatus(d      )                                                                                       {
-    const hasBar = this.tavern.rooms.some((r) => r.kind === 'bar') && this.tavern.furnsOfKind('keg').length > 0;
+    const hasBar = this.tavern.furnsOfKind('keg').some((f) => ['bar', 'parlor'].includes(this.tavern.roomOfFurn(f)?.kind));
     const hasKitchen = this.tavern.rooms.some((r) => r.kind === 'kitchen')
       && this.tavern.furnsOfKind('stove').length > 0 && this.tavern.furnsOfKind('pass').length > 0;
     const best = this.bestSkill(d.drink ? 'mix' : 'cook').value;
@@ -1338,9 +1394,31 @@ export class Sim {
   }
 
   /** 设施型需求：占住设施并各自走过去 */
-          tryUseFacility(g       )          {
+  tryUseFacility(g       )          {
     const w = wantById(g.want);
-    const f = this.findFacility(w, g.size);
+    const special = SPECIAL_FACILITY_WANTS.has(w.id);
+    const f = g.facId ? this.tavern.furnById(g.facId) : this.findFacility(w, g.size);
+    if (!f) return false;
+    if (!g.facId) {
+      this.facOwner.set(f.id, g.id);
+      g.facId = f.id;
+    }
+    if (special && !g.facilityPrepared) {
+      g.state = 'facility_prepare';
+      g.facilityService = { prepared: false, escorted: false, attended: false };
+      if (this.dayReport) {
+        this.dayReport.facilityService.started++;
+        const row = this.dayReport.facilityService.byType[w.id] || { started: 0, completed: 0 };
+        row.started++;
+        this.dayReport.facilityService.byType[w.id] = row;
+      }
+      return true;
+    }
+    return this.startFacilityTravel(g);
+  }
+
+  startFacilityTravel(g) {
+    const f = this.tavern.furnById(g.facId);
     if (!f) return false;
     const spots = this.facilitySpots(f);
     if (!spots.length) return false;
@@ -1353,12 +1431,38 @@ export class Sim {
       paths.push(p);
     }
     // 站位比人少时会有人挤在同一格：走到就算到，不强求踩准（见 toFac 的到位判定）
-    this.facOwner.set(f.id, g.id);
-    g.facId = f.id;
     g.state = 'toFac';
     g.facT = 0;
     g.members.forEach((m, i) => { m.path = paths[i]; });
     return true;
+  }
+
+  facilitySkill(wantId) {
+    return FACILITY_CHALLENGES[wantId]?.skill || 'calm';
+  }
+
+  beginFacilityUse(g, staff = null) {
+    const f = this.tavern.furnById(g.facId);
+    if (!f || g.state === 'using') return false;
+    const t = furnDef(f.kind).time;
+    g.state = 'using';
+    g.useT = t ? t[f.quality - 1] : 22;
+    g.facilityService = { ...(g.facilityService || {}), attended: true, attendant: staff?.name || '' };
+    g.facilityAttendantSkill = staff ? staff.skills[this.facilitySkill(g.want)] : 0;
+    for (const m of g.members) {
+      m.pose = 'idle';
+      m.dir = Math.abs(m.x - f.x) > Math.abs(m.y - f.y) ? (m.x > f.x ? 1 : 3) : (m.y > f.y ? 2 : 0);
+    }
+    this.fx.push({ x: f.x + 0.5, y: f.y + 0.5, t: 0.6, kind: 'serve' });
+    this.sounds.push(f.kind === 'pool' || f.kind === 'fountain' || f.kind === 'cauldron' ? 'splash' : f.kind === 'screen' || f.kind === 'telescope' || f.kind === 'arcadem' ? 'chime' : 'cue');
+    this.maybeStartFacilityChallenge(g);
+    return true;
+  }
+
+  hasFacilityCoverage(want) {
+    const rooms = new Set(this.facilitiesOf(want).map((f) => this.tavern.roomOfFurn(f)?.id).filter(Boolean));
+    return this.staff.some((staff) => this.dutyFit('facility', staff) >= 0
+      && (!staff.roomId || staff.roomMode !== 'strict' || rooms.has(staff.roomId)));
   }
 
           releaseFacility(g       )       {
@@ -1375,6 +1479,7 @@ export class Sim {
     g.state = 'wait';
     g.patience = g.maxPatience;
     g.facT = 0; g.orderId = 0; g.tableId = 0;
+    g.facilityPrepared = false; g.facilityService = null; g.facilityAttendantSkill = 0; g.challengeRolled = false;
     for (const m of g.members) { if (m.seatId) this.seatOwner.delete(m.seatId); m.seatId = 0; m.path = []; }
     this.toast('住店客消费完，回房休息去了');
     return true;
@@ -1465,14 +1570,15 @@ export class Sim {
     });
   }
 
-  maybeStartFacilityChallenge(g, dt) {
-    if (g.challengeStarted || g.state === 'leaving' || g.overnight) return;
+  maybeStartFacilityChallenge(g) {
+    if (g.challengeRolled || g.state === 'leaving' || g.overnight) return;
+    g.challengeRolled = true;
     const def = FACILITY_CHALLENGES[g.want];
-    if (!def || !this.rng.chance(dt * .035)) return;
-    g.challengeStarted = true;
+    if (!def || !this.rng.chance(.2)) return;
     const guest = g.members[0];
     const challenge = { id: this.id(), groupId: g.id, guestId: guest.id, ...def, state: 'open', age: 0 };
     this.facilityChallenges.push(challenge);
+    if (this.dayReport) this.dayReport.facilityChallenges.started++;
     guest.bubble = { text: def.bubble, t: 12 };
     this.toast(`⚠ ${guest.name}：${def.bubble}`);
     this.sounds.push('alert');
@@ -1485,17 +1591,19 @@ export class Sim {
     challenge.state = success ? 'success' : 'failed';
     challenge.staff = staff?.name || '';
     if (success) {
-      this.econ.coins += challenge.reward; this.econ.revenue += challenge.reward; this.econ.rep += challenge.rep;
-      if (guest) { guest.aff = clamp((guest.aff || 0) + 5, -100, 100); guest.bubble = { text: `${staff.name}解决得太漂亮了！`, t: 5 }; }
+      this.econ.coins += challenge.reward; this.econ.revenue += challenge.reward;
+      if (this.dayReport) this.dayReport.facilityChallenges.resolved++;
+      if (guest) { guest.aff = clamp((guest.aff || 0) + 5, -100, 100); guest.bubble = { text: `${staff?.name || '员工'}解决得太漂亮了！`, t: 5 }; }
       if (group) { group.praised++; group.patience = Math.min(group.maxPatience, group.patience + 18); }
-      this.toast(`挑战成功：${staff.name}完成“${challenge.label}” +${challenge.reward} 界币 / +${challenge.rep} 声望`);
-      this.fx.push({ x: guest?.x || staff.x, y: guest?.y || staff.y, t: 1.1, kind: 'happy' }); this.sounds.push('powerup');
+      this.recordScoreParts({ service: 4.8, comfort: 4.5 });
+      this.toast(`挑战成功：${staff?.name || '员工'}完成“${challenge.label}” +${challenge.reward} 界币`);
+      this.fx.push({ x: guest?.x || staff?.x || 0, y: guest?.y || staff?.y || 0, t: 1.1, kind: 'happy' }); this.sounds.push('powerup');
     } else {
-      this.econ.rep = Math.max(0, this.econ.rep - challenge.penalty);
+      if (this.dayReport) this.dayReport.facilityChallenges.failed++;
       if (guest) { guest.aff = clamp((guest.aff || 0) - 5, -100, 100); guest.bubble = { text: '这可不像一家靠谱的旅店！', t: 5 }; }
       if (group) group.mocked++;
       this.recordScoreParts({ service: 1.4, comfort: 1.6 });
-      this.toast(`挑战失败：“${challenge.label}”未解决，声望 -${challenge.penalty}`);
+      this.toast(`挑战失败：“${challenge.label}”未解决，本次服务评价下降`);
       this.fx.push({ x: guest?.x || staff?.x || 0, y: guest?.y || staff?.y || 0, t: 1.1, kind: 'sad' }); this.sounds.push('angry');
     }
   }
@@ -1506,7 +1614,7 @@ export class Sim {
 
   tickGroups(dt        )       {
     for (const g of [...this.groups]) {
-      if (g.state === 'using' || g.state === 'eating') this.maybeStartFacilityChallenge(g, dt);
+      if (g.state === 'eating') this.maybeStartFacilityChallenge(g);
       for (const challenge of this.facilityChallenges.filter((item) => item.groupId === g.id && item.state === 'open')) challenge.age += dt;
       if (g.state === 'wait' && !g.greeted) {
         const arrived = g.members.every((member) => !member.path.length);
@@ -1518,7 +1626,7 @@ export class Sim {
           this.completeGreeting(g, greeter);
         }
       }
-      if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered') {
+      if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered' || g.state === 'facility_prepare' || g.state === 'facility_waiting_attend') {
         g.patience -= dt * (1 + (g.state === 'ordered' ? 0.15 : 0));
         if (g.patience <= 0) { this.leave(g, g.state === 'wait' ? '在前台等太久' : '等菜太久'); continue; }
       }
@@ -1542,15 +1650,8 @@ export class Sim {
           for (const m of g.members) m.path = [];
           const f = this.tavern.furnById(g.facId);
           if (!f) { this.leave(g, ''); continue; }
-          const t = furnDef(f.kind).time                        ;
-          g.state = 'using';
-          g.useT = t ? t[f.quality - 1] : 22;
-          for (const m of g.members) {
-            m.pose = 'idle';
-            m.dir = Math.abs(m.x - f.x) > Math.abs(m.y - f.y) ? (m.x > f.x ? 1 : 3) : (m.y > f.y ? 2 : 0);
-          }
-          this.fx.push({ x: f.x + 0.5, y: f.y + 0.5, t: 0.6, kind: 'serve' });
-          this.sounds.push(f.kind === 'pool' || f.kind === 'fountain' || f.kind === 'cauldron' ? 'splash' : BED_KINDS.includes(f.kind) ? 'snore' : f.kind === 'screen' || f.kind === 'telescope' || f.kind === 'arcadem' ? 'chime' : 'cue');
+          if (SPECIAL_FACILITY_WANTS.has(g.want)) g.state = 'facility_waiting_attend';
+          else this.beginFacilityUse(g);
         }
       }
       if (g.state === 'using') {
@@ -1691,7 +1792,8 @@ export class Sim {
     const dish = order ? this.dishOf(order.dishId) : DISHES[0];
     const table = this.tavern.furnById(g.tableId);
     const room = table ? this.tavern.roomOfFurn(table) : null;
-    const revenue = Math.round(dish.price * this.econ.markup * g.size);
+    const parlorPremium = room?.kind === 'parlor' ? 1.25 : 1;
+    const revenue = Math.round(dish.price * this.econ.markup * g.size * parlorPremium);
     this.econ.coins += revenue;
     this.econ.revenue += revenue;
     this.econ.served += g.size;
@@ -1707,8 +1809,8 @@ export class Sim {
       + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75), 1, 5);
     const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
     const roomCharm = room ? this.charmIn(room.id) : 0;
-    const comfort = clamp(1.6 + (table ? table.quality : 1) * 0.8 + (room ? room.quality * 0.4 : 0) + roomCharm, 1, 5);
-    const spectacle = clamp(1.8 + this.tavern.rooms.length * 0.25 + this.tavern.furns.length * 0.03 + this.charmTotal() * 0.18, 1, 5);
+    const comfort = clamp(1.6 + (table ? table.quality : 1) * 0.8 + (room ? room.quality * 0.4 : 0) + roomCharm + (room?.kind === 'parlor' ? .45 : 0), 1, 5);
+    const spectacle = clamp(1.8 + this.tavern.rooms.length * 0.25 + this.tavern.furns.length * 0.03 + this.charmTotal() * 0.18 + (room?.kind === 'parlor' ? .35 : 0), 1, 5);
     const score = (taste * 1.25 + waitPen * 1.15 + serveScore + hygiene * 1.1 + comfort * 0.85 + spectacle * 0.65) / 6.0;
     this.scores.push(score);
     this.recordScoreParts({ quality: taste, wait: waitPen, service: serveScore, hygiene, comfort, spectacle });
@@ -1745,17 +1847,32 @@ export class Sim {
     this.econ.revenue += revenue;
     this.econ.served += g.size;
     this.recordDaySale('facilitySales', g.want, w.name, g.size, revenue);
+    if (this.dayReport && f) {
+      const row = this.dayReport.facilityByFurn[f.id] || { count: 0, revenue: 0 };
+      row.count += g.size; row.revenue += revenue;
+      this.dayReport.facilityByFurn[f.id] = row;
+    }
     const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
     const charm = room ? this.charmIn(room.id) : 0;
     const comfort = clamp(1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm, 1, 5);
-    const serveScore = clamp(2 + this.bestSkill('serve').value / 34 + (g.greeted ? 0.5 : 0)
+    const facilityService = SPECIAL_FACILITY_WANTS.has(g.want);
+    const serviceSkill = facilityService ? (g.facilityAttendantSkill || 0) : this.bestSkill('serve').value;
+    const serveScore = clamp(2 + serviceSkill / 34 + (g.greeted ? 0.5 : 0)
       + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75), 1, 5);
+    if (this.dayReport && f) {
+      const row = this.dayReport.facilityByFurn[f.id];
+      row.qualityTotal = (row.qualityTotal || 0) + serveScore * g.size;
+      row.qualitySamples = (row.qualitySamples || 0) + g.size;
+    }
     const spectacle = clamp(1.8 + this.tavern.rooms.length * 0.25 + this.charmTotal() * 0.2, 1, 5);
     const waitPen = clamp(3 + (g.patience / g.maxPatience) * 2.4, 1, 5);
     const score = (comfort * 1.5 + hygiene * 1.2 + waitPen + serveScore * 0.8 + spectacle * 0.5) / 5.0;
     this.scores.push(score);
     this.recordScoreParts({ quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, spectacle });
-    if (f) f.dirty = (f.dirty || 0) + 1;                 // 用完要整理，整理前不再接客
+    if (f) {
+      f.dirty = (f.dirty || 0) + 1;                 // 用完要整理，整理前不再接客
+      if (facilityService) this.pendingFacilityReset.set(f.id, { wantId: g.want, groupId: g.id });
+    }
     if (room) room.clean = clamp(room.clean - g.size * 0.7, 0, 100);
     const m0 = g.members[0];
     const dx = Math.round(m0.x), dy = Math.round(m0.y);
@@ -2035,7 +2152,9 @@ export class Sim {
     return m;
   }
 
-          tickStaff(dt        )       {
+  tickStaff(dt        )       {
+    this.stationOwner.clear();
+    for (const worker of this.staff) for (const id of worker.task?.stationIds || []) if (!this.stationOwner.has(id)) this.stationOwner.set(id, worker.task.key);
     const staffOrder = [...this.staff].sort((a, b) => (b.prio || 0) - (a.prio || 0) || a.id - b.id);
     const claimed = new Set        ();
     const taskProgress = (s       )         => !s.task ? -1 : (s.task.i || 0) * 10
@@ -2183,7 +2302,8 @@ export class Sim {
       greet: { front: 90, greeter: 60, free: 25, server: 15 },
       seat: { front: 92, greeter: 55, server: 25, free: 18 },
       checkout: { front: 95, server: 35, greeter: 18, free: 15 },
-      tidy: { cleaner: 60, free: 25, porter: 18, server: 10, greeter: 8 },
+      facility: { attendant: 90, cleaner: 25, porter: 20, free: 15, front: 8, greeter: 8 },
+      tidy: { cleaner: 60, attendant: 45, free: 25, porter: 18, server: 10, greeter: 8 },
       order: { server: 55, greeter: 25, free: 25, bartender: 10 },
       cook: { cook: 60, free: 18 },
       mix: { bartender: 60, cook: 20, free: 15 },
@@ -2207,15 +2327,19 @@ export class Sim {
   /** 只读的工作积压快照，供 UI 展示；不会像 buildTasks 那样改变订单状态。 */
   workQueue() {
     const byKey = new Map();
-    const add = (key, kind, label, age = 0) => {
+    const add = (key, kind, label, age = 0, roomId = null) => {
       if (!key || byKey.has(key)) return;
       const owner = this.staff.find((s) => s.task && s.task.key === key);
-      const eligible = this.staff.filter((s) => this.dutyFit(kind, s) >= 0);
+      const resolvedRoomId = owner?.task?.roomId || roomId;
+      const eligible = this.staff.filter((s) => this.dutyFit(kind, s) >= 0
+        && (!s.roomId || s.roomMode !== 'strict' || !resolvedRoomId || s.roomId === resolvedRoomId));
+      const room = resolvedRoomId ? this.tavern.roomById(resolvedRoomId) : null;
       byKey.set(key, {
         key, kind, label, age: Math.max(0, age),
+        room: room ? (ROOM_LABEL[room.kind] || room.kind) : '',
         staff: owner ? owner.name : '',
         status: owner ? (owner.path && owner.path.length ? '前往中' : '处理中') : '待领取',
-        reason: owner ? '' : eligible.length ? '等待员工空闲' : '没有匹配岗位',
+        reason: owner ? '' : eligible.length ? '等待员工空闲' : (room ? '没有覆盖该区域的匹配岗位' : '没有匹配岗位'),
       });
     };
 
@@ -2223,6 +2347,12 @@ export class Sim {
     for (const g of this.groups) {
       if (g.state === 'wait' && !g.greeted) add(`greet:${g.id}`, 'greet', '招呼客人', this.dayT - (g.enterT || this.dayT));
       if (g.state === 'wait' && g.greeted) add(`seat:${g.id}`, 'seat', '引导入座', this.dayT - (g.enterT || this.dayT));
+      const facility = g.facId ? this.tavern.furnById(g.facId) : null;
+      const facilityRoomId = facility ? this.tavern.roomOfFurn(facility)?.id || null : null;
+      if (g.state === 'facility_prepare') add(`facility-prepare:${g.id}`, 'facility', '等待准备设施', this.dayT - (g.enterT || this.dayT), facilityRoomId);
+      if (g.state === 'facility_escort') add(`facility-escort:${g.id}`, 'seat', '等待迎宾带位', this.dayT - (g.enterT || this.dayT));
+      if (g.state === 'toFac') add(`facility-escort:${g.id}`, 'seat', '带位中', this.dayT - (g.enterT || this.dayT), facilityRoomId);
+      if (g.state === 'facility_waiting_attend') add(`facility-attend:${g.id}`, 'facility', '等待场务照看', this.dayT - (g.enterT || this.dayT), facilityRoomId);
       if (g.state === 'seated' && !g.orderId) add(`order:${g.id}`, 'order', '点单', this.dayT - (g.enterT || this.dayT));
       if (g.state === 'checkout') add(`checkout:${g.id}`, 'checkout', '前台结账', this.dayT - (g.checkoutT || this.dayT));
     }
@@ -2237,10 +2367,33 @@ export class Sim {
     for (const f of this.tavern.furns) {
       if (f.kind === 'table' && (f.dirty || 0) > 0) add(`bus:${f.id}`, 'bus', '收台');
       if (['bed', 'doublebed', 'kingbed', 'pool', 'billiardtable', 'screen', 'fountain', 'telescope', 'arcadem', 'cauldron'].includes(f.kind)
-        && (f.dirty || 0) > 0 && !this.facOwner.has(f.id)) add(`tidy:${f.id}`, 'tidy', '整理设施');
+        && (f.dirty || 0) > 0 && !this.facOwner.has(f.id)) {
+        const roomId = this.tavern.roomOfFurn(f)?.id || null;
+        add(`tidy:${f.id}`, FACILITY_FURN_KINDS.has(f.kind) ? 'facility' : 'tidy', '整理设施', 0, roomId);
+      }
     }
     for (const d of this.tavern.dirt) add(`clean:${d.x},${d.y}`, 'clean', '清洁');
     return [...byKey.values()].sort((a, b) => (a.staff ? 1 : 0) - (b.staff ? 1 : 0) || b.age - a.age || a.label.localeCompare(b.label, 'zh-CN'));
+  }
+
+  facilityStatus(f) {
+    if (!f || !FACILITY_FURN_KINDS.has(f.kind)) return null;
+    const groupId = this.facOwner.get(f.id);
+    const group = groupId ? this.groups.find((g) => g.id === groupId) : null;
+    const labels = {
+      facility_prepare: '等待准备', facility_escort: '等待带位', toFac: '带位中',
+      facility_waiting_attend: '等待照看', using: '使用中',
+    };
+    const wantId = group?.want || this.pendingFacilityReset.get(f.id)?.wantId;
+    const sale = wantId ? this.dayReport?.facilitySales?.[wantId] : null;
+    const ownSale = this.dayReport?.facilityByFurn?.[f.id];
+    return {
+      state: (f.dirty || 0) > 0 ? '待整理' : group ? (labels[group.state] || group.state) : '可用',
+      uses: ownSale?.count || 0,
+      revenue: ownSale?.revenue || 0,
+      quality: ownSale?.qualitySamples ? ownSale.qualityTotal / ownSale.qualitySamples
+        : group?.facilityAttendantSkill ? clamp(2 + group.facilityAttendantSkill / 34, 1, 5) : null,
+    };
   }
 
   /** 正常迎宾任务和超时兜底共用；重复完成不会重复增加耐心。 */
@@ -2324,6 +2477,56 @@ export class Sim {
         } }],
       });
     }
+    // 特殊设施必须经过准备、迎宾带路和场务照看，不能再由客人自助结算。
+    for (const g of this.groups) {
+      if (!SPECIAL_FACILITY_WANTS.has(g.want) || !g.facId) continue;
+      const f = this.tavern.furnById(g.facId);
+      const room = f ? this.tavern.roomOfFurn(f) : null;
+      if (!f || !room) continue;
+      if (g.state === 'facility_prepare') {
+        const key = `facility-prepare:${g.id}`;
+        if (claimed.has(key)) continue;
+        const stand = this.facilitySpots(f)[0] || this.nearStand(f.x, f.y);
+        if (!stand) continue;
+        out.push({ kind: 'facility', key, label: `准备${wantById(g.want).name}设施`, roomId: room.id, i: 0, steps: [
+          { tx: stand.x, ty: stand.y },
+          { dur: 2.4, label: '准备设施', skill: this.facilitySkill(g.want), done: (staff) => {
+            if (g.state !== 'facility_prepare') return;
+            g.facilityPrepared = true;
+            g.facilityService = { ...(g.facilityService || {}), prepared: true, preparedBy: staff.name };
+            g.state = 'facility_escort';
+          } },
+        ] });
+      } else if (g.state === 'facility_escort') {
+        const key = `facility-escort:${g.id}`;
+        if (claimed.has(key)) continue;
+        const guest = g.members[0];
+        const from = this.nearStand(Math.round(guest.x), Math.round(guest.y));
+        const to = this.facilitySpots(f)[0] || this.nearStand(f.x, f.y);
+        if (!from || !to) continue;
+        const foyer = this.tavern.roomAt(Math.round(guest.x), Math.round(guest.y));
+        out.push({ kind: 'seat', key, label: `带客前往${ROOM_LABEL[room.kind] || '设施区'}`, roomId: foyer?.id || null, i: 0, steps: [
+          { tx: from.x, ty: from.y },
+          { dur: 1.0, label: '说明路线', skill: 'serve', done: (staff) => {
+            if (g.state !== 'facility_escort') return;
+            g.facilityService = { ...(g.facilityService || {}), escorted: true, escortedBy: staff.name };
+            this.startFacilityTravel(g);
+          } },
+          { tx: to.x, ty: to.y },
+        ] });
+      } else if (g.state === 'facility_waiting_attend') {
+        const key = `facility-attend:${g.id}`;
+        if (claimed.has(key)) continue;
+        const stand = this.facilitySpots(f)[0] || this.nearStand(f.x, f.y);
+        if (!stand) continue;
+        out.push({ kind: 'facility', key, label: `照看${wantById(g.want).name}客人`, roomId: room.id, i: 0, steps: [
+          { tx: stand.x, ty: stand.y },
+          { dur: 1.8, label: '确认设施安全', skill: this.facilitySkill(g.want), done: (staff) => {
+            if (g.state === 'facility_waiting_attend') this.beginFacilityUse(g, staff);
+          } },
+        ] });
+      }
+    }
     // 点单
     for (const g of this.groups) {
       if (g.state !== 'seated') continue;
@@ -2397,7 +2600,8 @@ export class Sim {
               if (g.state === 'ordered') {
                 g.state = 'eating';
                 g.servedT = this.dayT;
-                g.eatT = 10 + this.rng.range(0, 8);
+                const tableRoom = this.tavern.roomOfFurn(table);
+                g.eatT = (10 + this.rng.range(0, 8)) * (servedDish.drink && tableRoom?.kind === 'bar' ? .85 : 1);
                 this.fx.push({ x: table.x, y: table.y, t: 0.5, kind: 'serve' });
                 this.sounds.push('serve');
               }
@@ -2444,14 +2648,26 @@ export class Sim {
         if (!stand) continue;
         const label = BED_KINDS.includes(kind) ? '换床单' : kind === 'pool' ? '打理水面' : kind === 'screen' ? '收拾场地' : kind === 'fountain' ? '清理水池'
           : kind === 'telescope' ? '校准镜片' : kind === 'arcadem' ? '复位街机' : kind === 'cauldron' ? '清洗炼金釜' : '摆球';
+        const special = FACILITY_FURN_KINDS.has(kind);
+        const room = this.tavern.roomOfFurn(f);
         out.push({
-          kind: 'tidy', key, label, i: 0,
+          kind: special ? 'facility' : 'tidy', key, label, roomId: room?.id || null, i: 0,
           steps: [{ tx: stand.x, ty: stand.y }, {
             dur: 3.0, label, skill: 'clean', done: () => {
               f.dirty = 0;
               this.sounds.push('clean');
               const room = this.tavern.roomOfFurn(f);
               if (room) room.clean = clamp(room.clean + 4, 0, 100);
+              const pending = this.pendingFacilityReset.get(f.id);
+              if (pending) {
+                this.pendingFacilityReset.delete(f.id);
+                if (this.dayReport) {
+                  this.dayReport.facilityService.completed++;
+                  const row = this.dayReport.facilityService.byType[pending.wantId] || { started: 0, completed: 0 };
+                  row.completed++;
+                  this.dayReport.facilityService.byType[pending.wantId] = row;
+                }
+              }
             },
           }],
         });
@@ -2479,7 +2695,7 @@ export class Sim {
   }
 
   buildCookTask(o       , dish      , key        )              {
-    const kitchens = this.tavern.rooms.filter((r) => r.kind === (dish.drink ? 'bar' : 'kitchen'));
+    const kitchens = this.tavern.rooms.filter((r) => dish.drink ? ['bar', 'parlor'].includes(r.kind) : r.kind === 'kitchen');
     if (!kitchens.length) return null;
     const shelves = this.tavern.furnsOfKind('shelf');
     const iceboxes = this.tavern.furnsOfKind('icebox');
@@ -2488,22 +2704,29 @@ export class Sim {
     const passes = this.tavern.furnsOfKind('pass');
     if ((!shelves.length && !iceboxes.length) || !stoves.length || (!dish.drink && !passes.length)) return null;
     if (!dish.drink && !preps.length) return null;
-    const stove = stoves[0], passF = dish.drink ? stove : passes[0];
-    // 灶台同房间的冰柜优先：省掉往储藏室跑的那趟
-    const stoveRoom = this.tavern.roomOfFurn(stove);
-    const nearIce = iceboxes.find((f) => {
-      const r = this.tavern.roomOfFurn(f);
-      return !!r && !!stoveRoom && r.id === stoveRoom.id;
-    });
-    const shelf = nearIce || shelves[0] || iceboxes[0];
-    const prep = preps.length ? preps[0] : null;
-    const passCap = (furnDef(dish.drink ? 'keg' : 'pass').cap            )[passF.quality - 1];
-    if ((passF.plates || 0) >= passCap) return null;
-    const sShelf = this.tavern.standTileNear(this.tavern.useTiles(shelf));
-    const sStove = this.tavern.standTileNear(this.tavern.useTiles(stove));
-    const sPass = dish.drink ? sStove : this.tavern.standTileNear(this.tavern.useTiles(passF));
-    const sPrep = prep ? this.tavern.standTileNear(this.tavern.useTiles(prep)) : null;
-    if (!sShelf || !sStove || !sPass || (prep && !sPrep)) return null;
+    const free = (f) => f && !this.stationOwner.has(f.id);
+    const stand = (f) => f ? this.tavern.standTileNear(this.tavern.useTiles(f)) : null;
+    const dist = (a, b) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    let line = null;
+    for (const stove of stoves.filter(free)) {
+      const stoveRoom = this.tavern.roomOfFurn(stove);
+      if (!stoveRoom || !kitchens.some((room) => room.id === stoveRoom.id)) continue;
+      const roomPreps = dish.drink ? [null] : preps.filter((f) => free(f) && this.tavern.roomOfFurn(f)?.id === stoveRoom.id);
+      const roomPasses = dish.drink ? [stove] : passes.filter((f) => free(f) && this.tavern.roomOfFurn(f)?.id === stoveRoom.id);
+      const roomIce = iceboxes.filter((f) => free(f) && this.tavern.roomOfFurn(f)?.id === stoveRoom.id);
+      const stores = roomIce.length ? roomIce : [...shelves, ...iceboxes].filter(free);
+      for (const shelf of stores) for (const prep of roomPreps) for (const passF of roomPasses) {
+        const passCap = (furnDef(dish.drink ? 'keg' : 'pass').cap            )[passF.quality - 1]
+          + (dish.drink && stoveRoom.kind === 'bar' ? 1 : 0);
+        if ((passF.plates || 0) >= passCap) continue;
+        const sShelf = stand(shelf), sStove = stand(stove), sPrep = prep ? stand(prep) : null, sPass = dish.drink ? sStove : stand(passF);
+        if (!sShelf || !sStove || !sPass || (prep && !sPrep)) continue;
+        const score = dist(sShelf, sPrep || sStove) + (sPrep ? dist(sPrep, sStove) : 0) + dist(sStove, sPass);
+        if (!line || score < line.score) line = { shelf, prep, stove, passF, stoveRoom, sShelf, sPrep, sStove, sPass, score };
+      }
+    }
+    if (!line) return null;
+    const { shelf, prep, stove, passF, stoveRoom, sShelf, sPrep, sStove, sPass } = line;
     // 库存检查
     for (const k of ING_KEYS) {
       const need = dish.ing[k] || 0;
@@ -2531,7 +2754,7 @@ export class Sim {
     const cookSkill           = dish.drink ? 'mix' : 'cook';
     steps.push({ tx: sStove.x, ty: sStove.y });
     steps.push({
-      dur: (furnDef(dish.drink ? 'keg' : 'stove').time            )[stove.quality - 1] * (0.8 + dish.skill / 160) * (dish.fun && dish.fun.includes('huge') ? 1.3 : 1),
+      dur: (furnDef(dish.drink ? 'keg' : 'stove').time            )[stove.quality - 1] * (0.8 + dish.skill / 160) * (dish.fun && dish.fun.includes('huge') ? 1.3 : 1) * (dish.drink && stoveRoom.kind === 'bar' ? 0.8 : 1),
       label: dish.drink ? '调酒' : '烹饪', skill: cookSkill,
       done: (s       ) => {
         o.stage = 'cook';
@@ -2559,7 +2782,10 @@ export class Sim {
         },
       });
     }
-    return { kind: dish.drink ? 'mix' : 'cook', key, label: `${dish.drink ? '调制' : '烹饪'}·${dish.name}`, i: 0, steps };
+    return {
+      kind: dish.drink ? 'mix' : 'cook', key, label: `${dish.drink ? '调制' : '烹饪'}·${dish.name}`, i: 0, steps,
+      roomId: stoveRoom.id, stationIds: [...new Set([shelf.id, prep?.id, stove.id, passF.id].filter(Boolean))],
+    };
   }
 
           chooseDish(g       )              {
@@ -2582,16 +2808,18 @@ export class Sim {
     return null;
   }
 
-          assign(s       , open        )       {
+  assign(s       , open        )       {
     let best              = null; let bestScore = -1e9;
     for (const t of open) {
       const fit = this.dutyFit(t.kind, s);
       if (fit < 0) continue;
+      if ((t.stationIds || []).some((id) => this.stationOwner.has(id))) continue;
       const first = t.steps.find((st) => st.tx !== undefined);
       const dist = first ? Math.abs((first.tx          ) - s.x) + Math.abs((first.ty          ) - s.y) : 0;
       const skill = t.steps.reduce((a, st) => a + (st.skill ? s.skills[st.skill] : 0), 0) / Math.max(1, t.steps.filter((st) => st.skill).length);
       let score = fit + skill * 0.5 - dist * 1.4 + s.needs.stamina * 0.08;
-      const targetRoom = first ? this.tavern.roomAt(first.tx          , first.ty          ) : null;
+      const targetRoom = t.roomId ? this.tavern.roomById(t.roomId) : first ? this.tavern.roomAt(first.tx          , first.ty          ) : null;
+      if (s.roomId && s.roomMode === 'strict' && targetRoom && targetRoom.id !== s.roomId) continue;
       if (s.roomId && targetRoom && targetRoom.id === s.roomId) score += 30;
       else if (s.roomId && targetRoom && targetRoom.id !== s.roomId) score -= 45;
       if (score > bestScore) { bestScore = score; best = t; }
@@ -2604,6 +2832,7 @@ export class Sim {
       if (!p) return;
     }
     s.task = best;
+    for (const id of best.stationIds || []) this.stationOwner.set(id, best.key);
     s.task.i = 0;
     open.splice(open.indexOf(best), 1);
     this.beginStep(s);
@@ -2995,6 +3224,8 @@ export class Sim {
 
   loadState(data                                                                                                                                              )       {
     this.econ = data.econ;
+    this.econ.certifiedStars = clamp(Math.round(Number(this.econ.certifiedStars) || 0), 0, 5);
+    this.econ.certificationHistory = Array.isArray(this.econ.certificationHistory) ? this.econ.certificationHistory : [];
     if (!this.econ.menu) this.econ.menu = {};   // 老存档：全部上架
     if (!this.econ.customDishes) this.econ.customDishes = [];   // 老存档：无自创菜
     if (!this.econ.aiChronicles) this.econ.aiChronicles = [];
@@ -3017,6 +3248,7 @@ export class Sim {
       aff: s.aff === undefined ? (s.isOwner ? 100 : 10) : s.aff,
       prio: replan || s.prio === undefined ? (s.isOwner ? 2 : plannedStaffPriority(s.skills, s.traits || [])) : s.prio,
       dutyMode: s.dutyMode === 'manual' ? 'manual' : 'auto',
+      roomMode: s.roomMode === 'strict' ? 'strict' : 'prefer',
       dutyPriorities: { ...defaultDutyPriorities(s.job), ...(s.dutyPriorities || {}) },
       equipment: Array.isArray(s.equipment) ? [...new Set(s.equipment)] : [],
       perks: Array.isArray(s.perks) ? [...new Set(s.perks)] : [], trainingCount: Math.max(0, Number(s.trainingCount) || 0),
@@ -3048,7 +3280,7 @@ export class Sim {
 
 export function newEcon(seed        )       {
   return {
-    coins: 1200, rep: 12, day: 1, strikes: 0, markup: 1.5, autoRestock: true,
+    coins: 1200, rep: 12, certifiedStars: 0, certificationHistory: [], day: 1, strikes: 0, markup: 1.5, autoRestock: true,
     restockTargets: { ...DEFAULT_RESTOCK_TARGETS }, restockBudget: 600,
     stock: { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 },
     menu: {},

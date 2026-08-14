@@ -1,6 +1,7 @@
 import { DEFAULT_RESTOCK_TARGETS } from './sim.js';
+import { starsOf } from './data.js';
 
-export const SAVE_SCHEMA_VERSION = 3;
+export const SAVE_SCHEMA_VERSION = 4;
 
 function assertShape(data) {
   if (!data || typeof data !== 'object' || !data.tavern || !data.sim || !data.sim.econ || !Array.isArray(data.sim.staff)) {
@@ -31,6 +32,15 @@ export function migrateGameSaveData(source) {
     data.sim.eventChains = data.sim.eventChains && typeof data.sim.eventChains === 'object' ? data.sim.eventChains : {};
     data.meta.version = 3;
     version = 3;
+  }
+  if (version < 4) {
+    data.sim.econ.certifiedStars = Math.max(0, Math.min(5, Math.round(Number(data.sim.econ.certifiedStars) || starsOf(data.sim.econ.rep))));
+    data.sim.econ.certificationHistory = Array.isArray(data.sim.econ.certificationHistory) ? data.sim.econ.certificationHistory : [];
+    for (const staff of data.sim.staff) staff.roomMode = staff.roomMode === 'strict' ? 'strict' : 'prefer';
+    for (const staff of data.sim.pool || []) staff.roomMode = staff.roomMode === 'strict' ? 'strict' : 'prefer';
+    for (const ad of data.sim.ads || []) for (const staff of ad.cands || []) staff.roomMode = staff.roomMode === 'strict' ? 'strict' : 'prefer';
+    data.meta.version = 4;
+    version = 4;
   }
   if (version > SAVE_SCHEMA_VERSION) throw new Error(`存档版本 ${version} 高于当前支持的 ${SAVE_SCHEMA_VERSION}`);
   data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, migratedAt: originalVersion < SAVE_SCHEMA_VERSION ? Date.now() : data.meta.migratedAt || 0 };

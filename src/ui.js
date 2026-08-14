@@ -37,6 +37,7 @@ export const TARGET_RECRUIT_SKILL_PRESETS = [
   { id: 'chef', name: '料理专精', note: '主攻厨艺、清洁与高压出品。', skills: { looks: 38, cook: 76, mix: 50, serve: 42, clean: 58, carry: 44, calm: 52 } },
   { id: 'bartender', name: '调酒专精', note: '主攻调酒、服务与临场应对。', skills: { looks: 48, cook: 42, mix: 76, serve: 58, clean: 44, carry: 42, calm: 54 } },
   { id: 'service', name: '跑堂服务', note: '上菜快、路线稳，兼顾客诉处理。', skills: { looks: 46, cook: 38, mix: 40, serve: 68, clean: 46, carry: 66, calm: 46 } },
+  { id: 'attendant', name: '设施场务', note: '负责设施准备、照看与收尾，兼顾三类特色能力。', skills: { looks: 42, cook: 38, mix: 38, serve: 48, clean: 66, carry: 66, calm: 66 } },
   { id: 'support', name: '后勤清洁', note: '擅长清洁、搬运和稳定现场。', skills: { looks: 38, cook: 44, mix: 38, serve: 42, clean: 72, carry: 68, calm: 48 } },
 ];
 
@@ -463,10 +464,12 @@ export class UI {
     else if (act === 'cancelbuild') g.cancelBuild();
     else if (act === 'rotate') g.rotateBuild();
     else if (act === 'open') g.openDay();
+    else if (act === 'readiness') this.openReadiness();
     else if (act === 'home') { const e = g.tavern.entrance(); g.focusOn(e.x, e.y + 2); }
     else if (act === 'cheat') {
       const e = g.sim.econ;
       e.rep = STAR_THRESHOLDS[5];
+      e.certifiedStars = 5;
       e.coins = 200000;
       g.sim.toast('爽文模式：满星 + 200000 界币，万界任你建');
       g.sim.log.unshift('✨ 爽文降临：星级拉满，界币 200000 到账');
@@ -498,6 +501,7 @@ export class UI {
     else if (act === 'staffperk') g.learnStaffPerk(parseInt(t.dataset.id, 10), v);
     else if (act === 'wage') g.setWage(parseInt(t.dataset.id          , 10), parseInt(v, 10));
     else if (act === 'sroom') g.setStaffRoom(parseInt(t.dataset.id          , 10), v === 'null' ? null : parseInt(v, 10));
+    else if (act === 'roommode') g.setStaffRoomMode(parseInt(t.dataset.id, 10), v);
     else if (act === 'uproom') g.upgradeRoom(parseInt(v, 10));
     else if (act === 'moveroom') g.startMoveRoom(parseInt(v, 10));
     else if (act === 'rstyle') g.setRoomStyle(parseInt(v, 10), t.dataset.s          );
@@ -821,13 +825,14 @@ export class UI {
       <span class="sep"></span>
       <span class="hi"><img class="tic" src="assets/ic-econ.png" alt="币">${Math.round(e.coins)}</span>
       <span>声望 <span class="star">${'★'.repeat(stars)}</span><span class="dim">${'☆'.repeat(5 - stars)}</span> ${Math.round(e.rep)}/${nextTh}</span>
+      ${stars < 5 && e.rep >= nextTh ? `<span class="hi">待完成 ★${stars + 1} 经营认证</span>` : ''}
       ${s.endingSeen ? '<span class="good">🏆 五星认证</span>' : ''}
       ${e.strikes ? `<span class="bad">封印警告 ${e.strikes}/3</span>` : ''}
       ${lowStock.length ? `<span class="bad">缺料：${lowStock.map((k) => ING_LABEL[k]).join('/')}</span>` : ''}
       ${this.dynamicAIStatus?.state === 'loading' ? `<span class="hi">✦ ${htmlText(this.dynamicAIStatus.text)}</span><button data-act="aicanceldynamic">取消</button>` : this.dynamicAIStatus?.state === 'error' ? `<span class="bad">${htmlText(this.dynamicAIStatus.text)}</span><button data-act="airetrydynamic">重试</button>` : ''}
       <span style="flex:1"></span>
       <button data-act="home">回店</button>
-      ${s.dayActive ? '' : '<button data-act="open">开门营业</button>'}
+      ${s.dayActive ? '' : '<button data-act="readiness">营业准备</button><button data-act="open">开门营业</button>'}
       ${tutorial.started && !tutorial.completed && !tutorial.skipped && !this.tutorialActive ? `<button data-act="tutorialresume" class="hi">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>` : ''}
       <button data-act="savemenu">💾 档位 ${this.g.currentSlot}</button>
       <button data-act="help">帮助</button>
@@ -886,7 +891,7 @@ export class UI {
           const ing = ING_KEYS.filter((k) => d.ing[k]).map((k) =>
             `<span class="${e.stock[k] >= (d.ing[k] || 0) ? '' : 'bad'}">${ING_LABEL[k]}×${d.ing[k]}</span>`).join(' ');
           const badges           = [];
-          if (!st.facility) badges.push(drink ? '需酒吧+酒桶' : '需厨房+灶台+出餐口');
+          if (!st.facility) badges.push(drink ? '需酒吧/酒廊+酒桶' : '需厨房+灶台+出餐口');
           if (!st.skillOk) badges.push('厨艺不足');
           if (!st.stockOk) badges.push('缺料');
           if (!st.seasonOk) badges.push(`非当前时令（${d.seasons.map((index) => SEASON_NAMES[index]).join('/')}）`);
@@ -964,9 +969,11 @@ export class UI {
         const pct = Math.round((gr.patience / gr.maxPatience) * 100);
         const o = s.orders.find((x) => x.id === gr.orderId);
         const w = wantById(gr.want);
-        const stateTxt = gr.state === 'wait' ? '前台等位' : gr.state === 'seating' ? '自行入座中'
+        const stateTxt = gr.state === 'wait' ? '前台等位' : gr.state === 'seating' ? '带位中'
           : gr.state === 'seated' ? '等点单' : gr.state === 'ordered' ? '等菜' : gr.state === 'eating' ? '用餐'
-          : gr.state === 'toFac' ? '前往' + w.name : gr.state === 'using' ? (gr.overnight ? '过夜中' : (w.verb || w.name) + '中') : '离店';
+          : gr.state === 'facility_prepare' ? '等待准备' : gr.state === 'facility_escort' ? '等待带位'
+          : gr.state === 'toFac' ? '带位前往' + w.name : gr.state === 'facility_waiting_attend' ? '等待场务照看'
+          : gr.state === 'using' ? (gr.overnight ? '过夜中' : (w.verb || w.name) + '中') : '离店';
         const regular = gr.regularId ? s.regulars.find((profile) => profile.id === gr.regularId) : null;
         return `<div class="card"><div class="row"><b>${gr.size}人组·${w.name}</b><span class="dim">${stateTxt}</span></div>
         ${regular ? `<div class="row"><span class="hi">★ 常客 ${htmlText(regular.name)} · 第 ${regular.visits} 次来店</span><span>好感 ${Math.round(regular.aff)}</span></div>${regular.offer ? `<div class="dim">${htmlText(regular.offer.text)}</div>` : ''}` : ''}
@@ -979,7 +986,7 @@ export class UI {
       body = `<div class="row"><b>工作队列</b><span class="${waiting ? 'bad' : 'good'}">待领取 ${waiting}</span></div>`;
       body += queue.length ? queue.map((q) => `<div class="card">
         <div class="row"><b>${q.label}</b><span class="${q.staff ? 'good' : 'bad'}">${q.status}</span></div>
-        <div class="dim">${q.staff ? `认领：${q.staff}` : q.reason}${q.age >= 1 ? ` · 等待 ${Math.round(q.age)} 秒` : ''}</div>
+        <div class="dim">${q.room ? `区域：${q.room} · ` : ''}${q.staff ? `认领：${q.staff}` : q.reason}${q.age >= 1 ? ` · 等待 ${Math.round(q.age)} 秒` : ''}</div>
       </div>`).join('') : '<div class="dim">目前没有积压工作。</div>';
     } else {
       body = s.log.length ? s.log.slice(0, 24).map((l) => `<div class="dim">· ${l}</div>`).join('') : '<div class="dim">暂无记录。</div>';
@@ -1004,13 +1011,13 @@ export class UI {
         ${bg ? `<button data-act="viewbg" data-v="${p.id}">查看背景</button>` : aiConfigured() ? `<button data-act="aibg" data-v="${p.id}">AI 生成背景</button>` : ''}</div></div>`;
   }
 
-          staffCard(st       )         {
+  staffCard(st       )         {
     const sel = this.g.selection && this.g.selection.kind === 'staff' && this.g.selection.id === st.id;
     const room = st.roomId ? this.g.tavern.roomById(st.roomId) : null;
     return `<div class="card ${sel ? 'sel' : ''}" data-act="selstaff" data-v="${st.id}">
       <div class="row"><img class="portrait list" src="${portraitURL(st.app)}" width="42" height="56">
         <span style="flex:1"><b>${st.name}</b>${st.isOwner ? '<span class="hi">（店主）</span>' : ''}
-          <div class="dim">${JOB_LABEL[st.job]}·${room ? ROOM_LABEL[room.kind] : '全店'}</div></span>
+          <div class="dim">${JOB_LABEL[st.job]}·${room ? `${st.roomMode === 'strict' ? '仅限' : '优先'} ${ROOM_LABEL[room.kind]}` : '全店机动'}</div></span>
       </div>
       <div class="row"><span class="dim">体力</span>${bar(st.needs.stamina, 100, '#8DDB4A')}<span class="dim">士气</span>${bar(st.needs.morale, 100, '#39D7D2')}</div>
       ${st.isOwner ? '' : `<div class="row"><span class="dim">好感</span>${bar(st.aff, 100, this.g.sim.affLevel(st.aff).color)}<span style="color:${this.g.sim.affLevel(st.aff).color}">${this.g.sim.affLevel(st.aff).name}</span></div>`}
@@ -1073,12 +1080,18 @@ export class UI {
     }
   }
 
-          staffDetail(id        )         {
+  staffDetail(id        )         {
     const st = this.g.sim.staff.find((x) => x.id === id);
     if (!st) return '<div class="dim">该员工已不在职。</div>';
     const rooms = this.g.tavern.rooms;
     const wage = fairWageRange(st);
     const totalWages = this.g.sim.staff.filter((person) => !person.isOwner).reduce((sum, person) => sum + person.wage, 0);
+    const roleGuide = {
+      front: ['主责：迎宾、带位、结账', '可补位：桌边服务', '不会做：烹饪、设施服务'], greeter: ['主责：迎宾、带位', '可补位：点单', '不会做：烹饪、设施服务'],
+      server: ['主责：点单、上菜、桌边服务', '可补位：低优先级迎宾', '不会做：设施服务'], attendant: ['主责：设施准备、照看、收尾', '可补位：清洁、搬运', '不会做：烹饪、点单'],
+      cook: ['主责：备餐、烹饪', '可补位：调酒', '不会做：设施服务'], bartender: ['主责：调酒', '可补位：点单', '不会做：设施服务'],
+      cleaner: ['主责：清洁、整理', '可补位：设施收尾', '不会做：迎宾、烹饪'], porter: ['主责：搬运、收台', '可补位：设施服务', '不会做：迎宾、烹饪'], free: ['主责：依能力机动', '可补位：多数普通工作', '不会做：专业岗位优先任务'],
+    }[st.job] || [];
     return `<div class="row" style="align-items:flex-start">
       <img class="portrait compact" src="${portraitURL(st.app)}" width="88" height="113">
       <div style="flex:1">
@@ -1087,6 +1100,7 @@ export class UI {
         <div class="row" style="flex-wrap:wrap">${SKILL_KEYS.map((k) => `<span>${SKILL_LABEL[k]} ${bar(st.skills[k], 100, '#F3B84B')} ${st.skills[k]}</span>`).join('')}</div>
         <div class="row" style="flex-wrap:wrap"><span>体力${bar(st.needs.stamina, 100, '#8DDB4A')}</span><span>饥饿${bar(st.needs.hunger, 100, '#E45AD1')}</span><span>压力${bar(st.needs.stress, 100, '#FF6B5A')}</span><span>士气${bar(st.needs.morale, 100, '#39D7D2')}</span></div>
         <div class="row" style="flex-wrap:wrap">岗位 ${JOBS.map((j) => `<button data-act="job" data-id="${st.id}" data-v="${j}" class="${st.job === j ? 'on' : ''}">${JOB_LABEL[j]}</button>`).join('')}</div>
+        <div class="dim">${roleGuide.join('｜')}</div>
         <div class="row" style="flex-wrap:wrap">职责模式
           <button data-act="dutymode" data-id="${st.id}" data-v="auto" class="${st.dutyMode !== 'manual' ? 'on' : ''}">全自动（岗位模板）</button>
           <button data-act="dutymode" data-id="${st.id}" data-v="manual" class="${st.dutyMode === 'manual' ? 'on' : ''}">自定义优先级</button>
@@ -1094,6 +1108,9 @@ export class UI {
         ${st.dutyMode === 'manual' ? `<div class="row" style="flex-wrap:wrap">${DUTIES.map((duty) => `<span>${DUTY_LABEL[duty]} ${[0, 1, 2, 3, 4].map((p) => `<button data-act="dutyprio" data-id="${st.id}" data-s="${duty}" data-v="${p}" class="${(st.dutyPriorities?.[duty] || 0) === p ? 'on' : ''}" title="${p === 0 ? '禁用此职责' : '数字越高越优先'}">${p}</button>`).join('')}</span>`).join('')}</div>` : '<div class="dim">当前按岗位自动安排；切换为自定义后，0 表示不做，4 表示最高优先。</div>'}
         <div class="row" style="flex-wrap:wrap">房间 <button data-act="sroom" data-id="${st.id}" data-v="null" class="${st.roomId ? '' : 'on'}">全店机动</button>
           ${rooms.map((r) => `<button data-act="sroom" data-id="${st.id}" data-v="${r.id}" class="${st.roomId === r.id ? 'on' : ''}">${ROOM_LABEL[r.kind]}#${r.id}</button>`).join('')}</div>
+        ${st.roomId ? `<div class="row">区域模式
+          <button data-act="roommode" data-id="${st.id}" data-v="prefer" class="${st.roomMode !== 'strict' ? 'on' : ''}">优先区域（可跨区救火）</button>
+          <button data-act="roommode" data-id="${st.id}" data-v="strict" class="${st.roomMode === 'strict' ? 'on' : ''}">仅限区域（不接外区任务）</button></div>` : ''}
         <div class="row" title="数值越高，空闲时越先领取新任务">抢单优先级 ${[0, 1, 2, 3].map((p) => `<button data-act="prio" data-id="${st.id}" data-v="${p}" class="${st.prio === p ? 'on' : ''}">${p}</button>`).join('')}
           ${st.isOwner ? '<span class="dim">店主不领取工资</span>' : `<span>日薪 ${st.wage}</span><button data-act="wage" data-id="${st.id}" data-v="${st.wage + 5}" title="涨薪后全店日薪 ${totalWages + 5}">+5</button><button data-act="wage" data-id="${st.id}" data-v="${Math.max(5, st.wage - 5)}" title="降薪后全店日薪 ${totalWages - st.wage + Math.max(5, st.wage - 5)}">-5</button>`}
           <button data-act="dress" data-v="${st.id}">换装</button>
@@ -1140,7 +1157,7 @@ export class UI {
     </div></div>`;
   }
 
-          furnDetail(id        )         {
+  furnDetail(id        )         {
     const f = this.g.tavern.furnById(id);
     if (!f) return '<div class="dim">家具不存在。</div>';
     const d = furnDef(f.kind);
@@ -1155,6 +1172,8 @@ export class UI {
       extra += `｜氛围 +${d.charm[f.quality - 1].toFixed(2)}${room ? `（本房间合计 ${this.g.sim.charmIn(room.id).toFixed(2)}/1.60）` : ''}`;
     }
     if (f.kind === 'icebox') extra += '｜同房间灶台优先来这里取料';
+    const facility = this.g.sim.facilityStatus(f);
+    if (facility) extra += `｜状态 ${facility.state}｜今日使用 ${facility.uses} 人次｜收入 ${facility.revenue}${facility.quality ? `｜当前服务质量 ${facility.quality.toFixed(1)}★` : ''}`;
     return `<div class="row" style="align-items:flex-start"><div style="flex:1">
       <b>${d.name}</b> <span class="dim">品质 ${'I'.repeat(f.quality)}｜使用面朝${dirs[f.dir]}</span>
       <div class="dim">${d.note}${extra ? '｜' + extra : ''}</div>
@@ -1174,6 +1193,17 @@ export class UI {
   }
 
   // ---------- 模态 ----------
+  openReadiness() {
+    const check = this.g.openingReadiness();
+    const rows = (items, cls) => items.length ? items.map((item) => `<div class="${cls}">· ${htmlText(item)}</div>`).join('') : `<div class="good">✓ 无</div>`;
+    this.showModal(`<h3>营业准备检查</h3>
+      <div class="dim">阻断项必须修复后才能开门；警告项允许开门，但会造成等待、闲置或产能浪费。</div>
+      <h3 style="margin-top:10px">阻断项</h3>${rows(check.blocking, 'bad')}
+      <h3 style="margin-top:10px">警告项</h3>${rows(check.warnings, 'hi')}
+      <div class="card" style="margin-top:10px"><b>当前产线</b><div>完整厨房线 ${check.productionLines} 条｜酒吧/酒廊饮品线 ${check.drinkLines} 条</div></div>
+      <div class="row" style="margin-top:10px"><button data-act="closemodal">返回规划</button>${check.blocking.length ? '' : '<button data-act="closemodal">检查完成</button>'}</div>`);
+  }
+
   openBlueprintLibrary()       {
     const rooms = this.g.roomBlueprints();
     const layouts = this.g.layoutBlueprints();
@@ -2396,6 +2426,10 @@ export class UI {
       ${weakest ? `<div class="dim">今日主要短板：<span class="bad">${weakest[1]} ${parts[weakest[0]].toFixed(2)}★</span></div>` : ''}` : '';
     const work = stat.report?.finished?.staff || [];
     const workRows = work.map((row) => `<div class="row"><span><b>${htmlText(row.name)}</b><span class="dim"> · ${JOB_LABEL[row.job] || row.job}</span></span><span>${row.total ? Object.entries(row.tasks).map(([label, count]) => `${htmlText(label)}×${count}`).join(' · ') : '<span class="dim">本日无完成记录</span>'}</span></div>`).join('');
+    const cert = stat.certification;
+    const certPanel = cert?.requirements?.length ? `<div class="card" style="margin-top:10px;border-left-color:${cert.achieved ? '#65A85B' : '#D3A23A'}"><h3>${cert.achieved ? `★ ${cert.level} 星经营认证通过` : `★ ${cert.level} 星认证待完成`}</h3>
+      ${cert.requirements.map((row) => `<div class="row"><span>${row.met ? '✓' : '○'} ${htmlText(row.label)}</span><span class="${row.met ? 'good' : 'bad'}">${htmlText(String(row.current))} / ${htmlText(String(row.target))}</span></div>`).join('')}
+      <div class="dim">声望可继续累计，但不会绕过未完成的经营条件。</div></div>` : '';
     const story = state.story;
     const aiPanel = story ? `<div class="card" style="margin-top:12px;border-left-color:#7A4BE0"><h3>📖 ${htmlText(story.title)}</h3>
         <div style="white-space:pre-wrap;line-height:1.8;max-width:760px">${htmlText(story.chapter)}</div>
@@ -2413,10 +2447,11 @@ export class UI {
       ${scoreRows}
       <div class="row"><span>声望变化</span><span class="${stat.repDelta >= 0 ? 'good' : 'bad'}">${stat.repDelta >= 0 ? '+' : ''}${stat.repDelta} → ${Math.round(s.econ.rep)}（${'★'.repeat(s.stars())}）</span></div>
       <div class="row"><span>信用线 ${stat.creditLine}</span><span class="${stat.coinsAfter < stat.creditLine ? 'bad' : ''}">结余 ${Math.round(stat.coinsAfter)}</span></div>
+      ${certPanel}
       ${stat.ownerSkillGrowth && Object.values(stat.ownerSkillGrowth).some(Boolean) ? `<div class="card owner-growth" style="margin-top:10px"><h3>✦ 店长经营历练</h3><div>亲自完成一整场营业后，店长对旅店各环节有了新的理解。</div><div class="row" style="flex-wrap:wrap;margin-top:5px">${SKILL_KEYS.map((key) => `<span><b>${SKILL_LABEL[key]}</b> <span class="good">+${stat.ownerSkillGrowth[key] || 0}</span></span>`).join('')}</div><div class="dim">能力最高为 100；本次成长已经写入店长详情。</div></div>` : ''}
       <h3 style="margin-top:10px">员工工作统计</h3>${workRows || '<div class="dim">没有可统计的员工工作。</div>'}
       ${aiPanel}
-      ${stat.fiveStarReached ? '<div class="card" style="margin-top:9px"><b class="good">五星声望达成：位面评议会已抵达门厅</b><div class="dim">完成今日结算后，接受酒馆的最终认证。</div></div>' : ''}
+      ${stat.fiveStarReached ? '<div class="card" style="margin-top:9px"><b class="good">五星经营认证达成：位面评议会已抵达门厅</b><div class="dim">旅店已经同时通过声望与经营条件审核。</div></div>' : ''}
       <div class="row" style="margin-top:10px">${stat.fiveStarReached ? '<button data-act="finale">确认，进入五星庆典</button>' : `<button data-act="closemodal">${state.loading ? '跳过 AI，确认进入打烊模式' : '确认，进入打烊模式'}</button>`}</div>`);
   }
 

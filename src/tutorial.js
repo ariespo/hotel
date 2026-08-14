@@ -39,12 +39,22 @@ export const TUTORIAL_STEPS = [
   {
     id: 'staff', chapter: '人员', title: '员工：岗位、能力与关系', target: '[data-act="rtab"][data-v="staff"],[data-act="rail"][data-s="right"][data-v="staff"]', afterTarget: '#right', action: { acts: ['rtab', 'rail'], value: 'staff' },
     body: '请点击“员工”。这里查看店主、伙计、招聘广告和候选人。',
-    points: ['详情页可看技能、性格、关系与背景；性格标签可以点击查看相性。', '岗位限制工作类型，负责房间限制活动范围，抢单优先级决定谁先认领任务。', '每名员工需要一间休息室；店主不占卧室，也不领取工资。'],
+    points: ['详情页可看技能、性格、关系与背景；性格标签可以点击查看相性。', '岗位决定主责与补位；迎宾会真正带客，服务生只在低优先级下救援迎宾。', '每名员工需要一间休息室；店主不占卧室，也不领取工资。'],
+  },
+  {
+    id: 'coverage', chapter: '人员', title: '岗位覆盖与区域模式', target: '#right',
+    body: '负责房间有“优先区域”和“仅限区域”两种真实规则。旧员工默认使用优先区域。',
+    points: ['优先区域会优先接本房间任务，但空闲时允许跨区救火。', '仅限区域不会领取区域外工作，只有休息与紧急脱困例外。', '员工详情会直接列出主责、可补位与不会做；工作队列会说明哪个区域无人覆盖。'],
+  },
+  {
+    id: 'facility-chain', chapter: '人员', title: '设施不是自动提款机', target: '#right',
+    body: '温泉、台球、放映、庭院、观星、游艺与炼金需要场务完成整条服务链。',
+    points: ['流程是：准备设施 → 迎宾带路 → 场务照看 → 客人使用 → 场务或清洁收尾。', '没有场务覆盖时客人会明确显示“等待场务”，不会默默自助赚钱。', '温泉偏清洁，台球/游艺/庭院偏搬运，放映/观星/炼金偏冷静。'],
   },
   {
     id: 'opening', chapter: '营业', title: '准备好了就开门', target: '[data-act="open"]', afterTarget: '#top', action: { acts: ['open'], value: '' },
     body: '点击高亮的“开门营业”，客人将从位面门进入，员工开始自动认领工作。',
-    points: ['开门前系统会检查前台、桌椅、厨房生产线与储物设施。', '一天持续约 5 分钟；营业中可以暂停、变速、查看面板和处理事件。', '如果按钮提示缺少设施，请按提示补齐后再回来点击。'],
+    points: ['“营业准备”会区分阻断项与警告项，并检查岗位覆盖、设备使用面和生产线数量。', '一天持续约 5 分钟；营业中可以暂停、变速、查看面板和处理事件。', '厨房会为每份订单预留最短的空闲完整生产线，多名厨师不会挤同一工位。'],
   },
   {
     id: 'guests', chapter: '营业', title: '客人：看需求与耐心', target: '[data-act="rtab"][data-v="guest"],[data-act="rail"][data-s="right"][data-v="guest"]', afterTarget: '#right', action: { acts: ['rtab', 'rail'], value: 'guest' },

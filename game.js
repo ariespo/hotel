@@ -1218,22 +1218,13 @@ class Game                    {
   openDay()       {
     if (this.sim.sealed) { this.sim.toast('酒馆已被封印'); return; }
     if (this.sim.dayActive) return;
-    const hasSeats = this.tavern.allTables().some((t) => this.tavern.tableSeats(t).length > 0);
-    const hasStorage = this.tavern.furnsOfKind('shelf').length > 0 || this.tavern.furnsOfKind('icebox').length > 0;
-    const hasFoodLine = this.tavern.rooms.some((r) => r.kind === 'kitchen')
-      && this.tavern.furnsOfKind('stove').length > 0 && this.tavern.furnsOfKind('pass').length > 0;
-    const hasDrinkLine = this.tavern.rooms.some((r) => r.kind === 'bar') && this.tavern.furnsOfKind('keg').length > 0;
-    const missing = [];
-    if (!this.tavern.furnsOfKind('desk').length) missing.push('前台柜台');
-    if (!hasSeats) missing.push('餐桌和朝向餐桌的椅子');
-    if (!hasStorage) missing.push('储物架或冰柜');
-    if (!hasFoodLine && !hasDrinkLine) missing.push('完整厨房（灶台、出餐台）或吧台（酒桶）');
-    if (!this.tavern.furnsOfKind('sink').length) missing.push('水槽');
-    if (missing.length) {
-      this.sim.toast(`无法开门：缺少${missing.join('、')}`);
+    const readiness = this.openingReadiness();
+    if (readiness.blocking.length) {
+      this.sim.toast(`无法开门：${readiness.blocking.join('；')}`);
       this.audio.play('error');
       return;
     }
+    if (readiness.warnings.length) this.sim.toast(`营业准备提醒：${readiness.warnings.join('；')}`);
     this.cancelBuild();
     this.save();
     this.saveMorning();
@@ -1243,6 +1234,46 @@ class Game                    {
     this.audio.playTrack('bgm');
     this.audio.playAmb('amb');
     this.audio.setMusicLevel(0.4);
+  }
+
+  openingReadiness() {
+    const blocking = []; const warnings = [];
+    const hasSeats = this.tavern.allTables().some((t) => this.tavern.tableSeats(t).length > 0);
+    const hasStorage = this.tavern.furnsOfKind('shelf').length > 0 || this.tavern.furnsOfKind('icebox').length > 0;
+    const kitchens = this.tavern.rooms.filter((r) => r.kind === 'kitchen');
+    const productionLines = kitchens.reduce((sum, room) => sum + Math.min(
+      this.tavern.furnsIn(room.id).filter((f) => f.kind === 'stove').length,
+      this.tavern.furnsIn(room.id).filter((f) => f.kind === 'prep').length,
+      this.tavern.furnsIn(room.id).filter((f) => f.kind === 'pass').length,
+    ), 0);
+    const drinkLines = this.tavern.furnsOfKind('keg').filter((f) => ['bar', 'parlor'].includes(this.tavern.roomOfFurn(f)?.kind)).length;
+    if (!this.tavern.furnsOfKind('desk').length) blocking.push('缺少前台柜台');
+    if (!hasSeats) blocking.push('缺少有效餐桌座位');
+    if (!hasStorage) blocking.push('缺少储物架或冰柜');
+    if (!productionLines && !drinkLines) blocking.push('缺少可生产的厨房线或饮品线');
+    if (!this.tavern.furnsOfKind('sink').length) blocking.push('缺少水槽');
+    const cooks = this.sim.staff.filter((s) => s.job === 'cook').length;
+    if (cooks > productionLines) warnings.push(`厨师 ${cooks} 人，但完整厨房生产线仅 ${productionLines} 条`);
+    const specialKinds = new Set(['pool', 'billiardtable', 'screen', 'fountain', 'telescope', 'arcadem', 'cauldron']);
+    const specialRooms = new Map();
+    for (const f of this.tavern.furns) if (specialKinds.has(f.kind)) {
+      const room = this.tavern.roomOfFurn(f); if (room) specialRooms.set(room.id, room);
+    }
+    for (const room of specialRooms.values()) {
+      const covered = this.sim.staff.some((s) => this.sim.dutyFit('facility', s) >= 0
+        && (!s.roomId || s.roomMode !== 'strict' || s.roomId === room.id));
+      if (!covered) warnings.push(`${ROOM_LABEL[room.kind]}#${room.id}没有场务覆盖，客人会等待`);
+    }
+    const roomDuties = { foyer: ['greet'], dining: ['order'], kitchen: ['cook'], bar: ['mix'], parlor: ['order', 'mix'] };
+    for (const room of this.tavern.rooms) for (const kind of roomDuties[room.kind] || []) {
+      const covered = this.sim.staff.some((s) => this.sim.dutyFit(kind, s) >= 0
+        && (!s.roomId || s.roomMode !== 'strict' || s.roomId === room.id));
+      if (!covered) warnings.push(`${ROOM_LABEL[room.kind]}#${room.id}缺少${kind === 'greet' ? '迎宾' : kind === 'order' ? '桌边服务' : kind === 'cook' ? '烹饪' : '调酒'}覆盖`);
+    }
+    const critical = new Set(['shelf', 'icebox', 'prep', 'stove', 'pass', 'keg', ...specialKinds]);
+    const unreachable = this.tavern.furns.filter((f) => critical.has(f.kind) && !this.tavern.standTileNear(this.tavern.useTiles(f)));
+    if (unreachable.length) warnings.push(`${unreachable.length} 件设备的使用面不可达`);
+    return { blocking, warnings, productionLines, drinkLines };
   }
 
   finishDay()       {
@@ -1314,6 +1345,13 @@ class Game                    {
         if (p) s.path = p; else s.bubble = { text: '过不去!', t: 2.5 };
       }
     }
+    this.save();
+  }
+  setStaffRoomMode(id, mode) {
+    const s = this.sim.staff.find((x) => x.id === id);
+    if (!s || this.sim.dayActive) { if (this.sim.dayActive) this.sim.toast('营业中不能调整区域模式'); return; }
+    s.roomMode = mode === 'strict' ? 'strict' : 'prefer';
+    s.task = null; s.path = []; s.carry = null;
     this.save();
   }
   setPrio(id        , p        )       {

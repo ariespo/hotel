@@ -247,18 +247,18 @@ export const SKILL_LABEL                           = {
   looks: '颜值', cook: '厨艺', mix: '调酒', serve: '服务', clean: '清洁', carry: '搬运', calm: '冷静',
 };
 
-export const JOBS = ['front', 'greeter', 'server', 'cook', 'bartender', 'cleaner', 'porter', 'free']         ;
+export const JOBS = ['front', 'greeter', 'server', 'cook', 'bartender', 'attendant', 'cleaner', 'porter', 'free']         ;
 /** 《缺氧》式职责分类：岗位是自动模板，自定义模式则逐项设为 0–4。 */
-export const DUTIES = ['front', 'service', 'cook', 'mix', 'clean', 'carry']         ;
+export const DUTIES = ['front', 'service', 'cook', 'mix', 'facility', 'clean', 'carry']         ;
 export const DUTY_LABEL                         = {
-  front: '接待', service: '桌边服务', cook: '烹饪', mix: '调酒', clean: '清洁', carry: '搬运',
+  front: '接待', service: '桌边服务', cook: '烹饪', mix: '调酒', facility: '设施服务', clean: '清洁', carry: '搬运',
 };
                                       
 export const JOB_LABEL                      = {
-  front: '前台', greeter: '迎宾', server: '服务', cook: '厨师', bartender: '调酒', cleaner: '清洁', porter: '搬运', free: '机动',
+  front: '前台', greeter: '迎宾', server: '服务', cook: '厨师', bartender: '调酒', attendant: '场务', cleaner: '清洁', porter: '搬运', free: '机动',
 };
 export const JOB_COLOR                      = {
-  front: 0xffd6e0, greeter: 0xf3b84b, server: 0x39d7d2, cook: 0xff6b5a, bartender: 0xe45ad1, cleaner: 0x8ddb4a, porter: 0xb0b6c2, free: 0xffe6b0,
+  front: 0xffd6e0, greeter: 0xf3b84b, server: 0x39d7d2, cook: 0xff6b5a, bartender: 0xe45ad1, attendant: 0x9b7be8, cleaner: 0x8ddb4a, porter: 0xb0b6c2, free: 0xffe6b0,
 };
 
 export const TRAITS = [
@@ -319,6 +319,14 @@ export function makeName(rng                                                    
 }
 
 export const STAR_THRESHOLDS = [0, 60, 180, 380, 660, 1000];
+export const STAR_CERTIFICATIONS = Object.freeze([
+  null,
+  { served: 6, avgScore: 3.0, description: '单日接待 6 人，平均评价达到 3.0★' },
+  { served: 10, avgScore: 3.2, requireDrinkOrStay: true, description: '单日接待 10 人、评价 3.2★，并完成饮品或住宿消费' },
+  { served: 14, avgScore: 3.5, specialTypes: 1, maxLost: 2, description: '单日接待 14 人、评价 3.5★，完成一种特殊设施服务，流失不超过 2 组' },
+  { served: 18, avgScore: 3.8, specialTypes: 2, minFacilityCompletion: 0.8, description: '单日接待 18 人、评价 3.8★，两种特殊设施产生消费，设施服务完成率达到 80%' },
+  { served: 22, avgScore: 4.1, specialTypes: 3, maxLost: 0, requireNoOpenChallenges: true, description: '单日接待 22 人、评价 4.1★，三种特殊设施产生消费，无客人流失或未解决事故' },
+]);
 export function starsOf(rep        )         {
   let s = 0;
   for (let i = 1; i < STAR_THRESHOLDS.length; i++) if (rep >= STAR_THRESHOLDS[i]) s = i;
