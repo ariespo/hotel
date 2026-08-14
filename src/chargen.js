@@ -361,7 +361,8 @@ export function drawAvatar(a            )      {
 const avatarCache = new Map                ();
 export function appKey(a            )         {
   return [a.face, a.eye, a.fringe, a.hairLen, a.acc || 0, a.wear.top, a.race, a.ht, a.bd,
-    a.skin, a.hairC, a.eyeC, a.clothA, a.clothB, a.accC, a.wear.hand, a.wear.leg || 0, a.wear.sock || 0].join('_');
+    a.skin, a.hairC, a.eyeC, a.clothA, a.clothB, a.accC, a.wear.hand, a.wear.leg || 0, a.wear.sock || 0,
+    a.specialPortrait || ''].join('_');
 }
 export function avatarURL(a            )         {
   const k = appKey(a);
@@ -387,7 +388,8 @@ export const PRESETS              = [
     skin: 1, hairC: 0, eyeC: 8, clothA: 1, clothB: 0, accC: 3, wear: { top: 3, hand: 0 } }) },
   { id: 'loli', name: '哥特洋装', sex: '女', make: () => ({
     face: 0, eye: 5, fringe: 0, hairLen: 3, race: 0, ht: 0, bd: 0, acc: 13,
-    skin: 0, hairC: 7, eyeC: 1, clothA: 16, clothB: 1, accC: 1, wear: { top: 4, hand: 0 } }) },
+    skin: 0, hairC: 7, eyeC: 1, clothA: 16, clothB: 1, accC: 1, wear: { top: 4, hand: 0 },
+    specialPortrait: 'gothic-dress' }) },
   { id: 'druid', name: '兽角德鲁伊', sex: '男', make: () => ({
     face: 2, eye: 8, fringe: 3, hairLen: 1, race: 4, ht: 2, bd: 2, acc: 8,
     skin: 3, hairC: 0, eyeC: 6, clothA: 3, clothB: 15, accC: 3, wear: { top: 5, hand: 0 } }) },
@@ -447,6 +449,7 @@ export function normalizeApp(a            )             {
   o.clothB = clamp(o.clothB, CLOTH_COLORS.length);
   o.accC = clamp(o.accC, ACCENT_COLORS.length);
   o.race = clamp(o.race, RACE_NAMES.length);
+  if (o.specialPortrait !== 'gothic-dress') delete o.specialPortrait;
   return o;
 }
 

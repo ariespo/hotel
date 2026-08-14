@@ -525,6 +525,7 @@ function drawLayeredPortrait(a) {
 
 const cache = new Map();
 export function portraitURL(a) {
+  if (a?.specialPortrait === 'gothic-dress') return 'assets/portrait-v2-formal/special/gothic-dress.png';
   const key = `v2:${appKey(a)}`;
   const hit = cache.get(key);
   if (hit) return hit;

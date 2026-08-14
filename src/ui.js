@@ -2612,6 +2612,7 @@ export class UI {
       else if (t.dataset.opt !== undefined) {
         const cat = visible.find((c) => c.key === activeCat)                     ;
         cat.set(parseInt(t.dataset.opt, 10));
+        delete app.specialPortrait;
         changed = true;
       } else if (t.dataset.pose) pose = t.dataset.pose          ;
       else if (t.dataset.sex) {
@@ -2665,7 +2666,10 @@ export class UI {
         const ps = PRESETS.find((q) => q.id === t.dataset.preset);
         if (ps) {
           const made = ps.make();
-          if (dressOnly) { app.wear = made.wear; app.clothA = made.clothA; app.clothB = made.clothB; app.accC = made.accC; }
+          if (dressOnly) {
+            app.wear = made.wear; app.clothA = made.clothA; app.clothB = made.clothB; app.accC = made.accC;
+            if (made.specialPortrait) app.specialPortrait = made.specialPortrait; else delete app.specialPortrait;
+          }
           else app = made;
           if (ps.sex !== '不定') sex = ps.sex;
           changed = true;
@@ -2676,6 +2680,7 @@ export class UI {
         const themed = randomAppearance(new Rng(Math.floor(Math.random() * 1e9)), app.race, false, t.dataset.theme);
         app.clothA = themed.clothA; app.clothB = themed.clothB; app.accC = themed.accC;
         app.wear.top = themed.wear.top; app.hairC = themed.hairC; app.eyeC = themed.eyeC;
+        delete app.specialPortrait;
         changed = true;
       }
       else if (t.dataset.rand) {
