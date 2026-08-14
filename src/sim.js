@@ -118,6 +118,7 @@ export const FACILITY_CHALLENGES = {
   
 
 export const DAY_LEN = 300;
+export const GREETING_FAILSAFE_SECONDS = 10;
 
 /** 种族寿命上限：人族硬封顶 100；长生种上限高但年龄分布压向年轻段，过百岁少见 */
 export const AGE_MAX = [100, 600, 150, 90, 600, 600, 600, 900, 400, 900, 80, 90, 300, 300, 900, 500, 150, 300];
@@ -1443,6 +1444,7 @@ export class Sim {
   /** 前台等位：站在门厅里、离入口最近的空地上，按组号错开 */
   goWaitArea(g       )       {
     g.state = 'wait';
+    g.greetWaitT = 0;
     const e = this.tavern.entrance();
     const foyer = this.tavern.rooms.find((r) => r.kind === 'foyer');
     const spots                             = [];
@@ -1505,6 +1507,16 @@ export class Sim {
     for (const g of [...this.groups]) {
       if (g.state === 'using' || g.state === 'eating') this.maybeStartFacilityChallenge(g, dt);
       for (const challenge of this.facilityChallenges.filter((item) => item.groupId === g.id && item.state === 'open')) challenge.age += dt;
+      if (g.state === 'wait' && !g.greeted) {
+        const arrived = g.members.every((member) => !member.path.length);
+        g.greetWaitT = arrived ? (g.greetWaitT || 0) + dt : 0;
+        if (g.greetWaitT >= GREETING_FAILSAFE_SECONDS) {
+          const greeter = [...this.staff]
+            .filter((staff) => this.dutyFit('greet', staff) >= 0)
+            .sort((a, b) => this.dutyFit('greet', b) - this.dutyFit('greet', a) || b.skills.serve - a.skills.serve)[0] || null;
+          this.completeGreeting(g, greeter);
+        }
+      }
       if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered') {
         g.patience -= dt * (1 + (g.state === 'ordered' ? 0.15 : 0));
         if (g.patience <= 0) { this.leave(g, g.state === 'wait' ? '在前台等太久' : '等菜太久'); continue; }
@@ -2230,6 +2242,20 @@ export class Sim {
     return [...byKey.values()].sort((a, b) => (a.staff ? 1 : 0) - (b.staff ? 1 : 0) || b.age - a.age || a.label.localeCompare(b.label, 'zh-CN'));
   }
 
+  /** 正常迎宾任务和超时兜底共用；重复完成不会重复增加耐心。 */
+  completeGreeting(g, staff = null) {
+    if (!g || g.state !== 'wait' || g.greeted) return false;
+    const guest = g.members[0];
+    g.greeted = true;
+    g.greetWaitT = 0;
+    g.patience = Math.min(g.maxPatience, g.patience + g.maxPatience * 0.3);
+    for (const member of g.members) member.mood = Math.min(1.4, member.mood + 0.2);
+    if (guest) this.fx.push({ x: guest.x, y: guest.y, t: 0.6, kind: 'serve' });
+    if (staff) staff.bubble = { text: '欢迎光临！', t: 1.8 };
+    this.tryPlace(g);
+    return true;
+  }
+
   buildTasks(claimed             )         {
     const out         = [];
     // 客人已离店的订单作废，避免厨房白忙、出餐台被废盘占死
@@ -2276,14 +2302,7 @@ export class Sim {
       out.push({
         kind: 'greet', key, label: '招呼客人', i: 0,
         steps: [{ tx: stand.x, ty: stand.y }, {
-          dur: 2.0, label: '招呼客人', skill: 'serve', done: () => {
-            if (g.state !== 'wait') return;
-            g.greeted = true;
-            g.patience = Math.min(g.maxPatience, g.patience + g.maxPatience * 0.3);
-            for (const mm of g.members) mm.mood = Math.min(1.4, mm.mood + 0.2);
-            this.fx.push({ x: m.x, y: m.y, t: 0.6, kind: 'serve' });
-            this.tryPlace(g);
-          },
+          dur: 2.0, label: '招呼客人', skill: 'serve', done: (staff) => { this.completeGreeting(g, staff); },
         }],
       });
     }
