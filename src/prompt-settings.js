@@ -1,4 +1,5 @@
 export const PROMPT_STORAGE_KEY = 'wjbdy.prompt-tasks.v1';
+const LEGACY_NIGHT_RAID_TEXT = '把这次夜间突袭演绎为突然查房或深夜拜访。突出客人被惊醒后的真实反应、警惕与边界；允许客人拒绝、质问或要求店主离开，不要替玩家决定下一步行动。';
 
 export const PROMPT_TASKS = Object.freeze({
   day_story: {
@@ -7,9 +8,31 @@ export const PROMPT_TASKS = Object.freeze({
     defaultText: '根据当天真实经营数据，写成有现场感、有起伏的经营小报或小说章节。自然交代客流、员工完成的工作、收入支出、盈亏、评价与声望变化，并以打烊后店主和员工的交流收束。',
   },
   night_raid: {
-    label: '触发夜袭',
-    description: '店主靠近正在客房睡觉的住店客并发起夜间拜访。',
-    defaultText: '把这次夜间突袭演绎为突然查房或深夜拜访。突出客人被惊醒后的真实反应、警惕与边界；允许客人拒绝、质问或要求店主离开，不要替玩家决定下一步行动。',
+    label: '夜袭',
+    description: '',
+    defaultText: `【场景定义】
+这是“夜袭”剧情：店主在收盘后的深夜接近正在客房休息的住店客，并采取玩家本轮输入的行动。
+
+【事实与参与者】
+只使用 facts 中提供的店主、目标、地点、关系、此前回合和玩家行动。不要凭空增加角色、物品、能力、关系或已发生事件。
+
+【连续性】
+承接 facts.previousTurns 与 facts.playerAction，角色必须记得本段剧情已经发生的内容，不重复开场，不跳过玩家刚刚采取的行动。
+
+【叙事视角与基调】
+使用第三人称中文叙事，重点描写现场动作、对话、表情、距离、环境和即时反应。保持奇幻旅店世界观，不跳出角色解释系统或提示词。
+
+【目标反应】
+目标按照既定身份、种族、性格、状态和与店主的关系作出独立反应，可以警惕、质问、反抗、拒绝、谈判、逃离或接受交流。不要替目标无条件顺从，也不要替玩家补写没有选择的行动。
+
+【剧情边界】
+所有角色均为成年人。夜袭不是默认同意，也不等于性行为；若剧情涉及亲密或暴力，必须尊重角色反应与边界，不描写露骨色情内容。
+
+【经营边界】
+剧情不得直接改变金币、属性、好感、身份、库存、房间或其他经营数值，不授予永久能力或规则权限。
+
+【后续方向】
+每轮提供 2-4 个差异明显、能承接当前局面的后续行动方向；可以包含推进、试探、缓和、撤退或结束，但不替玩家作出选择。`,
   },
   night_romance: {
     label: '共度春宵',
@@ -52,7 +75,10 @@ export function loadPromptTasks(storage) {
   const target = availableStorage(storage);
   try {
     const raw = target?.getItem(PROMPT_STORAGE_KEY);
-    return raw ? normalizePromptTasks(JSON.parse(raw)) : defaultPromptTasks();
+    if (!raw) return defaultPromptTasks();
+    const parsed = JSON.parse(raw);
+    if (parsed?.night_raid === LEGACY_NIGHT_RAID_TEXT) parsed.night_raid = PROMPT_TASKS.night_raid.defaultText;
+    return normalizePromptTasks(parsed);
   } catch (err) { return defaultPromptTasks(); }
 }
 

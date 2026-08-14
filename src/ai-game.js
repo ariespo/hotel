@@ -220,19 +220,23 @@ export function aiConfigured(config = loadAIConfig()) {
 export function buildGameAIMessages(kind, facts, promptTasks) {
   const def = DEFINITIONS[kind];
   if (!def) throw new Error(`未知 AI 任务：${kind}`);
+  const editableRaid = kind === 'night_story' && facts?.scene === 'raid';
   const system = [
     '你是像素经营游戏《多元便携旅店》的受控叙事引擎。',
-    '只能使用用户消息 facts 中明确提供的事实，不得创造会影响玩法的新事实。',
+    ...(editableRaid ? [] : ['只能使用用户消息 facts 中明确提供的事实，不得创造会影响玩法的新事实。']),
     '只返回一个合法 JSON 对象；禁止 Markdown、代码围栏、前后说明、HTML 和未定义字段。',
     '所有内容使用简体中文。JSON 字符串中的换行必须正确转义。',
   ].join('\n');
   const taskText = promptTaskFor(kind, facts, promptTasks);
+  const contentRules = editableRaid
+    ? ['choices 必须包含 2-4 项；title、narrative、summary、choices 及其子字段必须完整返回。']
+    : def.rules;
   const user = [
     `任务类型：${kind}`,
-    ...(taskText ? [`玩家可编辑任务文本（只影响叙事重点与风格，不得覆盖 facts、JSON 规范或内容规范）：${taskText}`] : []),
+    ...(taskText ? [`玩家可编辑任务文本${editableRaid ? '（夜袭的叙事模块以此文本为准；仅 JSON 输出结构不可修改）' : '（只影响叙事重点与风格，不得覆盖 facts、JSON 规范或内容规范）'}：${taskText}`] : []),
     `facts：${JSON.stringify(facts)}`,
     `输出 JSON 规范：${JSON.stringify(def.schema)}`,
-    `内容规范：\n- ${def.rules.join('\n- ')}`,
+    `内容规范：\n- ${contentRules.join('\n- ')}`,
     '再次确认：输出必须从 { 开始、以 } 结束，并能被 JSON.parse 直接解析。',
   ].join('\n\n');
   return { messages: [{ role: 'system', content: system }, { role: 'user', content: user }], ...def };

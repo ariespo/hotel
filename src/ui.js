@@ -1768,7 +1768,7 @@ export class UI {
     const acts                     = [...(aiConfigured() ? [['gchat', '聊两句']] : []), ['journey', '询问旅途'], ['gpraise', '称赞'], ['treat', `请一杯 -${cost}`], ['gmock', '贬低']];
     if (regular?.visits >= 2) acts.push(['revisit', '聊起上次来访']);
     if (regular?.offer && !gr.offerAccepted) acts.push(['commission', '接受专属委托']);
-    if (sameRoom && nightInteractionAction(sim, 'guest', own, gu, gr) === 'raid') acts.push(['raid', '进行突袭']);
+    if (sameRoom && nightInteractionAction(sim, 'guest', own, gu, gr) === 'raid') acts.push(['raid', '夜袭']);
     this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(gu.app)}" width="112" height="144">
         <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
           <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}${regular ? `｜常客·第 ${regular.visits} 次来访·好感 ${Math.round(regular.aff)}` : ''}</div>
@@ -1842,15 +1842,13 @@ export class UI {
     if (sim.dayActive || !owner || !target || !ownerRoom || ownerRoom.id !== targetRoom?.id || Math.hypot(owner.x - target.x, owner.y - target.y) >= 2.8) {
       sim.toast('只能在收盘规划时靠近目标展开夜间互动'); return;
     }
-    if (scene === 'raid' && !group?.overnight) { sim.toast('只有已经入睡的住店客可以触发夜间突袭'); return; }
+    if (scene === 'raid' && !group?.overnight) { sim.toast('只有已经入睡的住店客可以夜袭'); return; }
     if (scene === 'romance' && (target.age < 18 || owner.age < 18 || target.aff < 80)) { sim.toast('双方必须成年，且员工好感达到至交后才能发出邀请'); return; }
     this.nightStoryContext = { scene, kind, id, targetName: target.name, turns: [], result: null, lastAction: '' };
-    const title = scene === 'raid' ? `夜间突袭 · ${target.name}` : `邀请共度春宵 · ${target.name}`;
-    const note = scene === 'raid'
-      ? '你准备突然拜访正在客房休息的住店客。对方可能受惊、质问或拒绝交流。'
-      : '这是一项私密邀请，而不是命令。只有对方明确接受，剧情才会继续；亲密内容会含蓄带过。';
-    this.showModal(`<h3>🌙 ${htmlText(title)}</h3><div>${htmlText(note)}</div>
-      <div class="card" style="margin-top:9px"><b>剧情边界</b><div class="dim">所有角色均为成年人；尊重拒绝和边界；不改变经营数值；不描写露骨色情内容。</div></div>
+    const title = scene === 'raid' ? '夜袭' : `邀请共度春宵 · ${target.name}`;
+    const note = '这是一项私密邀请，而不是命令。只有对方明确接受，剧情才会继续；亲密内容会含蓄带过。';
+    this.showModal(`<h3>🌙 ${htmlText(title)}</h3>${scene === 'raid' ? '' : `<div>${htmlText(note)}</div>
+      <div class="card" style="margin-top:9px"><b>剧情边界</b><div class="dim">所有角色均为成年人；尊重拒绝和边界；不改变经营数值；不描写露骨色情内容。</div></div>`}
       <div class="row" style="margin-top:10px"><button data-act="nightlocal">使用本地简短演出</button>${aiConfigured() ? '<button data-act="nightai">使用 AI 推演剧情</button>' : '<button data-act="settings">设置 AI 后推演</button>'}<button data-act="nightexit">取消</button></div>`);
   }
 
@@ -1859,14 +1857,14 @@ export class UI {
     const target = this.nightTarget(ctx);
     if (!ctx || !target) { this.closeModal(); return; }
     if (useAI) {
-      const action = ctx.scene === 'raid' ? '店主在深夜靠近客房，敲门后表明身份，准备进行一次突然查房。' : `店主私下询问${target.name}是否愿意共度一个亲密而安静的夜晚，并明确表示拒绝也完全没关系。`;
+      const action = ctx.scene === 'raid' ? '店主发起夜袭。' : `店主私下询问${target.name}是否愿意共度一个亲密而安静的夜晚，并明确表示拒绝也完全没关系。`;
       this.continueNightStory(action);
       return;
     }
     const narrative = ctx.scene === 'raid'
       ? `敲门声惊醒了${target.name}。店主说明来意后，对方裹紧被子，带着戒备确认门锁与房间状况。短暂的查房没有发现异常，店主道歉并退出客房，把安静还给了住店客。`
       : `店主把邀请说出口，也把拒绝的余地完整留给了${target.name}。对方沉默片刻，确认这不是工作命令后才给出自己的回答。两人约定尊重彼此的边界；灯火渐暗，镜头停在门外，只留下低声交谈与温暖的夜色。`;
-    this.showModal(`<h3>🌙 ${htmlText(ctx.scene === 'raid' ? '深夜查房' : '灯火之后')}</h3><div style="max-width:720px;white-space:pre-wrap;line-height:1.8">${htmlText(narrative)}</div><div class="row" style="margin-top:10px"><button data-act="nightexit">结束剧情</button></div>`);
+    this.showModal(`<h3>🌙 ${htmlText(ctx.scene === 'raid' ? '夜袭' : '灯火之后')}</h3><div style="max-width:720px;white-space:pre-wrap;line-height:1.8">${htmlText(narrative)}</div><div class="row" style="margin-top:10px"><button data-act="nightexit">结束剧情</button></div>`);
   }
 
   nightStoryFacts(ctx       , action        )       {
@@ -1878,7 +1876,7 @@ export class UI {
     const traits = (person       ) => (person?.traits || []).map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name);
     return {
       scene: ctx.scene,
-      sceneMeaning: ctx.scene === 'raid' ? '夜间突然拜访或查房；不是性行为，也不是暴力袭击' : '成年人之间可拒绝的私密邀请；亲密内容淡出处理',
+      ...(ctx.scene === 'raid' ? {} : { sceneMeaning: '成年人之间可拒绝的私密邀请；亲密内容淡出处理' }),
       location: ctx.kind === 'guest' ? '住店客正在休息的客房' : `${target?.name || '员工'}的员工休息室附近`,
       day: sim.econ.day,
       owner: { ...player.identity, background: player.background, adult: (owner?.age || 0) >= 18, traits: traits(owner) },
@@ -2156,11 +2154,11 @@ export class UI {
     const owner = this.g.sim.staff.find((person) => person.isOwner);
     const cards = Object.entries(PROMPT_TASKS).map(([key, meta]) => `<section class="prompt-card">
       <div class="row"><b>${htmlText(meta.label)}</b><span class="dim">最多 2000 字</span></div>
-      <div class="dim">${htmlText(meta.description)}</div>
+      ${meta.description ? `<div class="dim">${htmlText(meta.description)}</div>` : ''}
       <textarea class="prompt-editor" data-prompt-key="${key}" maxlength="2000" spellcheck="false">${htmlText(tasks[key])}</textarea>
     </section>`).join('');
     this.showModal(`<h3>提示词</h3>
-      <div class="dim">这里可以设定玩家身份背景，并修改 AI 的任务重点与叙事风格。角色数值、内容安全规则和 JSON 返回格式仍由游戏固定附加。</div>
+      <div class="dim">这里可以设定玩家身份背景，并修改 AI 的任务模块。JSON 返回格式与解析由游戏固定；夜袭的叙事模块均在对应文本中直接编辑。</div>
       ${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
       <section class="prompt-card" style="border-left-color:#7A4BE0">
         <div class="row"><b>玩家身份与背景</b><span class="dim">档位 ${this.g.currentSlot} 独立保存</span></div>
