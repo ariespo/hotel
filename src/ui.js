@@ -31,6 +31,15 @@ export const OWNER_SKILL_PRESETS = [
   { id: 'veteran', name: '沉着老练', note: '各项稳健，尤其擅长化解风险。', skills: { looks: 36, cook: 36, mix: 36, serve: 36, clean: 36, carry: 36, calm: 50 } },
 ];
 
+export const TARGET_RECRUIT_SKILL_PRESETS = [
+  { id: 'balanced', name: '全能轮岗', note: '各项能力稳定，适合随时补位。', skills: { looks: 50, cook: 50, mix: 50, serve: 50, clean: 50, carry: 50, calm: 50 } },
+  { id: 'front', name: '前厅接待', note: '擅长仪表、服务与安抚客人。', skills: { looks: 64, cook: 38, mix: 40, serve: 68, clean: 42, carry: 44, calm: 54 } },
+  { id: 'chef', name: '料理专精', note: '主攻厨艺、清洁与高压出品。', skills: { looks: 38, cook: 76, mix: 50, serve: 42, clean: 58, carry: 44, calm: 52 } },
+  { id: 'bartender', name: '调酒专精', note: '主攻调酒、服务与临场应对。', skills: { looks: 48, cook: 42, mix: 76, serve: 58, clean: 44, carry: 42, calm: 54 } },
+  { id: 'service', name: '跑堂服务', note: '上菜快、路线稳，兼顾客诉处理。', skills: { looks: 46, cook: 38, mix: 40, serve: 68, clean: 46, carry: 66, calm: 46 } },
+  { id: 'support', name: '后勤清洁', note: '擅长清洁、搬运和稳定现场。', skills: { looks: 38, cook: 44, mix: 38, serve: 42, clean: 72, carry: 68, calm: 48 } },
+];
+
 export const OWNER_BACKGROUND_PRESETS = [
   {
     id: 'wanderer', name: '位面旅人', role: '多元便携旅店的店主与见多识广的位面旅人',
@@ -451,6 +460,7 @@ export class UI {
       }
     }
     else if (act === 'hire') g.hire(parseInt(v, 10));
+    else if (act === 'directrecruit') this.openTargetRecruit();
     else if (act === 'rotbuild') g.rotateBuild();
     else if (act === 'fire') this.openFireConfirm(parseInt(v, 10));
     else if (act === 'job') g.setJob(parseInt(t.dataset.id          , 10), v       );
@@ -898,6 +908,10 @@ export class UI {
     if (this.rightTab === 'staff') {
       body = `<div class="dim" style="margin-bottom:4px">员工 ${s.staff.length}/${s.maxStaff()}　1 人 1 间卧室（休息室）</div>`;
       body += s.staff.map((st) => this.staffCard(st)).join('');
+      const directUnlocked = s.stars() >= 4;
+      body += `<div class="card" style="border-left-color:#8A74B8"><div class="row"><b>定向招募 · 员工 DIY</b><span class="${directUnlocked ? 'good' : 'dim'}">${directUnlocked ? '四星已解锁' : '需要 ★★★★'}</span></div>
+        <div class="dim">自行决定员工的姓名、外貌、性格与岗位能力；确认后按生成工资支付正常入职费。</div>
+        <div class="row"><button data-act="directrecruit" ${directUnlocked && s.staff.length < s.maxStaff() ? '' : 'disabled'}>${s.staff.length >= s.maxStaff() ? '先准备空卧室' : directUnlocked ? '创建定向员工' : '四星后开放'}</button></div></div>`;
       body += '<h3>招募广告（3 个广告位）</h3>' + s.ads.map((ad, i) => {
         if (!ad.spec) {
           return `<div class="card"><div class="row"><b>广告位 ${i + 1}</b><span class="dim">空置</span></div>
@@ -2007,6 +2021,16 @@ export class UI {
   }
 
   /** 招募广告面板：选价位档 + 附加要求，实时算价 */
+  openTargetRecruit() {
+    const sim = this.g.sim;
+    if (sim.stars() < 4) { sim.toast('定向招募需要旅店达到四星'); return; }
+    if (sim.staff.length >= sim.maxStaff()) { sim.toast('先准备一间空的员工休息室'); return; }
+    const app = randomAppearance(new Rng(Math.floor(Math.random() * 1e9)), undefined, false);
+    this.openCreator(app, '新员工', (appearance, name, sex, options) => {
+      if (this.g.targetedRecruit(appearance, name, sex, options)) this.render(true);
+    }, false, '女', { employeeRecruit: true, age: 24, traits: ['diligent', 'cheerful'], skillPreset: 'balanced' });
+  }
+
   openAdPanel(slot        , reset = false)       {
     const s = this.g.sim;
     this.adSlot = slot;
@@ -2413,10 +2437,12 @@ export class UI {
   // ---------- 捏脸 / 换装 ----------
   openCreator(initial            , name        , onDone                                                      , dressOnly = false, sex0 = '女', ownerOptions = {})       {
     let app = cloneApp(initial);
+    const employeeRecruit = !!ownerOptions.employeeRecruit;
+    const skillPresets = employeeRecruit ? TARGET_RECRUIT_SKILL_PRESETS : OWNER_SKILL_PRESETS;
     let sex = sex0;
     let age = Number.isFinite(Number(ownerOptions.age)) ? Math.round(Number(ownerOptions.age)) : 24;
     let traits = Array.isArray(ownerOptions.traits) ? ownerOptions.traits.slice(0, 2) : ['diligent', 'cheerful'];
-    let ownerSkillPreset = OWNER_SKILL_PRESETS.some((preset) => preset.id === ownerOptions.skillPreset) ? ownerOptions.skillPreset : 'balanced';
+    let ownerSkillPreset = skillPresets.some((preset) => preset.id === ownerOptions.skillPreset) ? ownerOptions.skillPreset : 'balanced';
     const initialBackground = OWNER_BACKGROUND_PRESETS.find((preset) => preset.id === ownerOptions.backgroundPreset) || OWNER_BACKGROUND_PRESETS[0];
     let backgroundPreset = ownerOptions.profile?.background ? 'custom' : initialBackground.id;
     let ownerRole = ownerOptions.profile?.role || initialBackground.role;
@@ -2522,9 +2548,9 @@ export class UI {
       const group = availableGroups.find((item) => item.key === activeGroup);
       if (!group.cats.includes(activeCat)) activeCat = group.cats[0];
       const cat = visible.find((c) => c.key === activeCat)                     ;
-      const selectedSkillPreset = OWNER_SKILL_PRESETS.find((preset) => preset.id === ownerSkillPreset) || OWNER_SKILL_PRESETS[0];
+      const selectedSkillPreset = skillPresets.find((preset) => preset.id === ownerSkillPreset) || skillPresets[0];
       const displayedSkills = aiDesigned && aiSkills ? aiSkills : selectedSkillPreset.skills;
-      host.innerHTML = `<div class="creator-head"><div><h3>${dressOnly ? '纸娃娃换装' : '捏一个店主'}</h3><div class="dim">先选样板，再按面部、发型、身体、服装与配色逐组调整。</div></div>
+      host.innerHTML = `<div class="creator-head"><div><h3>${dressOnly ? '纸娃娃换装' : employeeRecruit ? '定向招募 · 员工 DIY' : '捏一个店主'}</h3><div class="dim">先选样板，再按面部、发型、身体、服装与配色逐组调整。</div></div>
         <div class="creator-history"><button data-undo title="撤销" ${historyIndex <= 0 ? 'disabled' : ''}>↶</button><button data-redo title="重做" ${historyIndex >= history.length - 1 ? 'disabled' : ''}>↷</button></div></div>
       <div class="creator-presets">${PRESETS.map((ps) => `<button data-preset="${ps.id}">${ps.name}</button>`).join('')}</div>
       <div class="creator-layout">
@@ -2536,21 +2562,21 @@ export class UI {
             <label><span class="dim">性格一</span><select id="crtrait1">${TRAITS.map((trait) => `<option value="${trait.id}" ${traits[0] === trait.id ? 'selected' : ''} ${traits[1] === trait.id ? 'disabled' : ''}>${trait.name}</option>`).join('')}</select></label>
             <label><span class="dim">性格二</span><select id="crtrait2">${TRAITS.map((trait) => `<option value="${trait.id}" ${traits[1] === trait.id ? 'selected' : ''} ${traits[0] === trait.id ? 'disabled' : ''}>${trait.name}</option>`).join('')}</select></label></div>
           <div class="dim" style="margin-top:4px">${traits.map((id) => { const trait = TRAITS.find((item) => item.id === id); return trait ? `${trait.name}：${trait.note}` : id; }).join('　')}</div>
-          <div style="margin-top:7px"><b>店长基础能力</b><span class="dim"> · ${aiDesigned ? 'AI 角色设计不受平均 38 限制' : '手动预设平均值固定为 38'}</span></div>
-          <div class="owner-skill-presets">${OWNER_SKILL_PRESETS.map((preset) => `<button data-skillpreset="${preset.id}" class="${!aiDesigned && ownerSkillPreset === preset.id ? 'on' : ''}"><b>${preset.name}</b><small>${preset.note}</small></button>`).join('')}</div>
+          <div style="margin-top:7px"><b>${employeeRecruit ? '岗位能力方向' : '店长基础能力'}</b><span class="dim"> · ${employeeRecruit ? '能力会决定工资与推荐岗位' : aiDesigned ? 'AI 角色设计不受平均 38 限制' : '手动预设平均值固定为 38'}</span></div>
+          <div class="owner-skill-presets">${skillPresets.map((preset) => `<button data-skillpreset="${preset.id}" class="${!aiDesigned && ownerSkillPreset === preset.id ? 'on' : ''}"><b>${preset.name}</b><small>${preset.note}</small></button>`).join('')}</div>
           <div class="${aiDesigned ? 'creator-ai-skills' : 'dim'}">${aiDesigned ? '<b>✦ AI 定制能力：</b>' : ''}${SKILL_KEYS.map((key) => `${SKILL_LABEL[key]} ${displayedSkills[key]}`).join(' · ')}</div>`}
           <div class="creator-summary">${RACE_NAMES[app.race]} · ${dressOnly ? '' : `${age}岁 · ${traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name).join(' / ')} · `}${HT_NAMES[app.ht]}${BD_NAMES[app.bd]}<br><span class="dim">已锁定 ${locks.size} 项，随机外观时会保留</span></div>
           <div class="creator-actions"><button data-rand="1">随机外观</button>${THEMES.map((th) => `<button data-theme="${th.id}">${th.name}</button>`).join('')}</div>
-          <button class="creator-done" data-done="1" ${aiGenerating ? 'disabled' : ''}>${dressOnly ? '换上这套服装' : '就这个店主'}</button>
+          <button class="creator-done" data-done="1" ${aiGenerating ? 'disabled' : ''}>${dressOnly ? '换上这套服装' : employeeRecruit ? '确认定向招募' : '就这个店主'}</button>
           ${dressOnly ? '<button data-act="closemodal" style="width:100%;margin-top:6px">取消</button>' : ''}
         </section>
         <section class="creator-editor">
-          ${dressOnly ? '' : `<div class="creator-background"><div class="row"><b>店主背景设定</b><span class="dim">会用于员工、客人与日结 AI 的长期互动</span></div>
+          ${dressOnly || employeeRecruit ? '' : `<div class="creator-background"><div class="row"><b>店主背景设定</b><span class="dim">会用于员工、客人与日结 AI 的长期互动</span></div>
             <div class="creator-background-presets">${OWNER_BACKGROUND_PRESETS.map((preset) => `<button data-bg-preset="${preset.id}" class="${backgroundPreset === preset.id ? 'on' : ''}">${preset.name}</button>`).join('')}<button data-bg-preset="custom" class="${backgroundPreset === 'custom' ? 'on' : ''}">自定义</button></div>
             <label><span class="dim">身份定位</span><input id="crrole" maxlength="100" value="${htmlText(ownerRole)}"></label>
             <label><span class="dim">背景经历</span><textarea id="crbackground" maxlength="2400" placeholder="写下店主的出身、经历、经营动机和待人方式……">${htmlText(ownerBackground)}</textarea></label>
           </div>
-          ${aiConfigured() ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ AI 完整角色设计</b><span class="hi">可突破手动能力平均值限制</span></div>
+          ${aiConfigured() && !employeeRecruit ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ AI 完整角色设计</b><span class="hi">可突破手动能力平均值限制</span></div>
             <div class="dim">输入一个大概概念，AI 会重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力。生成后仍可手动修改；不会给予跳过经营规则的权限。</div>
             <textarea id="craidraft" maxlength="1200" placeholder="例如：沉默寡言的机械体前旅行厨师，背着旧武士刀，看起来冷淡但很会照顾人……">${htmlText(aiDraft)}</textarea>
             <div class="row"><span class="dim">${aiDesignNote ? htmlText(aiDesignNote) : '描述越具体，生成的人设和长短板越鲜明。'}</span><span>${aiGenerating ? '<button data-aicancelowner>取消生成</button>' : '<button data-aiowner>让 AI 设计整个角色</button>'}</span></div>
@@ -2615,7 +2641,7 @@ export class UI {
             concept: aiDraft,
             currentDraft: {
               name, sex, age, traitIds: traits, appearance: app, role: ownerRole, background: ownerBackground,
-              skills: aiDesigned && aiSkills ? aiSkills : (OWNER_SKILL_PRESETS.find((preset) => preset.id === ownerSkillPreset) || OWNER_SKILL_PRESETS[0]).skills,
+              skills: aiDesigned && aiSkills ? aiSkills : (skillPresets.find((preset) => preset.id === ownerSkillPreset) || skillPresets[0]).skills,
             },
             catalogs: ownerCreatorCatalogs(AGE_MAX),
             constraints: { playerRole: '多元便携旅店的店主、所有者与经营者', manualPresetAverage: 38, aiSkillRange: [1, 100], aiMayExceedManualAverage: true },
@@ -2676,7 +2702,7 @@ export class UI {
         if (traitOne && traitTwo) traits = [traitOne.value, traitTwo.value];
         normalizeOwnerIdentity();
         this.closeModal();
-        const preset = OWNER_SKILL_PRESETS.find((item) => item.id === ownerSkillPreset) || OWNER_SKILL_PRESETS[0];
+        const preset = skillPresets.find((item) => item.id === ownerSkillPreset) || skillPresets[0];
         const skills = aiDesigned && aiSkills ? { ...aiSkills } : { ...preset.skills };
         onDone(app, nm, sex, {
           age, traits: [...traits], skillPreset: aiDesigned ? 'ai' : preset.id, skills, aiDesigned,

@@ -408,6 +408,7 @@ export class Sim {
   /** 直控店主：开启后店主不再接派工，改由玩家按键驱动 */
   manualOwner = false;
   manualVec = { x: 0, y: 0 };
+  navigationWatch = new WeakMap();
   /** 当日各房间的真实使用量；只用于卫生模拟，不写入存档。 */
   roomUsage = {};
   fx                                                      = [];
@@ -516,6 +517,21 @@ export class Sim {
     const br = this.freeBedroom();
     if (br) { br.occupant = s.id; this.toast(`${s.name}入住了休息室，门牌换成「${s.name}的卧室」`); }
     return true;
+  }
+
+  /** 四星定向招募：由玩家完整设计员工，再按正常工资规则直接入职。 */
+  targetedRecruit(app, name, sex, options = {}) {
+    if (this.stars() < 4) { this.toast('定向招募需要旅店达到四星'); return false; }
+    if (this.staff.length >= this.maxStaff()) { this.toast(`没有空卧室了（员工上限 ${this.maxStaff()}）`); return false; }
+    const person = makeStaff(this.rng, this.id(), false, app, name, {
+      sex, age: options.age, traits: options.traits, skills: options.skills,
+    });
+    const fee = person.wage * 3;
+    if (this.econ.coins < fee) { this.toast(`界币不足：定向员工入职费需要 ${fee}`); return false; }
+    this.pool.push(person);
+    const hired = this.hire(person.id);
+    if (!hired) this.pool = this.pool.filter((row) => row.id !== person.id);
+    return hired;
   }
 
   /** 好感等级：文案 + 颜色，UI 与气泡共用 */
@@ -1920,8 +1936,35 @@ export class Sim {
   }
 
   // ---------- 员工 ----------
+  /** 家具覆盖、路径碰撞或旧存档坐标异常时，把角色送到最近的合法站立格。 */
+  rescueActor(a, announce = false) {
+    const target = a.path?.length ? a.path[a.path.length - 1] : null;
+    const safe = this.tavern.nearestFreeTile(a.x, a.y);
+    if (!safe) return false;
+    a.x = safe.x; a.y = safe.y;
+    a.path = target ? (this.tavern.path(safe.x, safe.y, target.x, target.y) || []) : [];
+    a.pose = a.path.length ? 'walk' : 'idle';
+    this.navigationWatch.delete(a);
+    if (announce) a.bubble = { text: '绕出来了', t: 1.6 };
+    return true;
+  }
+
+  rescueTrappedActors(announce = false) {
+    const actors = [...this.staff, ...this.groups.flatMap((group) => group.members || []), ...this.guests];
+    const seen = new Set();
+    let rescued = 0;
+    for (const actor of actors) {
+      if (!actor || seen.has(actor) || this.tavern.walkable(Math.round(actor.x), Math.round(actor.y))) continue;
+      seen.add(actor);
+      if (this.rescueActor(actor, announce)) rescued++;
+    }
+    return rescued;
+  }
+
   moveActor(a                                                                                     , dt        , speed        )       {
-    if (!a.path.length) { if (a.pose === 'walk') a.pose = 'idle'; return; }
+    if (!this.tavern.walkable(Math.round(a.x), Math.round(a.y))) this.rescueActor(a, true);
+    if (!a.path.length) { this.navigationWatch.delete(a); if (a.pose === 'walk') a.pose = 'idle'; return; }
+    const beforeX = a.x, beforeY = a.y;
     const n = a.path[0];
     const dx = n.x - a.x, dy = n.y - a.y;
     const d = Math.hypot(dx, dy);
@@ -1948,6 +1991,12 @@ export class Sim {
     }
     a.pose = 'walk';
     if (Math.abs(dx) > Math.abs(dy)) a.dir = dx > 0 ? 3 : 1; else a.dir = dy > 0 ? 0 : 2;
+    const moved = Math.hypot(a.x - beforeX, a.y - beforeY);
+    if (moved > 0.002) this.navigationWatch.delete(a);
+    else {
+      const stuckFor = (this.navigationWatch.get(a) || 0) + dt;
+      if (stuckFor >= 1.5) this.rescueActor(a, true); else this.navigationWatch.set(a, stuckFor);
+    }
   }
 
   staffSpeed(s       )         {

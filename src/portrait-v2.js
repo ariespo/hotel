@@ -1,11 +1,10 @@
 // 高分辨率模块化立绘：B 式清晰赛璐璐结构 + A 式柔和面部过渡。
-// 与地图小人共用 Appearance 编号；旧像素立绘仅作为异常回退。
+// 与地图小人共用 Appearance 编号；正式分层资源加载期间保持空白，不再闪现旧临时立绘。
 import { ACCS, EYES, FACES, FRINGES, LENGTHS } from './face.js';
 import {
   ACCENT_COLORS, appKey, CLOTH_COLORS, EYE_COLORS, HAIR_COLORS, SKINS,
 } from './chargen.js';
 import { mix, shade } from './pix.js';
-import { portraitURL as pixelPortraitURL } from './portrait.js';
 
 export const PORTRAIT_V2_SPEC = Object.freeze({
   version: 2,
@@ -424,6 +423,7 @@ export function drawIllustratedPortrait(a) {
 
 const layerImages = new Map();
 const tintedLayers = new Map();
+const LOADING_PORTRAIT_URL = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
 function requestLayer(src) {
   if (typeof Image === 'undefined') return null;
   const known = layerImages.get(src);
@@ -431,6 +431,17 @@ function requestLayer(src) {
   const image = new Image(); image.decoding = 'async'; image.src = src; layerImages.set(src, image);
   return null;
 }
+
+export function preloadFormalPortraitAssets() {
+  for (const id of FORMAL_RASTER_PARTS.faces) {
+    requestLayer(`assets/portrait-v2-formal/faces/${id}.png`);
+    requestLayer(`assets/portrait-v2-formal/ears/${id}.png`);
+  }
+  for (const id of FORMAL_RASTER_PARTS.eyes) requestLayer(`assets/portrait-v2-formal/eyes/${id}.png`);
+  for (const id of FORMAL_RASTER_PARTS.hairs) requestLayer(`assets/portrait-v2-formal/hair/${id}.png`);
+}
+
+if (typeof Image !== 'undefined') preloadFormalPortraitAssets();
 
 function tintLayer(image, kind, color) {
   const key = `${image.src}|${kind}|${color}`;
@@ -513,7 +524,6 @@ function drawLayeredPortrait(a) {
 }
 
 const cache = new Map();
-const proceduralCache = new Map();
 export function portraitURL(a) {
   const key = `v2:${appKey(a)}`;
   const hit = cache.get(key);
@@ -525,11 +535,9 @@ export function portraitURL(a) {
       if (cache.size > 240) cache.clear();
       return url;
     }
-    const fallback = proceduralCache.get(key) || drawIllustratedPortrait(a).toDataURL('image/png');
-    proceduralCache.set(key, fallback);
-    return fallback;
+    return LOADING_PORTRAIT_URL;
   } catch (err) {
-    console.warn('illustrated portrait fallback', err);
-    return pixelPortraitURL(a);
+    console.warn('illustrated portrait unavailable', err);
+    return LOADING_PORTRAIT_URL;
   }
 }

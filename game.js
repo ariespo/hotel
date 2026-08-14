@@ -1115,11 +1115,12 @@ class Game                    {
     f.x = x; f.y = y; f.dir = this.buildRot;
     f.busyBy = undefined;
     this.tavern.reindex();
+    const rescued = this.sim.rescueTrappedActors(true);
     this.staticVersion = -1;
     this.moveFurnId = null;
     this.selection = { kind: 'furn', id: f.id };
     this.audio.play('place', 0.8);
-    this.sim.toast(`${furnDef(f.kind).name}搬好了`);
+    this.sim.toast(`${furnDef(f.kind).name}搬好了${rescued ? `，并让 ${rescued} 名角色脱离卡点` : ''}`);
     this.recordBuildState('移动家具');
     this.save();
   }
@@ -1256,6 +1257,11 @@ class Game                    {
   }
 
   hire(id        )       { this.sim.hire(id); this.save(); }
+  targetedRecruit(app, name, sex, options) {
+    const hired = this.sim.targetedRecruit(app, name, sex, options);
+    if (hired) this.save();
+    return hired;
+  }
   fire(id        )       {
     const s = this.sim.staff.find((x) => x.id === id);
     if (!s || s.isOwner) return false;

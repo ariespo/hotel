@@ -552,6 +552,22 @@ export class Tavern {
     return { x: room.x, y: room.y };
   }
 
+  /** 从任意卡点寻找最近的完整可站立格；优先留在原房间。 */
+  nearestFreeTile(x        , y        )                           {
+    const originRoom = this.roomAt(Math.round(x), Math.round(y));
+    const candidates = [];
+    for (const room of this.rooms) {
+      for (let tx = room.x; tx < room.x + room.w; tx++) {
+        for (let ty = room.y; ty < room.y + room.h; ty++) {
+          if (!this.walkable(tx, ty) || !this.bodyFree(tx, ty, tx, ty, 0.14, false)) continue;
+          candidates.push({ x: tx, y: ty, sameRoom: room.id === originRoom?.id ? 0 : 1, dist: Math.abs(tx - x) + Math.abs(ty - y) });
+        }
+      }
+    }
+    candidates.sort((a, b) => a.sameRoom - b.sameRoom || a.dist - b.dist || a.y - b.y || a.x - b.x);
+    return candidates[0] || null;
+  }
+
   bounds()                                                     {
     if (!this.rooms.length) return { x0: 0, y0: 0, x1: 1, y1: 1 };
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
