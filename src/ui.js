@@ -2160,7 +2160,7 @@ export class UI {
       <textarea class="prompt-editor" data-prompt-key="${key}" maxlength="2000" spellcheck="false">${htmlText(tasks[key])}</textarea>
     </section>`).join('');
     const nightPane = (key, tab, intro) => {
-      const modules = parseNightPromptModules(tasks[key]);
+      const modules = parseNightPromptModules(tasks[key], PROMPT_TASKS[key].defaultText);
       const fields = NIGHT_PROMPT_MODULES.map(({ id, label }) => `<label class="prompt-module"><b>${htmlText(label)}</b><textarea data-night-task="${key}" data-night-module="${id}" maxlength="1600" spellcheck="false">${htmlText(modules[id])}</textarea></label>`).join('');
       return `<div class="prompt-pane ${activeTab === tab ? 'on' : ''}" data-prompt-pane="${tab}"><div class="dim">${htmlText(intro)} JSON 输出结构与解析由游戏固定。</div><div class="prompt-module-grid">${fields}</div></div>`;
     };

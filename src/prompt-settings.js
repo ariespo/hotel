@@ -88,9 +88,10 @@ export const PROMPT_TASKS = Object.freeze({
 const taskKeys = Object.keys(PROMPT_TASKS);
 const cleanText = (value) => String(value ?? '').replace(/\r\n?/g, '\n').trim().slice(0, 16000);
 
-export function parseNightPromptModules(text) {
+export function parseNightPromptModules(text, fallbackText = '') {
   const source = cleanText(text);
   const result = Object.fromEntries(NIGHT_PROMPT_MODULES.map(({ id }) => [id, '']));
+  if (fallbackText) Object.assign(result, parseNightPromptModules(fallbackText));
   const headingPattern = /【([^】]+)】\s*/g;
   const matches = [...source.matchAll(headingPattern)];
   if (!matches.length) {
