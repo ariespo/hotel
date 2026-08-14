@@ -73,6 +73,32 @@ const DEFINITIONS = Object.freeze({
     ],
     temperature: 0.9, maxTokens: 1800,
   },
+  employee_creator: {
+    schema: {
+      name: '字符串，员工姓名，1-20 个字符', sex: '枚举：男、女', age: '整数，符合所选种族寿命范围',
+      traitIds: ['两个不同的 facts.catalogs.traits.id'],
+      appearance: {
+        face: '脸型索引', eye: '眼型索引', fringe: '刘海索引', hairLen: '发型索引', race: '种族索引', ht: '身高索引', bd: '体型索引', acc: '面饰索引',
+        skin: '肤色索引', hairC: '发色索引', eyeC: '瞳色索引', clothA: '主衣色索引', clothB: '辅衣色索引', accC: '点缀色索引',
+        wear: { top: '衣装索引', leg: '裤装索引', sock: '袜子腿型索引', hand: '配饰索引' },
+      },
+      role: '字符串，员工在旅店与原世界中的身份定位，10-100 个汉字',
+      background: '字符串，可长期用于角色互动的背景经历，120-1000 个汉字',
+      aspiration: '字符串，员工现在的个人目标，15-100 个汉字',
+      quirk: '字符串，员工在日常互动中会表现的小习惯，10-80 个汉字',
+      skills: Object.fromEntries(SKILL_KEYS.map((key) => [key, `整数 1-100，${SKILL_LABEL[key]}`])),
+      designNote: '字符串，简述外貌、性格、经历与能力为什么形成统一角色概念，30-240 个汉字',
+    },
+    rules: [
+      'concept 是玩家希望招募的员工概念草稿；据此设计一名会在多元便携旅店正常工作、领取工资并与店主互动的员工。',
+      '可以重新设计姓名、性别、年龄、性格、种族、所有外貌组件、身份背景与全部能力值，但绝不能把员工写成旅店店主、所有者或顾客。',
+      '所有枚举和索引只能使用 facts.catalogs 中给出的项目；年龄必须符合所选种族的 ageMax，两个性格标签必须不同。',
+      '能力值范围为 1-100，可以形成鲜明长短板，但不要无理由全部填成高值；能力会参与正常工资和岗位推荐。',
+      '背景不得授予跳过四星解锁、免费入职、无限财富、无敌、强制控制他人或其他无法由经营玩法承载的权限。',
+      'appearance 中每个字段、skills 中七项能力，以及 role、background、aspiration、quirk 都必须完整返回。',
+    ],
+    temperature: 0.9, maxTokens: 1900,
+  },
   day_story: {
     schema: {
       title: '字符串，本日章回标题，4-24 个汉字',
@@ -293,12 +319,12 @@ export function validateGameAIResult(kind, raw) {
     role: requiredText(raw.role, 'role', 4, 100),
     background: requiredText(raw.background, 'background', 30, 1200),
   };
-  if (kind === 'owner_creator') {
+  if (kind === 'owner_creator' || kind === 'employee_creator') {
     const appearance = raw.appearance;
     if (!appearance || typeof appearance !== 'object' || Array.isArray(appearance)) throw new Error('AI 返回缺少字段：appearance');
     if (!appearance.wear || typeof appearance.wear !== 'object' || Array.isArray(appearance.wear)) throw new Error('AI 返回缺少字段：appearance.wear');
-    if (!['男', '女'].includes(raw.sex)) throw new Error('AI 返回的店主性别无效');
-    if (!Number.isFinite(Number(raw.age))) throw new Error('AI 返回的店主年龄无效');
+    if (!['男', '女'].includes(raw.sex)) throw new Error('AI 返回的角色性别无效');
+    if (!Number.isFinite(Number(raw.age))) throw new Error('AI 返回的角色年龄无效');
     if (!Array.isArray(raw.traitIds) || raw.traitIds.length !== 2 || raw.traitIds[0] === raw.traitIds[1]
       || raw.traitIds.some((id) => !TRAITS.some((trait) => trait.id === id))) throw new Error('AI 返回的店主性格无效');
     const skills = {};
@@ -320,6 +346,10 @@ export function validateGameAIResult(kind, raw) {
       },
       role: requiredText(raw.role, 'role', 4, 100), background: requiredText(raw.background, 'background', 30, 1600),
       skills, designNote: requiredText(raw.designNote, 'designNote', 10, 320),
+      ...(kind === 'employee_creator' ? {
+        aspiration: requiredText(raw.aspiration, 'aspiration', 4, 140),
+        quirk: requiredText(raw.quirk, 'quirk', 3, 100),
+      } : {}),
     };
   }
   if (kind === 'day_story') {

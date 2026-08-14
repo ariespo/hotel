@@ -2470,9 +2470,11 @@ export class UI {
     let traits = Array.isArray(ownerOptions.traits) ? ownerOptions.traits.slice(0, 2) : ['diligent', 'cheerful'];
     let ownerSkillPreset = skillPresets.some((preset) => preset.id === ownerOptions.skillPreset) ? ownerOptions.skillPreset : 'balanced';
     const initialBackground = OWNER_BACKGROUND_PRESETS.find((preset) => preset.id === ownerOptions.backgroundPreset) || OWNER_BACKGROUND_PRESETS[0];
-    let backgroundPreset = ownerOptions.profile?.background ? 'custom' : initialBackground.id;
-    let ownerRole = ownerOptions.profile?.role || initialBackground.role;
-    let ownerBackground = ownerOptions.profile?.background || initialBackground.background;
+    let backgroundPreset = employeeRecruit ? 'custom' : ownerOptions.profile?.background ? 'custom' : initialBackground.id;
+    let ownerRole = ownerOptions.profile?.role || (employeeRecruit ? '多元便携旅店的待招募员工' : initialBackground.role);
+    let ownerBackground = ownerOptions.profile?.background || (employeeRecruit ? '' : initialBackground.background);
+    let employeeAspiration = ownerOptions.profile?.aspiration || '';
+    let employeeQuirk = ownerOptions.profile?.quirk || '';
     let aiDraft = '';
     let aiDesigned = !!ownerOptions.aiDesigned;
     let aiSkills = ownerOptions.aiDesigned && ownerOptions.skills ? { ...ownerOptions.skills } : null;
@@ -2597,15 +2599,15 @@ export class UI {
           ${dressOnly ? '<button data-act="closemodal" style="width:100%;margin-top:6px">取消</button>' : ''}
         </section>
         <section class="creator-editor">
-          ${dressOnly || employeeRecruit ? '' : `<div class="creator-background"><div class="row"><b>店主背景设定</b><span class="dim">会用于员工、客人与日结 AI 的长期互动</span></div>
-            <div class="creator-background-presets">${OWNER_BACKGROUND_PRESETS.map((preset) => `<button data-bg-preset="${preset.id}" class="${backgroundPreset === preset.id ? 'on' : ''}">${preset.name}</button>`).join('')}<button data-bg-preset="custom" class="${backgroundPreset === 'custom' ? 'on' : ''}">自定义</button></div>
+          ${dressOnly ? '' : `<div class="creator-background"><div class="row"><b>${employeeRecruit ? '员工身份与背景' : '店主背景设定'}</b><span class="dim">会用于后续角色互动与 AI 对话</span></div>
+            ${employeeRecruit ? '' : `<div class="creator-background-presets">${OWNER_BACKGROUND_PRESETS.map((preset) => `<button data-bg-preset="${preset.id}" class="${backgroundPreset === preset.id ? 'on' : ''}">${preset.name}</button>`).join('')}<button data-bg-preset="custom" class="${backgroundPreset === 'custom' ? 'on' : ''}">自定义</button></div>`}
             <label><span class="dim">身份定位</span><input id="crrole" maxlength="100" value="${htmlText(ownerRole)}"></label>
-            <label><span class="dim">背景经历</span><textarea id="crbackground" maxlength="2400" placeholder="写下店主的出身、经历、经营动机和待人方式……">${htmlText(ownerBackground)}</textarea></label>
+            <label><span class="dim">背景经历</span><textarea id="crbackground" maxlength="2400" placeholder="${employeeRecruit ? '写下员工的出身、经历、求职动机和待人方式……' : '写下店主的出身、经历、经营动机和待人方式……'}">${htmlText(ownerBackground)}</textarea></label>
           </div>
-          ${aiConfigured() && !employeeRecruit ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ AI 完整角色设计</b><span class="hi">可突破手动能力平均值限制</span></div>
-            <div class="dim">输入一个大概概念，AI 会重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力。生成后仍可手动修改；不会给予跳过经营规则的权限。</div>
-            <textarea id="craidraft" maxlength="1200" placeholder="例如：沉默寡言的机械体前旅行厨师，背着旧武士刀，看起来冷淡但很会照顾人……">${htmlText(aiDraft)}</textarea>
-            <div class="row"><span class="dim">${aiDesignNote ? htmlText(aiDesignNote) : '描述越具体，生成的人设和长短板越鲜明。'}</span><span>${aiGenerating ? '<button data-aicancelowner>取消生成</button>' : '<button data-aiowner>让 AI 设计整个角色</button>'}</span></div>
+          ${aiConfigured() ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ ${employeeRecruit ? 'AI 设计员工' : 'AI 完整角色设计'}</b><span class="hi">生成完整外貌、经历与能力</span></div>
+            <div class="dim">输入一个大概概念，AI 会重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力。${employeeRecruit ? '员工仍会按能力计算正常工资与入职费。' : '不会给予跳过经营规则的权限。'}</div>
+            <textarea id="craidraft" maxlength="1200" placeholder="${employeeRecruit ? '例如：从浮空港辞职的猫族调酒师，嘴硬心软，手很稳但特别怕打扫……' : '例如：沉默寡言的机械体前旅行厨师，背着旧武士刀，看起来冷淡但很会照顾人……'}">${htmlText(aiDraft)}</textarea>
+            <div class="row"><span class="dim">${aiDesignNote ? htmlText(aiDesignNote) : '描述越具体，生成的人设和长短板越鲜明。'}</span><span>${aiGenerating ? '<button data-aicancelowner>取消生成</button>' : `<button data-aiowner>让 AI 设计${employeeRecruit ? '员工' : '整个角色'}</button>`}</span></div>
             ${aiGenerating ? '<div class="creator-ai-status hi">AI 正在组合人物经历、外貌与能力，请稍候…</div>' : aiError ? `<div class="creator-ai-status bad">${htmlText(aiError)}</div>` : ''}
           </div>` : ''}`}
           <div class="creator-groups">${availableGroups.map((item) => `<button data-group="${item.key}" class="${activeGroup === item.key ? 'on' : ''}">${item.label}</button>`).join('')}</div>
@@ -2658,25 +2660,31 @@ export class UI {
       }
       else if (t.hasAttribute('data-aiowner')) {
         captureCreatorInputs();
-        name = name.trim() || '店主'; aiDraft = aiDraft.trim();
+        name = name.trim() || (employeeRecruit ? '新员工' : '店主'); aiDraft = aiDraft.trim();
+        if (employeeRecruit && specialEmployeeRecruit(name)) {
+          aiDesignNote = 'SAMB 是固定特殊角色，已按预设锁定完整设定。'; rerender(false); return;
+        }
         if (!aiDraft) { aiError = '请先写一点角色概念，再让 AI 进行完整设计。'; rerender(); return; }
         const controller = new AbortController();
         this.creatorAIController?.abort(); this.creatorAIController = controller;
         aiGenerating = true; aiError = ''; rerender(false);
         try {
-          const result = await requestGameAI('owner_creator', {
+          const result = await requestGameAI(employeeRecruit ? 'employee_creator' : 'owner_creator', {
             concept: aiDraft,
             currentDraft: {
               name, sex, age, traitIds: traits, appearance: app, role: ownerRole, background: ownerBackground,
               skills: aiDesigned && aiSkills ? aiSkills : (skillPresets.find((preset) => preset.id === ownerSkillPreset) || skillPresets[0]).skills,
             },
             catalogs: ownerCreatorCatalogs(AGE_MAX),
-            constraints: { playerRole: '多元便携旅店的店主、所有者与经营者', manualPresetAverage: 38, aiSkillRange: [1, 100], aiMayExceedManualAverage: true },
+            constraints: employeeRecruit
+              ? { characterRole: '受店主雇用并领取正常工资的旅店员工', aiSkillRange: [1, 100], normalHiringRulesApply: true }
+              : { playerRole: '多元便携旅店的店主、所有者与经营者', manualPresetAverage: 38, aiSkillRange: [1, 100], aiMayExceedManualAverage: true },
           }, { signal: controller.signal });
           if (this.modal !== m) return;
           app = cloneApp(result.appearance);
           name = result.name; sex = result.sex; age = result.age; traits = [...result.traitIds];
           ownerRole = result.role; ownerBackground = result.background; backgroundPreset = 'ai';
+          if (employeeRecruit) { employeeAspiration = result.aspiration; employeeQuirk = result.quirk; }
           aiSkills = { ...result.skills }; aiDesigned = true; aiDesignNote = result.designNote;
           normalizeOwnerIdentity(); remember();
         } catch (err) {
@@ -2737,7 +2745,10 @@ export class UI {
         const skills = aiDesigned && aiSkills ? { ...aiSkills } : { ...preset.skills };
         onDone(app, nm, sex, {
           age, traits: [...traits], skillPreset: aiDesigned ? 'ai' : preset.id, skills, aiDesigned,
-          backgroundPreset, profile: { role: ownerRole, background: ownerBackground },
+          backgroundPreset, profile: employeeRecruit && !aiDesigned && !ownerBackground.trim() ? null : {
+            role: ownerRole, background: ownerBackground,
+            ...(employeeRecruit ? { aspiration: employeeAspiration, quirk: employeeQuirk } : {}),
+          },
         });
         return;
       }
@@ -2760,6 +2771,7 @@ export class UI {
         app = cloneApp(special.appearance); name = special.name; sex = special.sex; age = special.options.age;
         traits = [...special.options.traits]; aiSkills = { ...special.options.skills }; aiDesigned = true;
         ownerRole = special.options.profile.role; ownerBackground = special.options.profile.background; backgroundPreset = 'samb';
+        employeeAspiration = special.options.profile.aspiration; employeeQuirk = special.options.profile.quirk;
         remember(); rerender(false);
       }
       else if (target.id === 'crrole') { ownerRole = target.value; backgroundPreset = 'custom'; }
