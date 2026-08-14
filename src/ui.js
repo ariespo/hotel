@@ -1,6 +1,6 @@
 // DOM 覆盖层 UI：顶栏 / 建造 / 员工 / 选中详情 / 事件卡 / 结算 / 捏脸与换装
 import {
-  ACCENT_COLORS,                  avatarURL, BD_NAMES, BODY_NAMES, CANVAS_H, CANVAS_W, CLOTH_COLORS, cloneApp,
+  ACCENT_COLORS,                             BD_NAMES, BODY_NAMES, CANVAS_H, CANVAS_W, CLOTH_COLORS, cloneApp,
   ACC_NAMES, drawSprite, EYE_COLORS, EYE_NAMES, FACE_NAMES, FRINGE_NAMES, HAIR_COLORS, HAIRLEN_NAMES, HAND_NAMES,
   HT_NAMES, PANTS_NAMES, PRESETS, RACE_NAMES, randomAppearance, SKINS, SOCK_NAMES, THEMES,
 } from './chargen.js';
@@ -174,6 +174,7 @@ img.av.big{height:190px;object-position:50% 4%}
 img.portrait{image-rendering:pixelated;width:112px;height:144px;flex:0 0 112px;object-fit:contain;border:2px solid #94749A;border-radius:5px;background:#1B1932;box-shadow:0 5px 14px #35244655,inset 0 0 0 2px #e9c99455}
 html.portrait-v2 img.portrait{image-rendering:auto;width:120px;height:160px;flex-basis:120px;object-fit:cover;border-color:#796B83;border-radius:8px;background:#D8D4DF}
 img.portrait.compact{width:88px;height:113px;flex-basis:88px} html.portrait-v2 img.portrait.compact{width:96px;height:128px;flex-basis:96px}.portrait-head{align-items:flex-start!important}.portrait-head>div{min-width:0}.portrait-note{padding:7px 9px;border-left:3px solid #94749A;background:#5d477018;border-radius:0 7px 7px 0}
+img.portrait.list{width:42px;height:56px;flex:0 0 42px;border-width:1px;border-radius:6px;box-shadow:0 2px 6px #35244644}
 .pstrip{display:flex;gap:4px;flex-wrap:wrap}
 .pstrip img{width:44px;height:56px;object-fit:cover;object-position:50% 0;border:2px solid #E3C9A4;border-radius:8px;cursor:pointer;image-rendering:auto}
 .pstrip img.on{border-color:#7FB069}
@@ -989,7 +990,7 @@ export class UI {
   candCard(p       )         {
     const bg = p.background;
     const analysis = staffAnalysis(p);
-    return `<div class="card"><div class="row"><img class="av" src="${avatarURL(p.app)}" width="36" height="36">
+    return `<div class="card"><div class="row"><img class="portrait list" src="${portraitURL(p.app)}" width="42" height="56">
         <span style="flex:1"><b>${p.name}</b><div class="dim">${p.race}·${p.sex}·${p.age}岁</div></span>
         <span class="hi">日薪${p.wage}</span></div>
       <div class="dim">${SKILL_KEYS.map((k) => `${SKILL_LABEL[k]}${p.skills[k]}`).join(' ')}</div>
@@ -1005,7 +1006,7 @@ export class UI {
     const sel = this.g.selection && this.g.selection.kind === 'staff' && this.g.selection.id === st.id;
     const room = st.roomId ? this.g.tavern.roomById(st.roomId) : null;
     return `<div class="card ${sel ? 'sel' : ''}" data-act="selstaff" data-v="${st.id}">
-      <div class="row"><img class="av" src="${avatarURL(st.app)}" width="36" height="36">
+      <div class="row"><img class="portrait list" src="${portraitURL(st.app)}" width="42" height="56">
         <span style="flex:1"><b>${st.name}</b>${st.isOwner ? '<span class="hi">（店主）</span>' : ''}
           <div class="dim">${JOB_LABEL[st.job]}·${room ? ROOM_LABEL[room.kind] : '全店'}</div></span>
       </div>
