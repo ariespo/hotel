@@ -16,15 +16,12 @@ import {
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
 } from './data.js';
 import { AGE_MAX, fairWageRange, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS } from './sim.js';
-import { portraitURL as pixelPortraitURL } from './portrait.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
 
 // V2 在分层美术资产完成前仅供验收，不降低正式游戏的默认立绘质量。
-const usePortraitV2 = typeof window !== 'undefined'
-  && new URLSearchParams(window.location.search).get('portrait') === 'v2';
-if (usePortraitV2 && typeof document !== 'undefined') document.documentElement.classList.add('portrait-v2');
-const portraitURL = usePortraitV2 ? illustratedPortraitURL : pixelPortraitURL;
+if (typeof document !== 'undefined') document.documentElement.classList.add('portrait-v2');
+const portraitURL = illustratedPortraitURL;
 
 export const OWNER_SKILL_PRESETS = [
   { id: 'balanced', name: '均衡店主', note: '所有能力稳定，适合第一次经营。', skills: { looks: 38, cook: 38, mix: 38, serve: 38, clean: 38, carry: 38, calm: 38 } },
