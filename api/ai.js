@@ -3,7 +3,11 @@ import { isIP } from 'node:net';
 
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-export const config = { maxDuration: 60 };
+// 完整世界编译需要返回数千个 token。DeepSeek 实测单次编译会接近 45 秒，
+// 因此不能沿用短对话任务的 45 秒上游时限；给模型留出充足时间，同时仍
+// 在 Vercel 函数上限之前主动中止，确保能返回可读的 504。
+export const UPSTREAM_TIMEOUT_MS = 150000;
+export const config = { maxDuration: 180 };
 
 function normalizeBaseUrl(value) {
   let url = String(value || '').trim().replace(/\/+$/, '');
@@ -85,7 +89,7 @@ export default async function handler(req, res) {
   }
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 45000);
+  const timer = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
   try {
     const upstream = await fetch(`${baseUrl}/${suffix}`, {
       method: body.action === 'models' ? 'GET' : 'POST',
