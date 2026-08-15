@@ -497,7 +497,7 @@ export class UI {
     else if (act === 'prio') g.setPrio(parseInt(t.dataset.id          , 10), parseInt(v, 10));
     else if (act === 'dutymode') g.setDutyMode(parseInt(t.dataset.id, 10), v);
     else if (act === 'dutyprio') g.setDutyPriority(parseInt(t.dataset.id, 10), t.dataset.s, parseInt(v, 10));
-    else if (act === 'stafftrain') g.trainStaff(parseInt(t.dataset.id, 10), v);
+    else if (act === 'stafftrain') this.runStaffTraining(parseInt(t.dataset.id, 10), v);
     else if (act === 'staffequip') g.buyStaffEquipment(parseInt(t.dataset.id, 10), v);
     else if (act === 'staffperk') g.learnStaffPerk(parseInt(t.dataset.id, 10), v);
     else if (act === 'wage') g.setWage(parseInt(t.dataset.id          , 10), parseInt(v, 10));
@@ -525,13 +525,17 @@ export class UI {
     else if (act === 'buy') g.buyStock(v          , parseInt(t.dataset.n          , 10));
     else if (act === 'menuitem') { const m = g.sim.econ.menu; if (m[v] === false) delete m[v]; else m[v] = false; g.save(); }
     else if (act === 'deldish') { g.sim.deleteCustomDish(v); g.save(); }
+    else if (act === 'research') this.openResearch();
     else if (act === 'rding') { this.syncRdName(); const k = v          ; this.rd.ing[k] = Math.max(0, Math.min(4, this.rd.ing[k] + parseInt(t.dataset.d || '0', 10))); this.openResearch(); }
     else if (act === 'rdflavor') { this.syncRdName(); const i = this.rd.flavors.indexOf(v); if (i < 0) this.rd.flavors.push(v); else this.rd.flavors.splice(i, 1); this.openResearch(); }
     else if (act === 'rdfun') { this.syncRdName(); const i = this.rd.fun.indexOf(v); if (i < 0) this.rd.fun.push(v); else this.rd.fun.splice(i, 1); this.openResearch(); }
     else if (act === 'rddrink') { this.syncRdName(); this.rd.drink = !this.rd.drink; this.rd.chefId = 0; this.openResearch(); }
     else if (act === 'rdgo') this.runResearch();
+    else if (act === 'aidishname') this.generateAIDishName(false);
+    else if (act === 'aidishconcept') this.generateAIDishName(true);
     else if (act === 'dress') this.openWardrobe(parseInt(v, 10));
     else if (act === 'event') { g.resolveEvent(parseInt(v, 10)); }
+    else if (act === 'eventroll') this.runDiceEvent(parseInt(v, 10));
     else if (act === 'eventcustom') this.runCustomEvent();
     else if (act === 'eventcustomretry') this.runCustomEvent(this.eventCustomContext?.action || '继续处理当前事件');
     else if (act === 'eventback') this.openEvent();
@@ -558,7 +562,6 @@ export class UI {
     else if (act === 'ownerprompts') { this.syncPlayerProfileForm(); this.openPromptSettings(); }
     else if (act === 'aibg') this.generateAIBackground(parseInt(v, 10));
     else if (act === 'viewbg') this.openAIBackground(parseInt(v, 10));
-    else if (act === 'aidishname') this.generateAIDishName();
     else if (act === 'finale') this.openFinale();
     else if (act === 'closemodal') { this.closeModal(); if (!this.g.sim.dayActive) { this.g.audio.playTrack('bgm-plan'); this.g.audio.playAmb('amb-night'); } }
     else if (act === 'newgame') g.newGame();
@@ -910,8 +913,8 @@ export class UI {
         }).join('');
         return `<h3>${title} <span class="dim">（${drink ? '调酒' : '厨艺'}最高：${best.name} ${best.value}）</span></h3>` + cards;
       };
-      body = `<div class="dim">下架的菜客人不会点；厨艺不足、缺料或缺设施的菜即使上架也做不出来。越贵的菜对厨师要求越高。</div>
-        <div class="dim" style="margin:4px 0">🍳 收盘规划时点击厨房的灶台，可以研发新菜。</div>`
+      body = `<div class="row"><div class="dim" style="flex:1">下架的菜客人不会点；厨艺不足、缺料或缺设施的菜即使上架也做不出来。越贵的菜对厨师要求越高。</div>
+        <button data-act="research" ${s.dayActive ? 'disabled title="请在打烊后研发"' : ''}>🧪 研发新菜</button></div>`
         + group(false, '餐食') + group(true, '饮品');
     } else {
       const e = g.sim.econ;
@@ -1139,9 +1142,7 @@ export class UI {
           <button data-act="dress" data-v="${st.id}">换装</button>
           ${st.isOwner ? '' : `<button data-act="fire" data-v="${st.id}" class="warn">解雇</button>`}</div>
         ${st.isOwner ? '' : `<div class="dim">合理工资 ${wage.min}–${wage.max}（建议 ${wage.recommended}） · 当前全店日薪 ${totalWages} · 涨薪后 ${totalWages + 5}</div>`}
-        <div class="row" style="flex-wrap:wrap"><span class="dim">外出进修</span>${SKILL_KEYS.map((skill) => { const cost = Math.round(90 + st.skills[skill] * 2.2); return `<button data-act="stafftrain" data-id="${st.id}" data-v="${skill}" ${this.g.sim.dayActive || st.skills[skill] >= 100 ? 'disabled' : ''} title="${TRAINING_PROGRAMS[skill]}：能力 +3">${SKILL_LABEL[skill]}·${cost}</button>`; }).join('')}</div>
-        <div class="row" style="flex-wrap:wrap"><span class="dim">个人装备</span>${STAFF_EQUIPMENT.map((item) => `<button data-act="staffequip" data-id="${st.id}" data-v="${item.id}" ${this.g.sim.dayActive || st.equipment?.includes(item.id) ? 'disabled' : ''} title="${SKILL_LABEL[item.skill]} +${item.bonus}">${st.equipment?.includes(item.id) ? '✓ ' : ''}${item.name}·${item.cost}</button>`).join('')}</div>
-        <div class="row" style="flex-wrap:wrap"><span class="dim">职业技能</span>${STAFF_PERKS.map((perk) => `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${this.g.sim.dayActive || st.perks?.includes(perk.id) ? 'disabled' : ''} title="${perk.note}；要求 ${perk.need}">${st.perks?.includes(perk.id) ? '✓ ' : ''}${perk.name}·${perk.cost}</button>`).join('')}</div>
+        <div class="dim">外出进修、个人装备与职业技能已移至“查看详情 → 成长”。</div>
       </div></div>`;
   }
 
@@ -1305,21 +1306,57 @@ export class UI {
     const card = s.pendingEvent;
     if (!card) return;
     const choices = card.choices.map((c, i) => {
-      const chance = s.choiceChance(c);
-      const best = c.skill ? s.bestSkill(c.skill) : null;
+      const chance = s.choiceChance(c, card);
+      const actor = card.challengeFallback ? s.staff.find((person) => person.id === card.actorId) : null;
+      const best = c.skill ? (actor ? { name: actor.name, value: actor.skills[c.skill] } : s.bestSkill(c.skill)) : null;
       const afford = !c.cost || s.econ.coins >= c.cost;
       return `<div class="card"><div class="row"><b>${c.label}</b>
         <span class="${afford ? 'hi' : 'bad'}">${c.cost ? '花费 ' + c.cost : ''}</span></div>
-        <div class="dim">${c.note}${best ? `｜检定：${best.name} ${SKILL_LABEL[c.skill          ]} ${best.value} → 成功率 ${chance}%` : ''}</div>
-        <button data-act="event" data-v="${i}" ${afford ? '' : 'disabled'}>选择</button></div>`;
+        <div class="dim">${c.note}${best ? `｜检定：${best.name} ${SKILL_LABEL[c.skill          ]} ${best.value}${card.challengeFallback ? `｜D100 掷出 ≤ ${chance} 成功` : ` → 成功率 ${chance}%`}` : ''}</div>
+        <button data-act="${card.challengeFallback ? 'eventroll' : 'event'}" data-v="${i}" ${afford ? '' : 'disabled'}>${card.challengeFallback ? `决定这样做（目标 ${chance}）` : '选择'}</button></div>`;
     }).join('');
-    const custom = aiConfigured() ? `<div class="card" style="border-left-color:#7A4BE0"><b>✦ 自定义处理（AI 推演）</b>
+    const custom = aiConfigured() && !card.challengeFallback ? `<div class="card" style="border-left-color:#7A4BE0"><b>✦ 自定义处理（AI 推演）</b>
       <div class="dim" style="margin:5px 0 8px">描述店主要采取的行动。AI 会生成成功与失败结果，由游戏检定并在安全范围内结算真实数值。</div>
       <textarea data-event-custom maxlength="300" rows="3" placeholder="例如：让店主先安抚客人，再请最冷静的员工检查异常来源" style="width:100%;box-sizing:border-box"></textarea>
       <div class="row" style="margin-top:8px;justify-content:flex-end"><button data-act="eventcustom">使用 AI 推演</button></div></div>` : '';
-    const sourceBadge = card.aiGenerated ? '<span class="hi">✦ AI 当日事件</span>' : card.chainId ? `<span class="hi">◆ 长期事件链：${htmlText(card.chainName)} ${Number(card.chainStage) + 1}/3</span>` : '';
+    const sourceBadge = card.challengeFallback ? '<span class="hi">◆ 客人挑战 · 补救检定</span>' : card.aiGenerated ? '<span class="hi">✦ AI 当日事件</span>' : card.chainId ? `<span class="hi">◆ 长期事件链：${htmlText(card.chainName)} ${Number(card.chainStage) + 1}/3</span>` : '';
     this.showModal(`<h3>⚡ ${card.title}</h3>${sourceBadge}<div style="max-width:520px;margin-top:5px">${card.text}</div>${choices}${custom}
       <div class="dim">暂停中仍可拖动镜头查看酒馆。</div>`);
+  }
+
+  async runDiceEvent(index) {
+    const sim = this.g.sim;
+    const card = sim.pendingEvent;
+    const choice = card?.choices[index];
+    if (!card?.challengeFallback || !choice) return;
+    const chance = sim.choiceChance(choice, card);
+    this.showModal(`<h3>🎲 ${htmlText(card.title)}</h3>
+      <div class="card" style="text-align:center"><div class="dim">${htmlText(choice.label)} · D100 目标 ≤ ${chance}</div>
+      <div data-dice-value style="font-size:64px;font-weight:800;line-height:1.35;margin:12px">--</div><div class="hi">投骰中……</div></div>`);
+    const startedModal = this.modal;
+    const die = startedModal?.querySelector('[data-dice-value]');
+    await new Promise((resolve) => {
+      let ticks = 0;
+      const timer = window.setInterval(() => {
+        if (die) die.textContent = String(1 + Math.floor(Math.random() * 100)).padStart(2, '0');
+        if (++ticks >= 12 || this.modal !== startedModal) { window.clearInterval(timer); resolve(); }
+      }, 65);
+    });
+    if (this.modal !== startedModal || sim.pendingEvent !== card) return;
+    const narrative = sim.resolveEvent(index);
+    this.g.save();
+    const result = sim.lastEventResolution;
+    const effectParts = [];
+    if (result.effects.coins) effectParts.push(`界币 ${result.effects.coins > 0 ? '+' : ''}${result.effects.coins}`);
+    if (result.effects.guestAffinity) effectParts.push(`客人好感 ${result.effects.guestAffinity > 0 ? '+' : ''}${result.effects.guestAffinity}`);
+    if (result.effects.service) effectParts.push(result.effects.service);
+    this.showModal(`<h3>${result.success ? '✅ 挑战成功' : '❌ 挑战失败'}</h3>
+      <div class="card" style="text-align:center"><div class="dim">D100 目标 ≤ ${result.chance}</div>
+      <div style="font-size:64px;font-weight:800;line-height:1.35;margin:8px;color:${result.success ? '#58b96b' : '#d65b62'}">${result.roll}</div>
+      <b>${htmlText(result.actor)}使用${SKILL_LABEL[result.skill]}：${result.success ? '通过' : '未通过'}</b></div>
+      <div style="max-width:560px;white-space:pre-wrap;line-height:1.7;margin-top:10px">${htmlText(narrative)}</div>
+      <div class="card" style="margin-top:10px"><b>实际影响</b><div>${htmlText(effectParts.join(' · ') || '无额外数值变化')}</div></div>
+      <div class="row" style="margin-top:10px"><button data-act="closemodal">继续营业</button></div>`);
   }
 
   eventAIContext                 = null;
@@ -1719,6 +1756,40 @@ export class UI {
       <div class="row" style="margin-top:12px">${back}<button data-act="closemodal">关闭</button></div>`);
   }
 
+  async runStaffTraining(id, skill) {
+    const sim = this.g.sim;
+    const staff = sim.staff.find((person) => person.id === id);
+    if (!staff || !SKILL_KEYS.includes(skill)) return;
+    const before = staff.skills[skill];
+    const cost = Math.round(90 + before * 2.2);
+    if (!this.g.trainStaff(id, skill)) { this.detailTab = 'growth'; this.openStaffDetail(id); return; }
+    this.detailTab = 'growth';
+    if (!aiConfigured()) { this.openStaffDetail(id); return; }
+    this.showModal(`<h3>📚 ${htmlText(staff.name)}外出进修</h3><div class="card"><b>${htmlText(TRAINING_PROGRAMS[skill])}</b>
+      <div class="dim">${SKILL_LABEL[skill]} ${before} → ${staff.skills[skill]} · 支出 ${cost} 界币</div></div>
+      <div class="hi" style="margin-top:10px">AI 正在生成本次打烊期间的进修经历……</div>`);
+    const startedModal = this.modal;
+    try {
+      const result = await requestGameAI('training_story', {
+        day: sim.econ.day, venue: '位于万界交汇处的多元旅店',
+        employee: { name: staff.name, race: staff.race, age: staff.age, job: JOB_LABEL[staff.job], traits: staff.traits, background: staff.background || null },
+        course: TRAINING_PROGRAMS[skill], skill: SKILL_LABEL[skill], before, after: staff.skills[skill], cost,
+      });
+      if (this.modal !== startedModal) return;
+      this.showModal(`<h3>📚 ${htmlText(result.title)}</h3>
+        <div style="max-width:620px;white-space:pre-wrap;line-height:1.75">${htmlText(result.narrative)}</div>
+        <div class="card" style="margin-top:10px"><b>${htmlText(staff.name)}</b><div>“${htmlText(result.reflection)}”</div>
+        <div class="dim">${SKILL_LABEL[skill]} ${before} → ${staff.skills[skill]} · 支出 ${cost} 界币</div></div>
+        <div class="row" style="margin-top:10px"><button data-act="detail" data-v="${staff.id}">返回员工详情</button><button data-act="closemodal">关闭</button></div>`);
+    } catch (err) {
+      if (this.modal !== startedModal) return;
+      this.showModal(`<h3>进修完成</h3><div>${htmlText(staff.name)}完成了「${htmlText(TRAINING_PROGRAMS[skill])}」。</div>
+        <div class="card"><b>实际变化</b><div>${SKILL_LABEL[skill]} ${before} → ${staff.skills[skill]} · 支出 ${cost} 界币</div></div>
+        <div class="bad">AI 剧情生成失败：${htmlText(err?.message || '未知错误')}</div>
+        <div class="row"><button data-act="detail" data-v="${staff.id}">返回员工详情</button><button data-act="closemodal">关闭</button></div>`);
+    }
+  }
+
   openStaffDetail(id        )       {
     // 从 AI 聊天返回详情时先结束会话，让本次统一结算后的冷却立即显示。
     if (this.aiStaffChatSession?.id === id) this.finishAIStaffChatSession();
@@ -1731,7 +1802,7 @@ export class UI {
     const own = sim.staff.find((x) => x.isOwner);
     const playerProfile = st.isOwner ? loadPlayerProfile(this.g.currentSlot) : null;
     const near = !!own && !st.isOwner && Math.hypot(own.x - st.x, own.y - st.y) < 2.2;
-    const tabs = [['info', '资料'], ['skill', '技能'], ['rel', '关系']]                      ;
+    const tabs = [['info', '资料'], ['skill', '技能'], ['growth', '成长'], ['rel', '关系']]                      ;
     let body = '';
     if (this.detailTab === 'info') {
       body = `<div class="row" style="flex-wrap:wrap">
@@ -1749,6 +1820,13 @@ export class UI {
     } else if (this.detailTab === 'skill') {
       body = SKILL_KEYS.map((k) => `<div class="row"><span class="dim" style="width:52px">${SKILL_LABEL[k]}</span>${bar(st.skills[k], 100, '#F3B84B')}<span style="width:56px">${st.skills[k]}<span class="dim">+${Math.floor(st.exp[k] || 0)}</span></span></div>`).join('')
         + `<div class="dim">干活会攒经验，熟练度越高上菜/翻台/清洁越快。好感加成：当前 +${Math.round(st.aff / 4)}% 动作速度。</div>`;
+    } else if (this.detailTab === 'growth') {
+      const trained = st.lastTrainingDay === sim.econ.day;
+      body = `<div class="card"><div class="row"><b>外出进修</b><span class="${trained ? 'bad' : 'dim'}">${sim.dayActive ? '营业中不可外出' : trained ? '本次打烊已进修' : '本次打烊可选择一次'}</span></div>
+        <div class="dim">同一名员工每次打烊期间只能选择一门课程；完成后对应能力 +3。已接入 AI 时会生成本次进修剧情。</div>
+        <div class="row" style="flex-wrap:wrap;margin-top:7px">${SKILL_KEYS.map((skill) => { const cost = Math.round(90 + st.skills[skill] * 2.2); return `<button data-act="stafftrain" data-id="${st.id}" data-v="${skill}" ${sim.dayActive || trained || st.skills[skill] >= 100 ? 'disabled' : ''} title="${TRAINING_PROGRAMS[skill]}：能力 +3">${TRAINING_PROGRAMS[skill]}<br><span class="dim">${SKILL_LABEL[skill]} ${st.skills[skill]} → ${Math.min(100, st.skills[skill] + 3)} · ${cost} 币</span></button>`; }).join('')}</div></div>
+        <div class="card"><b>个人装备</b><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_EQUIPMENT.map((item) => `<button data-act="staffequip" data-id="${st.id}" data-v="${item.id}" ${sim.dayActive || st.equipment?.includes(item.id) ? 'disabled' : ''} title="${SKILL_LABEL[item.skill]} +${item.bonus}">${st.equipment?.includes(item.id) ? '✓ ' : ''}${item.name} · ${item.cost} 币<br><span class="dim">${SKILL_LABEL[item.skill]} +${item.bonus}</span></button>`).join('')}</div></div>
+        <div class="card"><b>职业技能</b><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_PERKS.map((perk) => `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${sim.dayActive || st.perks?.includes(perk.id) ? 'disabled' : ''} title="${perk.note}；要求 ${perk.need}">${st.perks?.includes(perk.id) ? '✓ ' : ''}${perk.name} · ${perk.cost} 币<br><span class="dim">${perk.note}</span></button>`).join('')}</div></div>`;
     } else {
       const rels = sim.relsOf(st.id);
       body = `<div class="row"><span class="dim">好感度</span>${bar(st.aff, 100, lv.color)}<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>
@@ -1996,9 +2074,11 @@ export class UI {
   };
 
   /** 重新渲染面板前把菜名输入框的值捞回来（重渲染会重建 DOM） */
-          syncRdName()       {
+  syncRdName()       {
     const inp = document.getElementById('rdname')                           ;
     if (inp) this.rd.name = inp.value;
+    const description = document.getElementById('rddescription');
+    if (description) this.rd.description = description.value;
   }
 
           rdNameSuggestion()         {
@@ -2029,8 +2109,10 @@ export class UI {
       <div class="dim">试验会消耗配方食材和研发费；厨师${rd.drink ? '调酒' : '厨艺'}越贴近门槛，成功率越高。成功后自动写入菜单。</div>
       <div class="row" style="margin-top:6px"><span class="dim" style="width:56px">菜名</span>
         <input id="rdname" style="flex:1" maxlength="12" value="${rd.name.replace(/"/g, '&quot;')}">
-        ${aiConfigured() ? `<button data-act="aidishname" ${rd.aiBusy ? 'disabled' : ''}>${rd.aiBusy ? '取名中…' : 'AI 取名'}</button>` : ''}</div>
-      ${rd.description ? `<div class="dim" style="margin-left:62px">${htmlText(rd.description)}</div>` : ''}
+        ${aiConfigured() ? `<button data-act="aidishname" ${rd.aiBusy ? 'disabled' : ''}>${rd.aiBusy ? '构思中…' : 'AI 随机取名'}</button>` : ''}</div>
+      <div class="row" style="align-items:flex-start"><span class="dim" style="width:56px">说明</span>
+        <textarea id="rddescription" maxlength="140" rows="3" style="flex:1;box-sizing:border-box" placeholder="可自行填写菜单上的风味、来历或卖点">${htmlText(rd.description || '')}</textarea>
+        ${aiConfigured() ? `<button data-act="aidishconcept" ${rd.aiBusy || !rd.name.trim() ? 'disabled' : ''}>根据菜名构思</button>` : ''}</div>
       <div class="row"><span class="dim" style="width:56px">品类</span>
         <button data-act="rddrink" class="${rd.drink ? '' : 'on'}">餐食（灶台）</button>
         <button data-act="rddrink" class="${rd.drink ? 'on' : ''}">饮品（酒桶）</button></div>
@@ -2061,7 +2143,7 @@ export class UI {
     rd.msg = '';
   }
 
-  async generateAIDishName()       {
+  async generateAIDishName(preserveName = false)       {
     if (this.rd.aiBusy) return;
     this.syncRdName();
     const rd = this.rd;
@@ -2076,17 +2158,19 @@ export class UI {
       chef: chef ? { name: chef.name, race: chef.race, skill: chef.skills[rd.drink ? 'mix' : 'cook'] } : null,
       fixedNumbers: { price: stats.price, skillRequirement: stats.skill, researchFee: stats.fee },
       existingMenuNames: sim.allDishes().map((dish) => dish.name),
+      providedName: preserveName ? rd.name.trim() : '',
+      taskIntent: preserveName ? '保留玩家菜名，只构思与配方相符的菜单说明' : '根据配方随机构思菜名和说明',
     };
     rd.aiBusy = true;
     this.openResearch();
     const startedModal = this.modal;
     try {
       const result = await requestGameAI('dish_name', facts);
-      rd.name = result.name;
+      if (!preserveName) rd.name = result.name;
       rd.description = result.description;
       rd.msg = '';
     } catch (err) {
-      rd.msg = `AI 取名失败：${err?.message || '未知错误'}`;
+      rd.msg = `AI 构思失败：${err?.message || '未知错误'}`;
     } finally {
       rd.aiBusy = false;
       if (this.modal === startedModal) this.openResearch();

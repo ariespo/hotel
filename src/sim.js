@@ -54,6 +54,54 @@ export const FACILITY_CHALLENGES = {
   brew: { bubble: '炼金釜里有什么在敲盖子！', label: '控制炼金异变', skill: 'calm', difficulty: 66, reward: 80 },
 };
 
+const CHALLENGE_APPROACHES = {
+  meal: [
+    { label: '请客人逐项描述口味', skill: 'serve', delta: -4, successText: '{staff}耐心拆解客人的要求，重新安排了更合口味的一份招待。', failureText: '解释越说越乱，客人认定店里只会找借口。' },
+    { label: '用饮品重新组织味觉', skill: 'mix', delta: 2, successText: '{staff}以一杯特调衔接菜肴风味，挑剔的客人终于点头。', failureText: '饮品与料理互相冲突，客人的表情更加微妙。' },
+    { label: '冷静分析失败的火候', skill: 'calm', delta: 0, successText: '{staff}找出味道失衡的原因，现场补救得恰到好处。', failureText: '分析耗时太久，菜已经彻底冷了。' },
+  ],
+  drink: [
+    { label: '询问客人熟悉的酒谱', skill: 'serve', delta: -3, successText: '{staff}从客人的描述中抓住关键比例，重调顺利。', failureText: '双方对“浓一点”的理解完全不同。' },
+    { label: '用料理香气衬托酒体', skill: 'cook', delta: 3, successText: '{staff}临时配了一小碟佐食，酒液的层次立刻清晰起来。', failureText: '佐食反而盖住了酒香。' },
+    { label: '稳住客人并重新校准', skill: 'calm', delta: 0, successText: '{staff}不慌不忙地重做流程，终于找回正确层次。', failureText: '客人的耐心先于调酒完成而耗尽。' },
+  ],
+  bath: [
+    { label: '安抚客人后缓慢调温', skill: 'serve', delta: -3, successText: '{staff}一边说明一边细调水温，池面很快恢复平稳。', failureText: '客人只听见解释，没有感到水温改善。' },
+    { label: '搬开堵塞的导流石', skill: 'carry', delta: 1, successText: '{staff}移开导流石，冷热水重新循环起来。', failureText: '导流石纹丝不动，水花却溅得到处都是。' },
+    { label: '观察水纹寻找异常源', skill: 'calm', delta: 2, successText: '{staff}从水纹中判断出异常阀门并及时关闭。', failureText: '复杂的水纹误导了判断。' },
+  ],
+  play: [
+    { label: '重新搬动并校平球桌', skill: 'carry', delta: -2, successText: '{staff}重新找平桌脚，下一杆笔直进袋。', failureText: '球桌挪动后歪向了另一个方向。' },
+    { label: '陪客人试打确认偏差', skill: 'serve', delta: 1, successText: '{staff}在试打中确认偏差，客人也消了气。', failureText: '试打连续失误，客人更加确信设备有问题。' },
+    { label: '冷静测算球路误差', skill: 'calm', delta: 3, successText: '{staff}用数次球路反推桌面倾斜，校准成功。', failureText: '测算看似漂亮，实战却完全不对。' },
+  ],
+  show: [
+    { label: '安抚观众并争取时间', skill: 'serve', delta: -4, successText: '{staff}用现场讲解稳住观众，设备也及时恢复。', failureText: '观众不接受把故障说成特别节目。' },
+    { label: '搬动设备重接线路', skill: 'carry', delta: 1, successText: '{staff}快速重接线路，画面与声音重新同步。', failureText: '线路越理越乱，银幕彻底黑了。' },
+    { label: '凭节奏手动校准同步', skill: 'calm', delta: 0, successText: '{staff}抓准节奏逐帧校正，放映平稳继续。', failureText: '校准点不断漂移，观众开始倒数离场。' },
+  ],
+  stroll: [
+    { label: '立刻下水捞取行李', skill: 'carry', delta: -2, successText: '{staff}赶在行李沉底前把它完整捞了回来。', failureText: '行李从指尖滑过，又被水流卷远。' },
+    { label: '指挥客人关闭支流', skill: 'serve', delta: 0, successText: '{staff}组织众人截断水流，行李顺利靠岸。', failureText: '指令彼此冲突，庭院里一片忙乱。' },
+    { label: '判断喷泉循环的出口', skill: 'calm', delta: 2, successText: '{staff}算准行李再次出现的位置，稳稳接住。', failureText: '行李从完全相反的出口飞了出来。' },
+  ],
+  stargaze: [
+    { label: '用机械方式固定镜筒', skill: 'carry', delta: 2, successText: '{staff}固定住偏转的镜筒，星图终于停止倒转。', failureText: '镜筒稳定了，视野却偏离了整片天空。' },
+    { label: '向客人解释异常星象', skill: 'serve', delta: 0, successText: '{staff}把故障转化成一堂罕见星象课，客人听得入迷。', failureText: '客人很快发现解释和星图对不上。' },
+    { label: '凭星位重新推算方向', skill: 'calm', delta: -2, successText: '{staff}以三颗基准星重建坐标，星图恢复正常。', failureText: '错误的基准星让整张图越转越快。' },
+  ],
+  game: [
+    { label: '搬开机壳抢修接口', skill: 'carry', delta: -2, successText: '{staff}重新压紧接口，客人的分数完整恢复。', failureText: '机壳打开后，更多警示灯同时亮起。' },
+    { label: '核对客人的得分经过', skill: 'serve', delta: 0, successText: '{staff}复盘得分并补录记录，客人接受了处理。', failureText: '双方连第几关出错都没能说清。' },
+    { label: '冷静寻找程序复位节奏', skill: 'calm', delta: 2, successText: '{staff}抓住复位窗口，机器吐回了被吞掉的分数。', failureText: '一次错误复位把临时记录全部清空。' },
+  ],
+  brew: [
+    { label: '搬开炼金釜隔离现场', skill: 'carry', delta: 2, successText: '{staff}把炼金釜移入隔离圈，异变逐渐平息。', failureText: '炼金釜比预想中更活跃，拖出一路彩烟。' },
+    { label: '用料理知识中和反应', skill: 'cook', delta: 4, successText: '{staff}加入恰当的中和材料，敲击声终于停止。', failureText: '材料让锅盖敲出了更欢快的节奏。' },
+    { label: '向客人说明安全步骤', skill: 'serve', delta: 0, successText: '{staff}有条不紊地疏散并演示处理过程，反而赢得掌声。', failureText: '说明尚未结束，锅盖先飞了起来。' },
+  ],
+};
+
 const SPECIAL_FACILITY_WANTS = new Set(['bath', 'play', 'show', 'stroll', 'stargaze', 'game', 'brew']);
 const FACILITY_FURN_KINDS = new Set(['pool', 'billiardtable', 'screen', 'fountain', 'telescope', 'arcadem', 'cauldron']);
 
@@ -568,6 +616,7 @@ export class Sim {
   guests          = [];
   groups          = [];
   facilityChallenges          = [];
+  challengeEventQueue          = [];
   /** 离店后仍会保存的常客档案；再次来店时复用身份、关系和对话记忆。 */
   regulars          = [];
   orders          = [];
@@ -1162,6 +1211,7 @@ export class Sim {
     this.aiEventRequested = false;
     this.queuedDynamicEvent = null;
     this.facilityChallenges = [];
+    this.challengeEventQueue = [];
     this.stationOwner.clear();
     this.pendingFacilityReset.clear();
     this.roomUsage = {};
@@ -1388,6 +1438,7 @@ export class Sim {
       this.tickAnim(dt); return;
     }
     this.dayT += dt;
+    if (!this.pendingEvent && this.challengeEventQueue.length) this.pendingEvent = this.challengeEventQueue.shift();
     if (!this.pendingEvent && this.queuedDynamicEvent) {
       this.pendingEvent = this.queuedDynamicEvent;
       this.queuedDynamicEvent = null;
@@ -1902,6 +1953,42 @@ export class Sim {
     guest.bubble = { text: def.bubble, t: 12 };
     this.toast(`⚠ ${guest.name}：${def.bubble}`);
     this.sounds.push('alert');
+  }
+
+  challengeTraitBonus(staff, skill) {
+    if (!staff) return 0;
+    let bonus = 0;
+    if (staff.traits.includes('clumsy')) bonus -= 6;
+    if (staff.traits.includes('careful') && ['clean', 'calm'].includes(skill)) bonus += 6;
+    if (staff.traits.includes('sociable') && skill === 'serve') bonus += 6;
+    if (staff.traits.includes('gourmet') && ['cook', 'mix'].includes(skill)) bonus += 6;
+    if (staff.traits.includes('decisive') && ['carry', 'calm'].includes(skill)) bonus += 5;
+    return bonus;
+  }
+
+  escalateFacilityChallenge(challenge) {
+    if (!challenge || challenge.state !== 'open' || challenge.escalated) return false;
+    const group = this.groups.find((item) => item.id === challenge.groupId);
+    const guest = group?.members.find((item) => item.id === challenge.guestId) || group?.members[0];
+    const primary = this.bestSkill(challenge.skill);
+    const staff = this.staff.find((person) => person.id === primary.id) || this.staff[0];
+    if (!group || !guest || !staff) { this.finishFacilityChallenge(challenge, null, false); return false; }
+    const approaches = CHALLENGE_APPROACHES[group.want] || CHALLENGE_APPROACHES.meal;
+    const card = {
+      id: `guest_challenge_${challenge.id}`, title: `客人挑战：${challenge.label}`, challengeFallback: true,
+      challengeId: challenge.id, actorId: staff.id, guestId: guest.id,
+      text: `${guest.name}${challenge.bubble.replace(/[！？!?]+$/, '')}，抱怨店里就没有更好的处理了吗？店内${SKILL_LABEL[challenge.skill]}最精湛的${staff.name}刚才没能直接解决，决定尝试另一种办法回应挑战。`,
+      choices: approaches.map((approach) => ({
+        ...approach, actorId: staff.id, difficulty: clamp(challenge.difficulty + approach.delta, 30, 90),
+        note: `${staff.name}使用${SKILL_LABEL[approach.skill]}尝试；性格也会影响掷骰修正。`,
+      })),
+    };
+    challenge.escalated = true;
+    challenge.actorId = staff.id;
+    if (this.pendingEvent) this.challengeEventQueue.push(card); else this.pendingEvent = card;
+    this.toast(`⚡ ${staff.name}的首次检定未通过，触发客人挑战事件`);
+    this.sounds.push('alert');
+    return true;
   }
 
   finishFacilityChallenge(challenge, staff, success) {
@@ -2804,7 +2891,7 @@ export class Sim {
     }
     const challengeKind = { cook: 'cook', mix: 'mix', serve: 'order', clean: 'clean', carry: 'bus', calm: 'greet' };
     for (const challenge of this.facilityChallenges) {
-      if (challenge.state !== 'open') continue;
+      if (challenge.state !== 'open' || challenge.escalated) continue;
       const key = `challenge:${challenge.id}`;
       if (claimed.has(key)) continue;
       const group = this.groups.find((item) => item.id === challenge.groupId);
@@ -2817,7 +2904,8 @@ export class Sim {
         steps: [{ tx: stand.x, ty: stand.y }, { dur: 2.8, label: challenge.label, skill: challenge.skill, done: (staff) => {
           if (challenge.state !== 'open') return;
           const chance = clamp(Math.round(55 + (staff.skills[challenge.skill] - challenge.difficulty) * 1.15), 8, 96);
-          this.finishFacilityChallenge(challenge, staff, this.rng.next() * 100 <= chance);
+          if (this.rng.next() * 100 <= chance) this.finishFacilityChallenge(challenge, staff, true);
+          else this.escalateFacilityChallenge(challenge);
         } }],
       });
     }
@@ -3283,12 +3371,14 @@ export class Sim {
   trainStaff(id, skill) {
     const s = this.staff.find((person) => person.id === id);
     if (!s || this.dayActive || !SKILL_KEYS.includes(skill) || s.skills[skill] >= 100) return false;
+    if (s.lastTrainingDay === this.econ.day) { this.toast(`${s.name}本次打烊期间已经外出进修过了`); return false; }
     const cost = Math.round(90 + s.skills[skill] * 2.2);
     if (this.econ.coins < cost) { this.toast(`进修需要 ${cost} 界币`); return false; }
     this.econ.coins -= cost;
     const before = s.skills[skill];
     s.skills[skill] = Math.min(100, before + 3);
     s.trainingCount = (s.trainingCount || 0) + 1;
+    s.lastTrainingDay = this.econ.day;
     s.needs.morale = clamp(s.needs.morale + 3, 0, 100);
     this.toast(`${s.name}完成「${TRAINING_PROGRAMS[skill]}」：${SKILL_LABEL[skill]} ${before} → ${s.skills[skill]}（-${cost}）`);
     return true;
@@ -3346,8 +3436,8 @@ export class Sim {
 
   // ---------- 事件 ----------
   bestSkill(k          )                                  {
-    let best = { name: '无人', value: 0 };
-    for (const s of this.staff) if (s.skills[k] > best.value) best = { name: s.name, value: s.skills[k] };
+    let best = { id: 0, name: '无人', value: 0 };
+    for (const s of this.staff) if (s.skills[k] > best.value) best = { id: s.id, name: s.name, value: s.skills[k] };
     return best;
   }
 
@@ -3451,8 +3541,13 @@ export class Sim {
           lastEventId = '';
 
   /** 返回选项成功率（0-100），无检定则 100 */
-  choiceChance(choice                                     )         {
+  choiceChance(choice, card = this.pendingEvent)         {
     if (!choice.skill) return 100;
+    if (card?.challengeFallback) {
+      const staff = this.staff.find((person) => person.id === (choice.actorId || card.actorId));
+      if (!staff) return 5;
+      return clamp(Math.round(55 + (staff.skills[choice.skill] - choice.difficulty) * 1.15 + this.challengeTraitBonus(staff, choice.skill)), 5, 96);
+    }
     const best = this.bestSkill(choice.skill);
     const stoic = this.staff.some((s) => s.traits.includes('stoic')) ? 10 : 0;
     return clamp(Math.round((choice.base || 50) * 0.5 + best.value * 0.6 + stoic), 5, 96);
@@ -3537,6 +3632,8 @@ export class Sim {
     const card = this.pendingEvent;
     if (!card) return '';
     const c = card.choices[idx];
+    if (!c) return '';
+    if (card.challengeFallback) return this.resolveChallengeFallback(card, c);
     if (card.chainId) this.eventChains[card.chainId] = Math.max(this.eventChains[card.chainId] || 0, (card.chainStage || 0) + 1);
     const snapshot = () => ({
       coins: this.econ.coins, rep: this.econ.rep, stock: { ...this.econ.stock }, dirt: this.tavern.dirt.length,
@@ -3579,6 +3676,36 @@ export class Sim {
     };
     if (this.dayReport) this.dayReport.events.push(this.lastEventResolution);
     return text;
+  }
+
+  resolveChallengeFallback(card, choice) {
+    const challenge = this.facilityChallenges.find((item) => item.id === card.challengeId);
+    const staff = this.staff.find((person) => person.id === card.actorId);
+    if (!challenge || !staff) { this.pendingEvent = null; return '挑战对象已经离开，事件结束。'; }
+    const group = this.groups.find((item) => item.id === challenge.groupId);
+    const guest = group?.members.find((item) => item.id === challenge.guestId) || group?.members[0];
+    const beforeCoins = this.econ.coins;
+    const beforeAff = guest?.aff || 0;
+    const chance = this.choiceChance(choice, card);
+    const roll = 1 + Math.floor(this.rng.next() * 100);
+    const success = roll <= chance;
+    this.pendingEvent = null;
+    this.finishFacilityChallenge(challenge, staff, success);
+    const narrative = String(success ? choice.successText : choice.failureText).replaceAll('{staff}', staff.name);
+    const effects = {
+      coins: this.econ.coins - beforeCoins,
+      rep: 0,
+      stock: {},
+      guestAffinity: (guest?.aff || 0) - beforeAff,
+      service: success ? '本次客群服务评价上升' : '本次客群服务评价下降',
+    };
+    this.lastEventResolution = {
+      eventId: card.id, title: card.title, premise: card.text, choice: choice.label,
+      choiceNote: choice.note, skill: choice.skill, success, originalResult: narrative, effects,
+      challengeFallback: true, difficulty: choice.difficulty, chance, roll, actor: staff.name,
+    };
+    if (this.dayReport) this.dayReport.events.push(this.lastEventResolution);
+    return narrative;
   }
 
   serialize()          {

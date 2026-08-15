@@ -176,10 +176,24 @@ const DEFINITIONS = Object.freeze({
     },
     rules: [
       '名称必须体现给定品类、主料、口味和趣味特征，符合万界奇幻酒馆风格。',
+      '如果 facts.providedName 非空，name 必须逐字原样返回，不得改名；围绕该名称、配方、口味和趣味特征构思 description。',
       '不得改变配方、售价、技能门槛或成功率。',
       '不使用现实品牌、受版权保护角色名、低俗词或随机编号。',
     ],
     temperature: 0.95, maxTokens: 260,
+  },
+  training_story: {
+    schema: {
+      title: '字符串，本次外出进修的小标题，4-24 个汉字',
+      narrative: '字符串，员工在打烊期间完成进修的具体剧情，100-500 个汉字',
+      reflection: '字符串，员工回来后对店主说的一句话，8-100 个汉字',
+    },
+    rules: [
+      '只能使用 facts 中给出的员工、课程、能力变化、性格与背景；不得改写数值或额外赠送奖励。',
+      '剧情发生在本次打烊期间，必须写出与课程和能力类别相关的实际练习，而不是泛泛而谈。',
+      '保持多元旅店的世界观与员工既有人设，reflection 应像该员工本人说的话。',
+    ],
+    temperature: 0.88, maxTokens: 720,
   },
   staff_background: {
     schema: {
@@ -409,6 +423,11 @@ export function validateGameAIResult(kind, raw) {
   if (kind === 'dish_name') return {
     name: requiredText(raw.name, 'name', 2, 12).replace(/[《》]/g, ''),
     description: requiredText(raw.description, 'description', 8, 140),
+  };
+  if (kind === 'training_story') return {
+    title: requiredText(raw.title, 'title', 2, 36),
+    narrative: requiredText(raw.narrative, 'narrative', 30, 800),
+    reflection: requiredText(raw.reflection, 'reflection', 4, 160),
   };
   if (kind === 'staff_background') return {
     background: requiredText(raw.background, 'background', 30, 500),

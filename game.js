@@ -805,8 +805,6 @@ class Game                    {
     const f = this.tavern.furnAt(x, y);
     if (f) {
       this.selection = { kind: 'furn', id: f.id };
-      // 收盘规划期点灶台 → 新菜研发
-      if (!this.sim.dayActive && f.kind === 'stove') this.ui.openResearch();
       return;
     }
     const r = this.tavern.roomAt(x, y);
@@ -1373,7 +1371,7 @@ class Game                    {
     s.dutyMode = 'manual';
     this.save(); this.ui.render(true);
   }
-  trainStaff(id, skill) { if (this.sim.trainStaff(id, skill)) { this.save(); this.ui.render(true); } }
+  trainStaff(id, skill) { const ok = this.sim.trainStaff(id, skill); if (ok) { this.save(); this.ui.render(true); } return ok; }
   buyStaffEquipment(id, equipmentId) { if (this.sim.buyStaffEquipment(id, equipmentId)) { this.save(); this.ui.render(true); } }
   learnStaffPerk(id, perkId) { if (this.sim.learnStaffPerk(id, perkId)) { this.save(); this.ui.render(true); } }
   setWage(id        , w        )       {
