@@ -3463,7 +3463,7 @@ export class Sim {
       return {
         ...choice, gains, total: Object.values(gains).reduce((sum, value) => sum + value, 0), gainText,
         resultText: `${staff.name}选择“${choice.label}”。在${world.name}，${scene.trial}的考验里，${choice.approach}。起初属于${traitNames.join('、') || '谨慎'}的个人习惯让节奏显得格外鲜明，最终也被调整成了适合旅店日常的做法。`,
-        reflection: `这里的规矩和旅店完全不同，不过我已经知道该把${gainText}用在什么地方了。`,
+        reflection: `这里的规矩和旅店完全不同，不过我已经知道该怎样把这些练习带回店里了。`,
       };
     });
     return {
