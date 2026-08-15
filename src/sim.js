@@ -517,6 +517,41 @@ export const TRAINING_PROGRAMS = Object.freeze({
   clean: '高效清洁研修', carry: '搬运与路线训练', calm: '危机应对课程',
 });
 
+const TRAINING_WORLD_SCENES = Object.freeze({
+  hearth_coast: { venue: '铜炉港的商队公学', method: '以炉火、账本和真实客流反复校验手艺', trial: '商队钟每响一次，学员就必须在下一批旅人抵达前完成整套流程' },
+  verdant_court: { venue: '露叶长阶的季节学舍', method: '跟随花妖导师观察气味、声音与客人的细微反应', trial: '会唱歌的树桥会把每一次急躁和疏漏直接唱给所有学员听' },
+  magma_ridge: { venue: '赤骨营地的盟誓训练场', method: '用大份实作、结伴竞技和直截了当的现场复盘锤炼能力', trial: '战鼓一响便要在高温、喧闹和围观中把工作做完' },
+  neon_ring: { venue: '第七码头的夜班实训站', method: '依靠计时屏、模拟队列和即时反馈压缩每一个多余动作', trial: '磁悬街的客流模型会突然加速，任何迟疑都会在整面镜屏上标红' },
+  moonsea: { venue: '沉月港的潮汐研修馆', method: '在水质、鲜度和动作洁净都被严格记录的环境中练习', trial: '潮汐珠会映出看不见的杂质，也会放大每一次破坏节奏的动作' },
+  evernight: { venue: '影幕街的长夜私塾', method: '在柔暗灯光下学习耐心、分寸与跨越漫长岁月的待客经验', trial: '无钟墓园没有报时声，学员只能靠观察客人的神情判断节奏' },
+  honey_sky: { venue: '金蜜云港的礼仪学院', method: '把称谓、仪态、景观与服务顺序编成一套严谨的迎送仪式', trial: '羽桥花园的风会吹乱准备好的陈设，考验临场修正和礼数' },
+  iron_hive: { venue: '主序装配层的工序校准所', method: '把任务拆成可复核步骤，用蜂格轨道记录时间与设备状态', trial: '工序令牌会随机宣布设备停机，学员必须立即切换备用流程' },
+  mask_realm: { venue: '红幕王街的巡演学堂', method: '借面具、即兴演出和观众喝彩训练表现力与现场应变', trial: '导师会在最热闹处突然换上陌生面具，要求学员接住新的身份和台词' },
+  inverted_dreamsea: { venue: '沉睡灯塔的倒向课堂', method: '在颠倒的空间与梦境暗示中寻找不依赖常识的解决方法', trial: '瓶装潮声会让步骤的先后次序短暂倒转，迫使学员重新理解流程' },
+  ash_dragoncourt: { venue: '余烬王城的宴席监察院', method: '以龙庭标准检验品质、席位和每一处足以影响高价体验的细节', trial: '宴席监察官会故意混入一件平庸成品，要求学员当场识别并补救' },
+  timeless_bazaar: { venue: '零时十字街的跨纪元工坊', method: '同时面对来自过去与未来的规矩，练习先辨认时段再调整方法', trial: '停摆怀表每次重新走动都会更换一套客人习俗和工作条件' },
+});
+
+const TRAINING_SKILL_SCENES = Object.freeze({
+  looks: { practice: '仪态、服饰细节与第一印象', a: 'serve', b: 'calm', focus: '反复打磨标准仪态', balanced: '把礼仪融入接待', transfer: '用沉着支撑个人气场' },
+  cook: { practice: '火候、食材判断与异界口味', a: 'clean', b: 'calm', focus: '专攻一道高难出品', balanced: '兼顾料理与操作洁净', transfer: '在突发条件下稳定火候' },
+  mix: { practice: '风味配比、出杯节奏与酒客观察', a: 'serve', b: 'calm', focus: '专攻复杂风味结构', balanced: '边调制边照顾饮用体验', transfer: '处理失控配方与现场压力' },
+  serve: { practice: '迎送、点单与桌边判断', a: 'looks', b: 'carry', focus: '精炼完整服务话术', balanced: '强化仪态与沟通', transfer: '优化端送和桌边动线' },
+  clean: { practice: '卫生判断、整理次序与设施复位', a: 'carry', b: 'calm', focus: '追求无可挑剔的清洁', balanced: '同步优化整理动作', transfer: '在混乱现场保持判断' },
+  carry: { practice: '负重、路线规划与安全交接', a: 'serve', b: 'clean', focus: '突破稳定搬运效率', balanced: '让搬运配合前厅节奏', transfer: '把路线训练用于快速收整' },
+  calm: { practice: '风险识别、投诉应对与临场决断', a: 'serve', b: 'clean', focus: '专练高压下的判断', balanced: '以沟通化解冲突', transfer: '从现场秩序中消除风险' },
+});
+
+const TRAINING_WORLD_AFFINITY = Object.freeze({
+  looks: ['honey_sky', 'mask_realm', 'evernight', 'verdant_court'],
+  cook: ['hearth_coast', 'magma_ridge', 'moonsea', 'ash_dragoncourt'],
+  mix: ['neon_ring', 'evernight', 'honey_sky', 'ash_dragoncourt'],
+  serve: ['honey_sky', 'neon_ring', 'hearth_coast', 'iron_hive'],
+  clean: ['verdant_court', 'moonsea', 'iron_hive', 'hearth_coast'],
+  carry: ['magma_ridge', 'neon_ring', 'iron_hive', 'timeless_bazaar'],
+  calm: ['inverted_dreamsea', 'evernight', 'iron_hive', 'moonsea'],
+});
+
 export const STAFF_EQUIPMENT = Object.freeze([
   { id: 'service_pin', name: '银星领针', skill: 'serve', bonus: 3, cost: 180 },
   { id: 'chef_knife', name: '折叠星钢厨刀', skill: 'cook', bonus: 3, cost: 210 },
@@ -3368,19 +3403,96 @@ export class Sim {
     }
   }
 
-  trainStaff(id, skill) {
+  trainingWorldFor(staff, skill) {
+    const unlocked = worldsForStars(this.stars());
+    const affinity = TRAINING_WORLD_AFFINITY[skill] || [];
+    const traitWorlds = {
+      diligent: ['iron_hive', 'hearth_coast'], lazy: ['evernight', 'inverted_dreamsea'], cheerful: ['honey_sky', 'mask_realm'],
+      grumpy: ['magma_ridge', 'ash_dragoncourt'], perfectionist: ['iron_hive', 'ash_dragoncourt'], fast: ['neon_ring', 'iron_hive'],
+      clean_freak: ['verdant_court', 'moonsea'], gourmet: ['hearth_coast', 'moonsea'], stoic: ['evernight', 'iron_hive'],
+      clumsy: ['magma_ridge', 'inverted_dreamsea'], chatty: ['mask_realm', 'honey_sky'], careful: ['verdant_court', 'iron_hive'],
+      creative: ['inverted_dreamsea', 'mask_realm'], sociable: ['honey_sky', 'hearth_coast'], organized: ['iron_hive', 'neon_ring'], decisive: ['magma_ridge', 'ash_dragoncourt'],
+    };
+    const candidates = affinity.map((id) => unlocked.find((world) => world.id === id)).filter(Boolean);
+    const suitable = candidates.length ? candidates : unlocked;
+    const favoredIds = new Set((staff.traits || []).flatMap((trait) => traitWorlds[trait] || []));
+    const characterFit = suitable.filter((world) => favoredIds.has(world.id));
+    const pool = characterFit.length ? characterFit : suitable.slice(0, Math.min(3, suitable.length));
+    const forecastFit = pool.filter((world) => (this.econ.worldForecast || []).includes(world.id));
+    const finalPool = forecastFit.length && stableHash(`${staff.id}:${skill}:tide`) % 3 === 0 ? forecastFit : pool;
+    return finalPool[stableHash(`${this.econ.seed}:${this.econ.day}:${staff.id}:${skill}:world`) % finalPool.length] || WORLD_PROFILES[0];
+  }
+
+  trainingGains(staff, priorities, budget) {
+    const gains = {};
+    let remaining = budget;
+    const add = (key) => {
+      const room = 100 - staff.skills[key] - (gains[key] || 0);
+      if (remaining > 0 && room > 0) { gains[key] = (gains[key] || 0) + 1; remaining--; }
+    };
+    for (const key of priorities) add(key);
+    const fallback = [...SKILL_KEYS].sort((a, b) => staff.skills[a] - staff.skills[b] || a.localeCompare(b));
+    while (remaining > 0) {
+      const before = remaining;
+      for (const key of fallback) add(key);
+      if (before === remaining) break;
+    }
+    return gains;
+  }
+
+  trainingPlan(id, skill) {
+    const staff = this.staff.find((person) => person.id === id);
+    if (!staff || !SKILL_KEYS.includes(skill)) return null;
+    const world = this.trainingWorldFor(staff, skill);
+    const scene = TRAINING_WORLD_SCENES[world.id] || TRAINING_WORLD_SCENES.hearth_coast;
+    const course = TRAINING_SKILL_SCENES[skill];
+    const seed = stableHash(`${this.econ.seed}:${this.econ.day}:${staff.id}:${skill}:training`);
+    const regionProfile = world.regions[seed % world.regions.length];
+    const region = regionProfile?.name || String(regionProfile || world.name);
+    const mentor = world.travel.occupations[(seed >>> 3) % world.travel.occupations.length];
+    const traitNames = (staff.traits || []).map((id) => TRAITS.find((trait) => trait.id === id)?.name || id).slice(0, 2);
+    const budget = Math.min(3, SKILL_KEYS.reduce((sum, key) => sum + Math.max(0, 100 - staff.skills[key]), 0));
+    const rawChoices = [
+      { id: 'focus', label: course.focus, priorities: [skill, skill, skill], approach: `接受${mentor}的严格安排，把整段时间都投入${course.practice}` },
+      { id: 'balanced', label: course.balanced, priorities: [skill, skill, course.a], approach: `先练核心课程，再把${SKILL_LABEL[course.a]}纳入同一套现场流程` },
+      { id: 'transfer', label: course.transfer, priorities: [skill, course.b, course.b], approach: `从${SKILL_LABEL[course.b]}的角度重新理解${course.practice}` },
+    ];
+    const choices = rawChoices.map((choice) => {
+      const gains = this.trainingGains(staff, choice.priorities, budget);
+      const gainText = Object.entries(gains).map(([key, value]) => `${SKILL_LABEL[key]} +${value}`).join('、');
+      return {
+        ...choice, gains, total: Object.values(gains).reduce((sum, value) => sum + value, 0), gainText,
+        resultText: `${staff.name}选择“${choice.label}”。在${world.name}，${scene.trial}的考验里，${choice.approach}。起初属于${traitNames.join('、') || '谨慎'}的个人习惯让节奏显得格外鲜明，最终也被调整成了适合旅店日常的做法。`,
+        reflection: `这里的规矩和旅店完全不同，不过我已经知道该把${gainText}用在什么地方了。`,
+      };
+    });
+    return {
+      staffId: staff.id, skill, course: TRAINING_PROGRAMS[skill], cost: Math.round(90 + staff.skills[skill] * 2.2),
+      world: { id: world.id, name: world.name, icon: world.icon, lore: world.identity.summary, etiquette: world.culture.etiquette },
+      region, mentor, venue: scene.venue,
+      intro: `${staff.name}前往${world.name}的${region}，在${scene.venue}参加“${TRAINING_PROGRAMS[skill]}”。${world.identity.summary}${scene.method}。当地尤其讲究：${world.culture.etiquette}`,
+      characterNote: `${mentor}注意到${staff.name}具有${traitNames.join('、') || '独特'}的性格，因此给出了三条不同的练习路线。每条路线总成长均为 ${budget} 点。`,
+      choices,
+    };
+  }
+
+  trainStaff(id, skill, choiceId = 'focus') {
     const s = this.staff.find((person) => person.id === id);
     if (!s || this.dayActive || !SKILL_KEYS.includes(skill) || s.skills[skill] >= 100) return false;
     if (s.lastTrainingDay === this.econ.day) { this.toast(`${s.name}本次打烊期间已经外出进修过了`); return false; }
     const cost = Math.round(90 + s.skills[skill] * 2.2);
     if (this.econ.coins < cost) { this.toast(`进修需要 ${cost} 界币`); return false; }
+    const plan = this.trainingPlan(id, skill);
+    const choice = plan?.choices.find((item) => item.id === choiceId);
+    if (!plan || !choice) return false;
     this.econ.coins -= cost;
-    const before = s.skills[skill];
-    s.skills[skill] = Math.min(100, before + 3);
+    const before = { ...s.skills };
+    for (const [key, value] of Object.entries(choice.gains)) s.skills[key] = Math.min(100, s.skills[key] + value);
     s.trainingCount = (s.trainingCount || 0) + 1;
     s.lastTrainingDay = this.econ.day;
     s.needs.morale = clamp(s.needs.morale + 3, 0, 100);
-    this.toast(`${s.name}完成「${TRAINING_PROGRAMS[skill]}」：${SKILL_LABEL[skill]} ${before} → ${s.skills[skill]}（-${cost}）`);
+    this.lastTrainingResult = { ...plan, choice, before, after: { ...s.skills }, staffName: s.name };
+    this.toast(`${s.name}完成「${TRAINING_PROGRAMS[skill]}」：${choice.gainText}（-${cost}）`);
     return true;
   }
 

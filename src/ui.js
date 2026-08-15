@@ -250,7 +250,7 @@ const ORDER_STAGE                         = {
   queued: '排队', prep: '备餐', cook: '下锅', ready: '待上菜', served: '已上菜', void: '作废',
 };
 
-export const PURCHASE_ACTIONS = Object.freeze(['hire', 'uproom', 'upfurn', 'buy', 'rstyle', 'adpost', 'rdgo', 'stafftrain', 'staffequip', 'staffperk']);
+export const PURCHASE_ACTIONS = Object.freeze(['hire', 'uproom', 'upfurn', 'buy', 'rstyle', 'adpost', 'rdgo', 'trainingchoice', 'staffequip', 'staffperk']);
 
 export function nightInteractionAction(sim       , kind                   , owner       , target       , group        )            {
   if (!sim || sim.dayActive || !owner || !target) return '';
@@ -497,7 +497,8 @@ export class UI {
     else if (act === 'prio') g.setPrio(parseInt(t.dataset.id          , 10), parseInt(v, 10));
     else if (act === 'dutymode') g.setDutyMode(parseInt(t.dataset.id, 10), v);
     else if (act === 'dutyprio') g.setDutyPriority(parseInt(t.dataset.id, 10), t.dataset.s, parseInt(v, 10));
-    else if (act === 'stafftrain') this.runStaffTraining(parseInt(t.dataset.id, 10), v);
+    else if (act === 'stafftrain') this.openStaffTrainingPlan(parseInt(t.dataset.id, 10), v);
+    else if (act === 'trainingchoice') this.runStaffTraining(parseInt(t.dataset.id, 10), t.dataset.s, v);
     else if (act === 'staffequip') g.buyStaffEquipment(parseInt(t.dataset.id, 10), v);
     else if (act === 'staffperk') g.learnStaffPerk(parseInt(t.dataset.id, 10), v);
     else if (act === 'wage') g.setWage(parseInt(t.dataset.id          , 10), parseInt(v, 10));
@@ -1756,37 +1757,64 @@ export class UI {
       <div class="row" style="margin-top:12px">${back}<button data-act="closemodal">关闭</button></div>`);
   }
 
-  async runStaffTraining(id, skill) {
+  openStaffTrainingPlan(id, skill) {
+    const sim = this.g.sim;
+    const staff = sim.staff.find((person) => person.id === id);
+    const plan = sim.trainingPlan(id, skill);
+    if (!staff || !plan || sim.dayActive || staff.lastTrainingDay === sim.econ.day) return;
+    this.showModal(`<h3>${htmlText(plan.world.icon)} ${htmlText(plan.course)} · ${htmlText(plan.world.name)}</h3>
+      <div class="card"><div><b>${htmlText(plan.venue)}</b> · ${htmlText(plan.region)}</div>
+        <div style="white-space:pre-wrap;line-height:1.7;margin-top:6px">${htmlText(plan.intro)}</div>
+        <div class="dim" style="margin-top:6px">风土提示：${htmlText(plan.world.etiquette)}</div></div>
+      <div style="margin:9px 0;line-height:1.65">${htmlText(plan.characterNote)}</div>
+      ${plan.choices.map((choice) => `<div class="card"><div class="row"><b>${htmlText(choice.label)}</b><span class="hi">总成长 ${choice.total}</span></div>
+        <div>${htmlText(choice.approach)}</div><div class="dim" style="margin-top:5px">收益：${htmlText(choice.gainText)}</div>
+        <button data-act="trainingchoice" data-id="${staff.id}" data-s="${skill}" data-v="${choice.id}">选择这条路线 · ${plan.cost} 币</button></div>`).join('')}
+      <div class="row"><button data-act="detail" data-v="${staff.id}">返回员工详情</button></div>`);
+  }
+
+  localTrainingResult(result) {
+    const choice = result.choice;
+    this.showModal(`<h3>${htmlText(result.world.icon)} ${htmlText(result.staffName)}的进修归来</h3>
+      <div class="card"><b>${htmlText(result.world.name)} · ${htmlText(result.venue)}</b>
+        <div style="white-space:pre-wrap;line-height:1.75;margin-top:7px">${htmlText(choice.resultText)}</div></div>
+      <div class="card"><b>${htmlText(result.staffName)}</b><div>“${htmlText(choice.reflection)}”</div>
+        <div class="hi" style="margin-top:6px">${htmlText(choice.gainText)} · 总成长 ${choice.total} · 支出 ${result.cost} 界币</div></div>
+      <div class="row" style="margin-top:10px"><button data-act="detail" data-v="${result.staffId}">返回员工详情</button><button data-act="closemodal">关闭</button></div>`);
+  }
+
+  async runStaffTraining(id, skill, choiceId) {
     const sim = this.g.sim;
     const staff = sim.staff.find((person) => person.id === id);
     if (!staff || !SKILL_KEYS.includes(skill)) return;
-    const before = staff.skills[skill];
-    const cost = Math.round(90 + before * 2.2);
-    if (!this.g.trainStaff(id, skill)) { this.detailTab = 'growth'; this.openStaffDetail(id); return; }
+    if (!this.g.trainStaff(id, skill, choiceId)) { this.detailTab = 'growth'; this.openStaffDetail(id); return; }
     this.detailTab = 'growth';
-    if (!aiConfigured()) { this.openStaffDetail(id); return; }
-    this.showModal(`<h3>📚 ${htmlText(staff.name)}外出进修</h3><div class="card"><b>${htmlText(TRAINING_PROGRAMS[skill])}</b>
-      <div class="dim">${SKILL_LABEL[skill]} ${before} → ${staff.skills[skill]} · 支出 ${cost} 界币</div></div>
+    const result = sim.lastTrainingResult;
+    if (!result) { this.openStaffDetail(id); return; }
+    if (!aiConfigured()) { this.localTrainingResult(result); return; }
+    this.showModal(`<h3>📚 ${htmlText(staff.name)}外出进修</h3><div class="card"><b>${htmlText(result.world.name)} · ${htmlText(result.course)}</b>
+      <div class="dim">${htmlText(result.choice.gainText)} · 总成长 ${result.choice.total} · 支出 ${result.cost} 界币</div></div>
       <div class="hi" style="margin-top:10px">AI 正在生成本次打烊期间的进修经历……</div>`);
     const startedModal = this.modal;
     try {
       const result = await requestGameAI('training_story', {
-        day: sim.econ.day, venue: '位于万界交汇处的多元旅店',
+        day: sim.econ.day, venue: '位于万界交汇处的多元旅店', destinationWorld: result.world,
         employee: { name: staff.name, race: staff.race, age: staff.age, job: JOB_LABEL[staff.job], traits: staff.traits, background: staff.background || null },
-        course: TRAINING_PROGRAMS[skill], skill: SKILL_LABEL[skill], before, after: staff.skills[skill], cost,
+        course: result.course, selectedRoute: { label: result.choice.label, approach: result.choice.approach, gains: result.choice.gains },
+        localScenario: { region: result.region, venue: result.venue, intro: result.intro, mentor: result.mentor },
+        before: result.before, after: result.after, cost: result.cost,
       });
       if (this.modal !== startedModal) return;
       this.showModal(`<h3>📚 ${htmlText(result.title)}</h3>
         <div style="max-width:620px;white-space:pre-wrap;line-height:1.75">${htmlText(result.narrative)}</div>
         <div class="card" style="margin-top:10px"><b>${htmlText(staff.name)}</b><div>“${htmlText(result.reflection)}”</div>
-        <div class="dim">${SKILL_LABEL[skill]} ${before} → ${staff.skills[skill]} · 支出 ${cost} 界币</div></div>
+        <div class="dim">${htmlText(sim.lastTrainingResult.choice.gainText)} · 总成长 ${sim.lastTrainingResult.choice.total} · 支出 ${sim.lastTrainingResult.cost} 界币</div></div>
         <div class="row" style="margin-top:10px"><button data-act="detail" data-v="${staff.id}">返回员工详情</button><button data-act="closemodal">关闭</button></div>`);
     } catch (err) {
       if (this.modal !== startedModal) return;
-      this.showModal(`<h3>进修完成</h3><div>${htmlText(staff.name)}完成了「${htmlText(TRAINING_PROGRAMS[skill])}」。</div>
-        <div class="card"><b>实际变化</b><div>${SKILL_LABEL[skill]} ${before} → ${staff.skills[skill]} · 支出 ${cost} 界币</div></div>
-        <div class="bad">AI 剧情生成失败：${htmlText(err?.message || '未知错误')}</div>
-        <div class="row"><button data-act="detail" data-v="${staff.id}">返回员工详情</button><button data-act="closemodal">关闭</button></div>`);
+      this.localTrainingResult(result);
+      const warning = this.modal?.querySelector('.card');
+      if (warning) warning.insertAdjacentHTML('beforeend', `<div class="dim" style="margin-top:7px">AI 演绎暂不可用，已显示本地世界剧情：${htmlText(err?.message || '未知错误')}</div>`);
     }
   }
 
@@ -1823,7 +1851,7 @@ export class UI {
     } else if (this.detailTab === 'growth') {
       const trained = st.lastTrainingDay === sim.econ.day;
       body = `<div class="card"><div class="row"><b>外出进修</b><span class="${trained ? 'bad' : 'dim'}">${sim.dayActive ? '营业中不可外出' : trained ? '本次打烊已进修' : '本次打烊可选择一次'}</span></div>
-        <div class="dim">同一名员工每次打烊期间只能选择一门课程；完成后对应能力 +3。已接入 AI 时会生成本次进修剧情。</div>
+        <div class="dim">同一名员工每次打烊期间只能选择一门课程；将根据员工性格和已接通世界生成研修事件。三条路线的成长分配不同，但总成长量相同。</div>
         <div class="row" style="flex-wrap:wrap;margin-top:7px">${SKILL_KEYS.map((skill) => { const cost = Math.round(90 + st.skills[skill] * 2.2); return `<button data-act="stafftrain" data-id="${st.id}" data-v="${skill}" ${sim.dayActive || trained || st.skills[skill] >= 100 ? 'disabled' : ''} title="${TRAINING_PROGRAMS[skill]}：能力 +3">${TRAINING_PROGRAMS[skill]}<br><span class="dim">${SKILL_LABEL[skill]} ${st.skills[skill]} → ${Math.min(100, st.skills[skill] + 3)} · ${cost} 币</span></button>`; }).join('')}</div></div>
         <div class="card"><b>个人装备</b><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_EQUIPMENT.map((item) => `<button data-act="staffequip" data-id="${st.id}" data-v="${item.id}" ${sim.dayActive || st.equipment?.includes(item.id) ? 'disabled' : ''} title="${SKILL_LABEL[item.skill]} +${item.bonus}">${st.equipment?.includes(item.id) ? '✓ ' : ''}${item.name} · ${item.cost} 币<br><span class="dim">${SKILL_LABEL[item.skill]} +${item.bonus}</span></button>`).join('')}</div></div>
         <div class="card"><b>职业技能</b><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_PERKS.map((perk) => `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${sim.dayActive || st.perks?.includes(perk.id) ? 'disabled' : ''} title="${perk.note}；要求 ${perk.need}">${st.perks?.includes(perk.id) ? '✓ ' : ''}${perk.name} · ${perk.cost} 币<br><span class="dim">${perk.note}</span></button>`).join('')}</div></div>`;

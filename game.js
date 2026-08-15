@@ -1371,7 +1371,7 @@ class Game                    {
     s.dutyMode = 'manual';
     this.save(); this.ui.render(true);
   }
-  trainStaff(id, skill) { const ok = this.sim.trainStaff(id, skill); if (ok) { this.save(); this.ui.render(true); } return ok; }
+  trainStaff(id, skill, choiceId = 'focus') { const ok = this.sim.trainStaff(id, skill, choiceId); if (ok) { this.save(); this.ui.render(true); } return ok; }
   buyStaffEquipment(id, equipmentId) { if (this.sim.buyStaffEquipment(id, equipmentId)) { this.save(); this.ui.render(true); } }
   learnStaffPerk(id, perkId) { if (this.sim.learnStaffPerk(id, perkId)) { this.save(); this.ui.render(true); } }
   setWage(id        , w        )       {
