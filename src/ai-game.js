@@ -23,6 +23,7 @@ const WORLD_CONTENT_SCHEMA = {
   recommendedFacilities: ['dining、bar、parlor、guestroom、onsen、billiard、theater、garden、observatory、arcade、alchemy 中 2-4 项'],
   conflicts: ['3-6 个当代矛盾'], storyHooks: ['4-8 个经营或旅行故事钩子'],
   notableCharacters: [{ name: '原创人物名', detail: '身份、阵营、公开目标与个人矛盾' }],
+  dialogue: { arrival: ['5-8 句到店对白'], wait: ['5-8 句等待对白'], good: ['5-8 句好评'], neutral: ['5-8 句中评'], bad: ['5-8 句恶评'], journey: ['5-8 句旅途故事；称谓和语域必须符合当地文化'] },
   visuals: { appearanceThemes: ['cyber、ancient、magic 中 1-3 项'] }, atmosphere: { sky: ['两个十六进制颜色'], tint: '十六进制强调色', particle: '粒子', weather: '天气与动态天象', horizon: '远景', sound: '环境声' },
 };
 
@@ -255,6 +256,7 @@ const DEFINITIONS = Object.freeze({
       '所有经营倍率必须在 0.85-1.20；当地规则不得禁用餐饮、饮酒、住宿或任何基础设施。',
       'population.raceId 只能使用 facts.races 中的整数 ID；经营枚举只能使用输出规范给出的英文 ID。',
       '历史、政治、经济、日常生活和标志人物必须互相引用并形成因果，而不是互不相关的设定清单。',
+      'dialogue 六类每类 5-8 句，必须自然体现当地称谓、职业、礼仪和语言习惯，不能只替换世界名。',
     ], temperature: .88, maxTokens: 6200,
   },
   world_review: {
@@ -403,6 +405,10 @@ export function validateGameAIResult(kind, raw) {
     for (const [key, min, max] of [['regions', 6, 10], ['history', 6, 8], ['factions', 4, 6], ['notableCharacters', 6, 8], ['localRules', 3, 5], ['festivals', 2, 4]]) {
       if (!Array.isArray(world[key]) || world[key].length < min) throw new Error(`AI 世界字段 ${key} 至少需要 ${min} 项`);
       world[key] = world[key].slice(0, max);
+    }
+    for (const key of ['arrival', 'wait', 'good', 'neutral', 'bad', 'journey']) {
+      if (!Array.isArray(world.dialogue?.[key]) || world.dialogue[key].length < 5) throw new Error(`AI 世界对白 dialogue.${key} 至少需要 5 句`);
+      world.dialogue[key] = world.dialogue[key].slice(0, 8).map(String);
     }
     requiredText(world.name, 'world.name', 2, 24); requiredText(world.summary, 'world.summary', 30, 700);
     return kind === 'world_review' ? { world, repairs: Array.isArray(raw.repairs) ? raw.repairs.slice(0, 12).map(String) : [] } : { world };

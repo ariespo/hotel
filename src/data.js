@@ -193,15 +193,31 @@ export const FLAVORS = [
 ]         ;
 export const FLAVOR_LABEL                         = { umami: '鲜', spicy: '辣', sweet: '甜', sour: '酸', mellow: '醇', weird: '猎奇' };
 
-function worldDialogues(name, motifs) {
+const WORLD_DIALOGUE_VOICE = {
+  hearth_coast: { arrival: '炉火在前，风雨在后——掌柜，劳烦给商队一处落脚地。', wait: '契约讲究准时，饭菜和带位也该一样。', good: '火是热的，账是明的，这才像做长久生意。', neutral: '能歇脚，但离炉岸人夸口的水准还差一点。', bad: '这笔招待账，我可没法替你写成好看数字。', journey: '我们沿旧商路追着一枚失落炉印，走到了位面门前。' },
+  verdant_court: { arrival: '愿门后的风没有惊扰此处枝叶，我们来借一席安静。', wait: '苔藓都快记住我的脚步了，仍无人来么？', good: '此处的洁净与分寸，像晨露落叶一般自然。', neutral: '尚算和谐，只是空气与声响还可再收敛些。', bad: '烟尘与怠慢会留下比脚印更久的伤痕。', journey: '我们带着星种越过林契边界，想知道它会在何种天空发芽。' },
+  magma_ridge: { arrival: '{address}，贫道自九洲借星门而来，可有一盏清茶、一席热食？', wait: '{address}，修行人也讲究因果，这份等待总该有个说法。', good: '{address}，火候、灵韵与待客之礼皆不俗，此番没有白来。', neutral: '{address}，尚可入口，只是离“妙”之一字仍差半分。', bad: '{address}，灵石可以再赚，坏了待客因果却难补。', journey: '贫道为寻一味异界灵材离开九洲，沿灵脉云海追到了这扇门。' },
+  neon_ring: { arrival: '接入完成。掌柜，给我最低延迟的座位和一杯离线饮料。', wait: '当前响应时间已经越过服务协议上限。', good: '延迟低、反馈清楚、味觉数据漂亮，五星写入。', neutral: '流程能跑，但还远没到值得上传体验记录的程度。', bad: '排队黑箱、出品掉帧——这单体验必须差评。', journey: '我从七码头带来一块断网芯片，里面存着整条街被删除的凌晨。' },
+  moonsea: { arrival: '潮路平稳，鳍也没有发干；请给我们靠近清水的位置。', wait: '这一等像退潮后搁浅，连水汽都快散了。', good: '鲜味像月潮一样层层回来，水与温度也正合适。', neutral: '潮面平稳，却没有让人记住的浪花。', bad: '这般干热与陈味，在海国连浅湾小店都不会端出。', journey: '我们追着一枚逆流的潮汐珠，从沉月港一路漂到这里。' },
+  evernight: { arrival: '夜还很长，掌柜不必催促；先替我们留一盏柔暗的灯。', wait: '我见过王朝腐朽，倒很少见柜台比王朝更慢。', good: '灯影温柔，酒也懂得沉默，这一夜值得记住。', neutral: '尚能消磨长夜，只是百年后未必还会想起。', bad: '如此粗率的招待，连亡者都要被气醒。', journey: '我替故人寻找一段遗失的记忆，沿着没有钟声的街走入了星门。' },
+  honey_sky: { arrival: '愿永昼照见彼此的礼数，劳烦为我们安排一处能看见天光的席位。', wait: '迎送之礼已经迟了一拍，愿后续不要继续失序。', good: '礼数、甜香与景致彼此成全，足以写进云港评鉴。', neutral: '仪节无错，却少了一点让羽翼舒展的用心。', bad: '若连基本迎送都省去，再明亮的景色也显得黯淡。', journey: '我们的星帆追逐一束陌生暮光——在永昼之地，黄昏可是稀世景观。' },
+  iron_hive: { arrival: '报到。远征编队申请热食、净水与六小时不受炮火打扰的休整。', wait: '补给延误正在削弱整队状态，请立即报告原因。', good: '配给扎实，设备可靠；这份休整足以让人重返前线。', neutral: '达到生存标准，但还不足以列入军团优先补给点。', bad: '浪费时间与口粮等同资敌，这份记录会原样上报。', journey: '我们护送最后一船难民穿过静默裂隙，舰壳上还留着燃烬星域的灰。' },
+  mask_realm: { arrival: '帷幕升起——掌柜，请给今日的陌生人安排一个精彩座位。', wait: '空场太久，观众可是会用脚投票的。', good: '好！火候接住了气氛，服务也没有念错一句台词。', neutral: '戏能看，酒能喝，可惜谢幕时不会有人起立。', bad: '这场招待唯一精彩之处，就是它终于结束了。', journey: '我偷走了一张没有主人的面具，它却一路替我指向这家旅店。' },
+  inverted_dreamsea: { arrival: '请把座位放在不会向上坠落的地方；今天我的影子有些晕船。', wait: '我们等了三次明天，怎么现在仍是刚才？', good: '味道先在梦里开花，醒来后才落到舌尖——很好。', neutral: '一切都太合理了，反倒让人怀疑是不是哪里出了错。', bad: '这份失望竟如此普通，连噩梦都不肯收留。', journey: '我从一头鲸的梦里捞出瓶装潮声，它说真正的海在门的另一边。' },
+  ash_dragoncourt: { arrival: '报上最好的席位与陈酿，龙庭付得起价格，也看得懂品质。', wait: '让贵客久候，是账目无法粉饰的失礼。', good: '价格配得上火候，器皿也没有辱没龙庭纹章。', neutral: '不算怠慢，却还不值得动用珍矿支付。', bad: '平庸却敢标高价，这比冒犯血统更缺乏胆量。', journey: '我奉命寻找能承受龙焰的新合金，也顺路评定万界宴席。' },
+  timeless_bazaar: { arrival: '掌柜，我们从三个昨日和一个明早赶来，账请记在现在。', wait: '再等下去，这顿饭的价格可要按下个纪元结算了。', good: '这份体验在七条时间线上都保持了好味道。', neutral: '此刻尚可，换个年代也许会更合适。', bad: '我要把这次消费退回发生之前。', journey: '我们在无时集市买下一段尚未发生的旅程，终点正写着这里。' },
+};
+
+function worldDialogues(id, name, motifs) {
   const [a, b, c, d] = motifs;
+  const voice = WORLD_DIALOGUE_VOICE[id] || {};
   return {
-    arrival: [`${a}的气息还跟在斗篷上——这里就是多元旅店？`, `从${name}跨过位面门，比传闻中平稳多了。`, `先安顿行李，再打听这里有没有${b}。`, `同行的人都到了，别把${c}落在门那边。`],
-    wait: [`在${name}，等这么久已经该换一次${d}了。`, `位面门都穿过了，怎么在柜台前走不动？`, `若还没人招呼，我可要把这段写进旅记。`, `耐心也是旅费的一部分，但不能全花在这里。`],
-    good: [`这份招待让我想起${a}，很合我们的规矩。`, `${b}与这里的手艺竟然如此相配。`, `回到${name}后，我会把这家店画进航图。`, `礼数、火候和气氛都对，值得再跨一次门。`],
-    neutral: [`还算稳妥，只是少了点${c}的味道。`, `能吃能歇，但在${name}还称不上节庆水准。`, `规矩没有出错，惊喜也没有出现。`, `若把${d}再照料好些，我会多留一晚。`],
-    bad: [`这可不是${name}待客的办法。`, `${a}都比这里让人安心，账单却一点不客气。`, `我跨界而来，不是为了等一场失望。`, `把${b}和${c}一起糟蹋，实在罕见。`],
-    journey: [`我从${name}的${a}启程，为了寻找${b}。`, `途中经过${c}，那里的位面潮像倒着下的雨。`, `我们这一行护送${d}，必须在下一次门潮前赶路。`, `${name}并非只有一种族；同一条街上能听见十几种乡音。`],
+    arrival: [`${a}的气息还跟在斗篷上——这里就是多元旅店？`, `从${name}跨过位面门，比传闻中平稳多了。`, `先安顿行李，再打听这里有没有${b}。`, `同行的人都到了，别把${c}落在门那边。`, voice.arrival],
+    wait: [`在${name}，等这么久已经该换一次${d}了。`, `位面门都穿过了，怎么在柜台前走不动？`, `若还没人招呼，我可要把这段写进旅记。`, `耐心也是旅费的一部分，但不能全花在这里。`, voice.wait],
+    good: [`这份招待让我想起${a}，很合我们的规矩。`, `${b}与这里的手艺竟然如此相配。`, `回到${name}后，我会把这家店画进航图。`, `礼数、火候和气氛都对，值得再跨一次门。`, voice.good],
+    neutral: [`还算稳妥，只是少了点${c}的味道。`, `能吃能歇，但在${name}还称不上节庆水准。`, `规矩没有出错，惊喜也没有出现。`, `若把${d}再照料好些，我会多留一晚。`, voice.neutral],
+    bad: [`这可不是${name}待客的办法。`, `${a}都比这里让人安心，账单却一点不客气。`, `我跨界而来，不是为了等一场失望。`, `把${b}和${c}一起糟蹋，实在罕见。`, voice.bad],
+    journey: [`我从${name}的${a}启程，为了寻找${b}。`, `途中经过${c}，那里的位面潮像倒着下的雨。`, `我们这一行护送${d}，必须在下一次门潮前赶路。`, `${name}并非只有一种族；同一条街上能听见十几种乡音。`, voice.journey],
   };
 }
 
@@ -221,11 +237,11 @@ const WORLD_DETAILS = {
     storyHooks: ['季节议会正在寻找失踪的种子使者', '机械藤蔓开始侵入会唱歌的树桥'],
   },
   magma_ridge: {
-    identity: { environment: '火山脊线、玄武岩荒原和露天沸泉', civilization: '兽人部族、龙裔氏族与巨人营地组成的盟誓联盟', technology: '重型锻造、驯兽术与火焰图腾魔法' },
-    culture: { values: ['力量', '同伴', '坦率'], hospitalityIdeal: '大份热食、同桌而坐、爽快招待', taboos: ['拆散同行伙伴', '端上过小份量'], speechStyle: '豪爽直接，赞美和不满都毫不遮掩' },
-    visuals: { palette: ['熔岩橙', '焦黑', '骨白'], clothingThemes: ['皮革护肩', '骨质饰品', '部族纹样'], portalEffect: '火山灰、红色裂光与战鼓震动' },
-    groupPatterns: [{ type: '部族同行团', min: 3, max: 4, weight: 5 }, { type: '竞技旅人', min: 1, max: 2, weight: 2 }],
-    storyHooks: ['两支部族要在旅店完成一场不流血的盟誓', '传说中的沸泉石被异界商人买走'],
+    identity: { environment: '九洲山河、灵脉云海、浮空仙山与幽冥边关', civilization: '仙朝治理凡俗、宗门传承道统、世家与散修争逐机缘的修行文明', technology: '丹器符阵、御剑飞行、洞天法宝与依境界运转的术法体系' },
+    culture: { values: ['师承', '因果', '守诺'], hospitalityIdeal: '称谓得体、承诺分明、同门同席并以灵食清茶相待', taboos: ['妄称境界', '轻慢师门与山川正神', '无故毁约'], speechStyle: '含蓄古雅，依辈分称道友、前辈、小友或掌柜，常以因果与修行作比' },
+    visuals: { palette: ['玄青', '云白', '鎏金'], clothingThemes: ['交领法袍', '云纹佩饰', '宗门腰牌'], portalEffect: '灵气流光、符箓残影与短促剑鸣' },
+    groupPatterns: [{ type: '同门游历团', min: 2, max: 4, weight: 5 }, { type: '游方散修', min: 1, max: 2, weight: 3 }],
+    storyHooks: ['两宗弟子试图在旅店化解一桩秘境归属因果', '一味只在异界生长的灵材可能修复断裂天门'],
   },
   neon_ring: {
     identity: { environment: '环形巨城、悬浮轨道与永不熄灭的商业夜景', civilization: '企业城区、机械社群和虫巢公寓并存的高速都市', technology: '高度信息化、义体机械与稳定能量网络' },
@@ -319,7 +335,7 @@ function worldProfile(profile) {
       budgetMultiplier: profile.modifiers.budget, patienceMultiplier: profile.modifiers.patience,
     },
     visuals: { ...detail.visuals, appearanceThemes: profile.lookThemes },
-    dialogue: worldDialogues(profile.name, profile.motifs),
+    dialogue: worldDialogues(profile.id, profile.name, profile.motifs),
     storyHooks: detail.storyHooks,
     knowledge: {
       firstArrival: ['name', 'summary', 'etiquetteHint'], firstService: ['wantWeights', 'roomStyleLikes'],

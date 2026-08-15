@@ -252,6 +252,19 @@ export function normalizeCustomWorld(raw, fallbackId = `custom_${Date.now().toSt
   if (!groupPatterns.length) groupPatterns.push({ type: '当地旅行团', min: 1, max: 4, weight: 4 });
   const appearanceThemes = list(source.visuals?.appearanceThemes).filter((theme) => ['cyber', 'ancient', 'magic'].includes(theme)).slice(0, 3);
   if (!appearanceThemes.length) appearanceThemes.push('magic');
+  const defaultDialogue = {
+    arrival: [`终于抵达${text(source.name, '这个世界')}之外的旅店了。`, '位面门比传闻中稳定。', '这里会怎样接待我们？', '先看看当地菜单吧。', '异界的礼数或许不同，先向掌柜问清楚。'],
+    wait: ['还需要等多久？', '队列至少还看得明白。', '希望没有走错航路。', '稍等片刻也无妨。', '若能说明进度，我们也好安排后面的行程。'],
+    good: ['这趟跨界旅行值得。', '我要把这里记进旅途日志。', '服务比传闻还可靠。', '下次会带同伴再来。', '这里确实理解我们的习惯。'],
+    neutral: ['整体还算稳妥。', '有些地方与家乡不太一样。', '这次体验可以接受。', '也许下次会更顺利。', '没有失礼，但也还没留下深刻印象。'],
+    bad: ['这不是我期待的跨界服务。', '等待和出品都需要改进。', '我会如实记录这次体验。', '还是先回故乡吧。', '若不了解来客的规矩，至少应该先询问。'],
+    journey: ['故乡最近正在发生巨大的变化。', '我为一件只有异界才有的事物而来。', '位面门改变了我们的日常。', '总有一天你该亲自去看看。', '我们的职业、口音和旅途目的都与故乡密不可分。'],
+  };
+  const dialogue = Object.fromEntries(Object.entries(defaultDialogue).map(([kind, fallback]) => {
+    const rows = list(source.dialogue?.[kind]).map(String).slice(0, 8);
+    for (const line of fallback) if (rows.length < 5 && !rows.includes(line)) rows.push(line);
+    return [kind, rows];
+  }));
   return {
     id, custom: true, name: text(source.name, '未命名世界').slice(0, 24), icon: text(source.icon, '◈').slice(0, 2), unlockStars: 3,
     genre: text(source.genre, '原创异世界').slice(0, 40), tagline: text(source.tagline, '一处等待被旅店理解的新世界。').slice(0, 100),
@@ -267,7 +280,7 @@ export function normalizeCustomWorld(raw, fallbackId = `custom_${Date.now().toSt
     notableCharacters: named(list(source.notableCharacters).slice(0, 8)).map((row, index) => ({ ...row, visitor: index < 3 })),
     environmentRule: { name: text(source.environmentRule?.name, '异界环境').slice(0, 60), detail: text(source.environmentRule?.detail, '当地环境对经营产生温和、公开的影响。').slice(0, 240), effects: normalizeEffects(source.environmentRule?.effects) }, localRules,
     festivals: named(list(source.festivals).slice(0, 4)).map((festival) => ({ ...festival, effects: normalizeEffects(festival.effects) })), recommendedFacilities: list(source.recommendedFacilities).filter((kind) => ['dining', 'bar', 'parlor', 'guestroom', 'onsen', 'billiard', 'theater', 'garden', 'observatory', 'arcade', 'alchemy'].includes(kind)).slice(0, 4), conflicts: list(source.conflicts).slice(0, 6), storyHooks: list(source.storyHooks).slice(0, 8),
-    dialogue: { arrival: [`终于抵达${text(source.name, '这个世界')}之外的旅店了。`, '位面门比传闻中稳定。', '这里会怎样接待我们？', '先看看当地菜单吧。'], wait: ['还需要等多久？', '队列至少还看得明白。', '希望没有走错航路。', '稍等片刻也无妨。'], good: ['这趟跨界旅行值得。', '我要把这里记进旅途日志。', '服务比传闻还可靠。', '下次会带同伴再来。'], neutral: ['整体还算稳妥。', '有些地方与家乡不太一样。', '这次体验可以接受。', '也许下次会更顺利。'], bad: ['这不是我期待的跨界服务。', '等待和出品都需要改进。', '我会如实记录这次体验。', '还是先回故乡吧。'], journey: ['故乡最近正在发生巨大的变化。', '我为一件只有异界才有的事物而来。', '位面门改变了我们的日常。', '总有一天你该亲自去看看。'], ...(source.dialogue || {}) }, knowledge: source.knowledge || { firstArrival: ['name', 'summary'], firstService: ['hospitality'], servedThree: ['economy'], deepDiscovery: ['history', 'factions', 'notableCharacters'] },
+    dialogue, knowledge: source.knowledge || { firstArrival: ['name', 'summary'], firstService: ['hospitality'], servedThree: ['economy'], deepDiscovery: ['history', 'factions', 'notableCharacters'] },
     generatedAt: Math.max(0, Number(source.generatedAt) || Date.now()), generationBrief: text(source.generationBrief).slice(0, 1200),
   };
 }

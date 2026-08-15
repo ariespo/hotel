@@ -405,6 +405,7 @@ function travelIdentity(world, seed) {
     homeRegion: world.regions[n % world.regions.length].name,
     travelOccupation: world.travel.occupations[Math.floor(n / 7) % world.travel.occupations.length],
     travelPurpose: world.travel.purposes[Math.floor(n / 17) % world.travel.purposes.length],
+    socialRegister: ['peer', 'formal', 'peer', 'elder'][Math.floor(n / 29) % 4],
   };
 }
 
@@ -768,6 +769,18 @@ export class Sim {
     if (kind === 'review') { entry.reviewed = true; entry.level = 4; }
     if (kind === 'journey') { entry.journeyAsked = true; entry.level = 4; }
     return entry;
+  }
+
+  worldDialogueLine(guest, kind, fallbackWorldId = '') {
+    const world = this.worldById(guest?.originWorldId || fallbackWorldId || this.econ.currentWorldId);
+    const pool = world.dialogue?.[kind] || world.dialogue?.neutral || ['……'];
+    const template = pool[this.rng.int(pool.length)] || '……';
+    let address = '掌柜';
+    if (world.id === 'magma_ridge') {
+      const register = guest?.socialRegister || ['peer', 'formal', 'elder'][stableHash(guest?.name || '') % 3];
+      address = register === 'elder' ? '小友' : register === 'peer' ? '道友' : '掌柜';
+    }
+    return String(template).replaceAll('{address}', address);
   }
 
   recordWorldOutcome(g, score, revenue, reviewed = true) {
@@ -1641,7 +1654,7 @@ export class Sim {
       if (i === 0 && returning) {
         members.push({
           id: this.id(), app: returning.app, name: returning.name, race: returning.race, regularId: returning.id,
-          originWorldId: origin.id, homeRegion: returning.homeRegion, travelOccupation: returning.travelOccupation, travelPurpose: returning.travelPurpose,
+          originWorldId: origin.id, homeRegion: returning.homeRegion, travelOccupation: returning.travelOccupation, travelPurpose: returning.travelPurpose, socialRegister: returning.socialRegister,
           groupId: gid, x: e.x - .2, y: e.y, dir: 0, pose: 'idle', animT: this.rng.next() * 2,
           path: [], seatId: 0, mood: 1, aff: returning.aff || 0, aiChatLog: [...(returning.aiChatLog || [])],
           relationshipSummary: returning.relationshipSummary || '', background: returning.background || null,
@@ -1711,7 +1724,7 @@ export class Sim {
     const arrival = members[0].travelOccupation === '世界标志人物' ? `稀有访客 ${members[0].name} 来自${origin.name}` : secondary
       ? `跨界使团抵达：${origin.name} × ${secondary.name}`
       : `来自${origin.name}的${g.travelOccupation}旅行团抵达`;
-    members[0].bubble = { text: origin.dialogue.arrival[this.rng.int(origin.dialogue.arrival.length)], t: 6.5, tone: 'neutral' };
+    members[0].bubble = { text: this.worldDialogueLine(members[0], 'arrival', origin.id), t: 6.5, tone: 'neutral' };
     this.toast(arrival);
     // 所有客人先到前台：由前台完成迎宾并引导入座/入房。
     this.goWaitArea(g);
@@ -2149,8 +2162,8 @@ export class Sim {
       if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered' || g.state === 'facility_prepare' || g.state === 'facility_waiting_attend') {
         g.patience -= dt * (1 + (g.state === 'ordered' ? 0.15 : 0));
         if (!g.worldWaitSpoken && g.patience < g.maxPatience * .55) {
-          const guest = g.members[0]; const world = this.worldById(guest?.originWorldId || g.originWorldId);
-          if (guest) { const text = world.dialogue.wait[this.rng.int(world.dialogue.wait.length)]; guest.bubble = { text, t: 6, tone: 'neutral' }; this.say(`${guest.name}：${text}`); }
+          const guest = g.members[0];
+          if (guest) { const text = this.worldDialogueLine(guest, 'wait', g.originWorldId); guest.bubble = { text, t: 6, tone: 'neutral' }; this.say(`${guest.name}：${text}`); }
           g.worldWaitSpoken = true;
         }
         if (g.patience <= 0) { this.leave(g, g.state === 'wait' ? '在前台等太久' : '等菜太久'); continue; }
@@ -2248,8 +2261,8 @@ export class Sim {
       this.recordScoreParts({ wait: 1.2, service: 1.2 });
       this.toast(`一组客人离店：${reason}`);
       this.sounds.push('angry');
-      const guest = g.members[0]; const world = this.worldById(guest?.originWorldId || g.originWorldId);
-      if (guest) guest.bubble = { text: world.dialogue.bad[this.rng.int(world.dialogue.bad.length)], t: 6, tone: 'bad' };
+      const guest = g.members[0];
+      if (guest) guest.bubble = { text: this.worldDialogueLine(guest, 'bad', g.originWorldId), t: 6, tone: 'bad' };
       if (this.dayReport) for (const member of g.members || []) {
         const id = member.originWorldId || g.originWorldId; const w = this.worldById(id);
         const row = this.dayReport.worldGuests[id] || { name: w.name, arrivals: 0, served: 0, lost: 0, revenue: 0, scoreTotal: 0, scoreSamples: 0, complaints: {} };
@@ -2293,7 +2306,7 @@ export class Sim {
         profile = {
           id: this.id(), name: guest.name, race: guest.race, app: guest.app, aff: adjustedAff,
           originWorldId: guest.originWorldId || g.originWorldId, homeRegion: guest.homeRegion || g.homeRegion,
-          travelOccupation: guest.travelOccupation || g.travelOccupation, travelPurpose: guest.travelPurpose || g.travelPurpose,
+          travelOccupation: guest.travelOccupation || g.travelOccupation, travelPurpose: guest.travelPurpose || g.travelPurpose, socialRegister: guest.socialRegister,
           visits: 1, lastVisitDay: this.econ.day, aiChatLog: [], relationshipSummary: '', background: null,
           taste: [...(g.taste || [])], flavors: [...(g.flavors || [])], want: g.want, offer: null,
         };
@@ -2342,9 +2355,7 @@ export class Sim {
     if (!guest || !pool?.length) return null;
     const item = itemName || wantById(g.want).name;
     const serviceText = pool[this.rng.int(pool.length)].replaceAll('{item}', item);
-    const world = this.worldById(guest.originWorldId || g.originWorldId);
-    const worldPool = world.dialogue[tier] || world.dialogue.neutral;
-    const text = `${serviceText} ${worldPool[this.rng.int(worldPool.length)]}`;
+    const text = `${serviceText} ${this.worldDialogueLine(guest, tier, g.originWorldId)}`;
     guest.bubble = { text, t: 6.5, tone: tier };
     g.lastReview = { tier, score, text, speaker: guest.name, parts: { ...parts } };
     const label = tier === 'good' ? '好评' : tier === 'bad' ? '恶评' : '中评';
@@ -2625,7 +2636,7 @@ export class Sim {
     let line = '';
     if (kind === 'journey') {
       const world = this.worldById(guest.originWorldId || g.originWorldId);
-      const story = world.dialogue.journey[this.rng.int(world.dialogue.journey.length)];
+      const story = this.worldDialogueLine(guest, 'journey', g.originWorldId);
       line = `${guest.name}来自${world.name}的${guest.homeRegion || g.homeRegion}，是一名${guest.travelOccupation || g.travelOccupation}。${story} 此行是为了${guest.travelPurpose || g.travelPurpose}。`;
       this.discoverWorld(world.id, 'journey');
     }
