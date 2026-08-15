@@ -1,7 +1,29 @@
 import { DEFAULT_RESTOCK_TARGETS } from './sim.js';
-import { starsOf } from './data.js';
+import { starsOf, WORLD_PROFILES, worldsForStars } from './data.js';
+import { RACE_NAMES } from './chargen.js';
 
-export const SAVE_SCHEMA_VERSION = 4;
+export const SAVE_SCHEMA_VERSION = 5;
+
+function stableHash(text) {
+  let hash = 2166136261;
+  for (const char of String(text || '')) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  return hash >>> 0;
+}
+
+function legacyTravelIdentity(person, stars, salt = '') {
+  const available = worldsForStars(stars);
+  const raceIndex = RACE_NAMES.indexOf(person.race);
+  const compatible = available.filter((world) => world.population.some((resident) => resident.raceId === raceIndex));
+  const pool = compatible.length ? compatible : available;
+  const hash = stableHash(`${person.name || person.id}:${person.race}:${salt}`);
+  const world = pool[hash % pool.length] || WORLD_PROFILES[0];
+  return {
+    originWorldId: world.id,
+    homeRegion: world.regions[Math.floor(hash / 7) % world.regions.length].name,
+    travelOccupation: world.travel.occupations[Math.floor(hash / 17) % world.travel.occupations.length],
+    travelPurpose: world.travel.purposes[Math.floor(hash / 29) % world.travel.purposes.length],
+  };
+}
 
 function assertShape(data) {
   if (!data || typeof data !== 'object' || !data.tavern || !data.sim || !data.sim.econ || !Array.isArray(data.sim.staff)) {
@@ -41,6 +63,28 @@ export function migrateGameSaveData(source) {
     for (const ad of data.sim.ads || []) for (const staff of ad.cands || []) staff.roomMode = staff.roomMode === 'strict' ? 'strict' : 'prefer';
     data.meta.version = 4;
     version = 4;
+  }
+  if (version < 5) {
+    const stars = Math.max(0, Math.min(5, Math.round(Number(data.sim.econ.certifiedStars) || starsOf(data.sim.econ.rep))));
+    const knowledge = {};
+    for (const world of WORLD_PROFILES) knowledge[world.id] = { level: 0, arrivals: 0, served: 0, firstDay: 0, reviewed: false, journeyAsked: false };
+    for (const profile of data.sim.regulars || []) {
+      const identity = profile.originWorldId ? {} : legacyTravelIdentity(profile, stars, 'regular');
+      Object.assign(profile, identity);
+      const row = knowledge[profile.originWorldId];
+      if (row) { row.level = Math.max(row.level, 1); row.arrivals++; row.firstDay ||= Math.max(1, Number(profile.lastVisitDay) || 1); }
+    }
+    for (const group of data.sim.lodgers || []) {
+      const lead = group.members?.[0] || group;
+      const identity = group.originWorldId ? {} : legacyTravelIdentity(lead, stars, `lodger:${group.id}`);
+      Object.assign(group, identity);
+      group.worldIds = Array.isArray(group.worldIds) && group.worldIds.length ? group.worldIds : [group.originWorldId];
+      for (const member of group.members || []) Object.assign(member, member.originWorldId ? {} : { ...identity });
+    }
+    data.sim.econ.worldKnowledge = { ...knowledge, ...(data.sim.econ.worldKnowledge || {}) };
+    data.sim.econ.worldForecast = Array.isArray(data.sim.econ.worldForecast) ? data.sim.econ.worldForecast : [];
+    data.meta.version = 5;
+    version = 5;
   }
   if (version > SAVE_SCHEMA_VERSION) throw new Error(`存档版本 ${version} 高于当前支持的 ${SAVE_SCHEMA_VERSION}`);
   data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, migratedAt: originalVersion < SAVE_SCHEMA_VERSION ? Date.now() : data.meta.migratedAt || 0 };

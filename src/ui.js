@@ -14,6 +14,7 @@ import { advanceTutorialState, loadTutorialState, resetTutorialState, retreatTut
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, DUTIES, DUTY_LABEL, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, SEASON_NAMES, STYLES,
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
+  WORLD_PROFILES, worldById,
 } from './data.js';
 import { AGE_MAX, fairWageRange, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS } from './sim.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
@@ -975,11 +976,31 @@ export class UI {
           : gr.state === 'toFac' ? '带位前往' + w.name : gr.state === 'facility_waiting_attend' ? '等待场务照看'
           : gr.state === 'using' ? (gr.overnight ? '过夜中' : (w.verb || w.name) + '中') : '离店';
         const regular = gr.regularId ? s.regulars.find((profile) => profile.id === gr.regularId) : null;
+        const worlds = (gr.worldIds || [gr.originWorldId]).map(worldById);
         return `<div class="card"><div class="row"><b>${gr.size}人组·${w.name}</b><span class="dim">${stateTxt}</span></div>
+        <div class="row"><span class="hi">${worlds.map((world) => `${world.icon} ${world.name}`).join(' × ')}</span><span>${htmlText(gr.travelPurpose || '')}</span></div>
         ${regular ? `<div class="row"><span class="hi">★ 常客 ${htmlText(regular.name)} · 第 ${regular.visits} 次来店</span><span>好感 ${Math.round(regular.aff)}</span></div>${regular.offer ? `<div class="dim">${htmlText(regular.offer.text)}</div>` : ''}` : ''}
         <div class="row">耐心 ${bar(pct, 100, pct > 50 ? '#8DDB4A' : pct > 25 ? '#F3B84B' : '#FF6B5A')}</div>
         <div class="dim">${gr.members.map((m) => m.race).join('/')}${o ? ' · ' + (g.sim.dishOf(o.dishId).name || '') + '（' + ORDER_STAGE[o.stage] + '）' : ''}</div></div>`;
       }).join('') : '<div class="dim">店里还没有客人。</div>';
+    } else if (this.rightTab === 'world') {
+      const forecast = new Set(s.econ.worldForecast || []);
+      const unlocked = WORLD_PROFILES.filter((world) => world.unlockStars <= s.stars());
+      body = `<div class="card" style="border-left-color:#7A4BE0"><b>位面潮汐预报 · 第 ${s.econ.day} 天</b><div class="dim">今日客流增强：${unlocked.filter((world) => forecast.has(world.id)).map((world) => `${world.icon} ${world.name}`).join('、') || '暂无'}</div></div>`;
+      body += WORLD_PROFILES.map((world) => {
+        const info = s.econ.worldKnowledge?.[world.id] || { level: 0, arrivals: 0, served: 0 };
+        if (world.unlockStars > s.stars()) return `<div class="card"><div class="row"><b>未接通的位面</b><span class="dim">需要 ★${world.unlockStars}</span></div></div>`;
+        if (!info.level) return `<div class="card"><div class="row"><b>${world.icon} 尚未到访</b><span class="dim">航路已接通</span></div><div class="dim">等待第一批旅客穿过位面门。</div></div>`;
+        return `<div class="card" style="border-left-color:${forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
+          <div>${htmlText(world.identity.summary)}</div>
+          <div class="dim">环境：${htmlText(world.identity.environment)}｜文明：${htmlText(world.identity.civilization)}</div>
+          <div class="dim">常见居民：${world.population.slice(0, 4).map((resident) => `${RACE_NAMES[resident.raceId]}（${resident.role}）`).join('、')}｜地区：${world.regions.map((region) => region.name).join('、')}</div>
+          <div class="dim">礼仪提示：${htmlText(info.level >= 4 ? world.culture.etiquette : world.culture.etiquette.split('；')[0])}</div>
+          ${info.level >= 2 ? `<div class="dim">常见需求：${Object.entries(world.hospitality.wantWeights).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id]) => wantById(id).name).join('、')}｜装修倾向：${world.hospitality.roomStyleLikes.map((id) => STYLES.find((style) => style.id === id)?.name || id).join('、')}</div>` : '<div class="dim">完成首次服务可解锁需求与装修倾向。</div>'}
+          ${info.level >= 3 ? `<div class="dim">口味偏好：${world.hospitality.flavorLikes.map((id) => FLAVOR_LABEL[id]).join('、')}｜重视：${world.culture.values.join('、')}</div>` : '<div class="dim">累计接待 3 人可解锁口味偏好。</div>'}
+          ${info.level >= 4 ? `<div class="dim bad">礼仪雷区：${world.culture.taboos.join('、')}</div><div class="dim">世界线索：${world.storyHooks.join('；')}</div>` : '<div class="dim">获得明确评价或询问旅途，可解锁礼仪雷区与世界线索。</div>'}
+        </div>`;
+      }).join('');
     } else if (this.rightTab === 'task') {
       const queue = s.workQueue();
       const waiting = queue.filter((x) => !x.staff).length;
@@ -992,7 +1013,7 @@ export class UI {
       body = s.log.length ? s.log.slice(0, 24).map((l) => `<div class="dim">· ${l}</div>`).join('') : '<div class="dim">暂无记录。</div>';
     }
     this.setPanelHTML(this.right, `<div class="tabs">
-      ${[['staff', '员工', 'ic-staff'], ['guest', '客人', 'ic-guest'], ['task', '工作', 'ic-econ'], ['log', '日志', 'ic-log']].map(([k, n, ic]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}"><img class="tic" src="assets/${ic}.png" alt="">${n}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏">❯</button>
+      ${[['staff', '员工', 'ic-staff'], ['guest', '客人', 'ic-guest'], ['world', '万界', 'ic-room'], ['task', '工作', 'ic-econ'], ['log', '日志', 'ic-log']].map(([k, n, ic]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}"><img class="tic" src="assets/${ic}.png" alt="">${n}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏">❯</button>
       </div>${body}`);
   }
 
@@ -1197,11 +1218,14 @@ export class UI {
   // ---------- 模态 ----------
   openReadiness() {
     const check = this.g.openingReadiness();
+    const forecast = new Set(this.g.sim.econ.worldForecast || []);
+    const tide = WORLD_PROFILES.filter((world) => forecast.has(world.id));
     const rows = (items, cls) => items.length ? items.map((item) => `<div class="${cls}">· ${htmlText(item)}</div>`).join('') : `<div class="good">✓ 无</div>`;
     this.showModal(`<h3>营业准备检查</h3>
       <div class="dim">阻断项必须修复后才能开门；警告项允许开门，但会造成等待、闲置或产能浪费。</div>
       <h3 style="margin-top:10px">阻断项</h3>${rows(check.blocking, 'bad')}
       <h3 style="margin-top:10px">警告项</h3>${rows(check.warnings, 'hi')}
+      <div class="card" style="margin-top:10px;border-left-color:#7A4BE0"><b>位面潮汐预报</b><div>今日预计客流增强：${tide.map((world) => `${world.icon} ${world.name}`).join('、') || '暂无'}</div><div class="dim">可据此调整菜单、员工岗位和设施覆盖；偏好设施缺失时客人仍会选择其他可用消费。</div></div>
       <div class="card" style="margin-top:10px"><b>当前产线</b><div>完整厨房线 ${check.productionLines} 条｜酒吧/酒廊饮品线 ${check.drinkLines} 条</div></div>
       <div class="row" style="margin-top:10px"><button data-act="closemodal">返回规划</button>${check.blocking.length ? '' : '<button data-act="closemodal">检查完成</button>'}</div>`);
   }
@@ -1799,6 +1823,8 @@ export class UI {
     const pct = Math.round((gr.patience / gr.maxPatience) * 100);
     const cost = 12 + gr.size * 6;
     const regular = gu.regularId ? sim.regulars.find((profile) => profile.id === gu.regularId) : null;
+    const origin = worldById(gu.originWorldId || gr.originWorldId);
+    const known = sim.econ.worldKnowledge?.[origin.id]?.level || 1;
     const acts                     = [...(aiConfigured() ? [['gchat', '聊两句']] : []), ['journey', '询问旅途'], ['gpraise', '称赞'], ['treat', `请一杯 -${cost}`], ['gmock', '贬低']];
     if (regular?.visits >= 2) acts.push(['revisit', '聊起上次来访']);
     if (regular?.offer && !gr.offerAccepted) acts.push(['commission', '接受专属委托']);
@@ -1806,6 +1832,9 @@ export class UI {
     this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(gu.app)}" width="112" height="144">
         <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
           <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}${regular ? `｜常客·第 ${regular.visits} 次来访·好感 ${Math.round(regular.aff)}` : ''}</div>
+          <div class="hi">${origin.icon} ${origin.name} · ${htmlText(gu.homeRegion || gr.homeRegion || '')}</div>
+          <div class="dim">${htmlText(gu.travelOccupation || gr.travelOccupation || '旅人')}｜此行：${htmlText(gu.travelPurpose || gr.travelPurpose || '跨界旅行')}</div>
+          ${known >= 4 ? `<div class="dim">礼仪：${htmlText(origin.culture.etiquette)}</div>` : ''}
           <div class="row"><span class="dim">耐心</span>${bar(gr.patience, gr.maxPatience, pct > 50 ? '#8DDB4A' : pct > 25 ? '#F3B84B' : '#FF6B5A')}<span>${pct}%</span></div></div></div>
       <div class="dim" style="margin-top:6px">${near ? '客人正看着你，要搭话吗？' : `太远了（${d.toFixed(1)} 格）：走到 2.8 格内才能搭话。`}${gr.intCd > 0 ? `｜刚聊过，${Math.ceil(gr.intCd)} 秒后才会再理你` : ''}</div>
       ${this.interactMsg ? `<div class="hi" style="margin-top:8px">${this.interactMsg}</div>` : ''}
@@ -2399,6 +2428,10 @@ export class UI {
         facilities: Object.values(report.facilitySales || {}),
         lostReasons: report.lostReasons || {},
       },
+      worldGuests: Object.entries(report.worldGuests || {}).map(([id, row]) => ({
+        world: worldById(id).name, arrivals: row.arrivals, served: row.served, lost: row.lost, revenue: row.revenue,
+        averageScore: row.scoreSamples ? row.scoreTotal / row.scoreSamples : null, complaints: row.complaints || {},
+      })),
       staffWork: (report.finished?.staff || []).map((row) => ({
         name: row.name, job: JOB_LABEL[row.job] || row.job, completedTotal: row.total, completedTasks: row.tasks,
         needsBefore: row.needsBefore, needsAfter: row.needsAfter,
@@ -2428,6 +2461,13 @@ export class UI {
       ${weakest ? `<div class="dim">今日主要短板：<span class="bad">${weakest[1]} ${parts[weakest[0]].toFixed(2)}★</span></div>` : ''}` : '';
     const work = stat.report?.finished?.staff || [];
     const workRows = work.map((row) => `<div class="row"><span><b>${htmlText(row.name)}</b><span class="dim"> · ${JOB_LABEL[row.job] || row.job}</span></span><span>${row.total ? Object.entries(row.tasks).map(([label, count]) => `${htmlText(label)}×${count}`).join(' · ') : '<span class="dim">本日无完成记录</span>'}</span></div>`).join('');
+    const complaintLabels = { quality: '出品', wait: '等待', service: '服务', hygiene: '卫生', comfort: '舒适', spectacle: '氛围' };
+    const worldRows = Object.entries(stat.report?.worldGuests || {}).map(([id, row]) => {
+      const average = row.scoreSamples ? `${(row.scoreTotal / row.scoreSamples).toFixed(2)}★` : '—';
+      const complaint = Object.entries(row.complaints || {}).sort((a, b) => b[1] - a[1])[0]?.[0];
+      return `<div class="row"><span><b>${worldById(id).icon} ${htmlText(row.name)}</b><span class="dim"> · 到店 ${row.arrivals} / 接待 ${row.served} / 流失 ${row.lost}</span></span><span>收入 ${row.revenue} · ${average}${complaint ? ` · 抱怨${complaintLabels[complaint] || complaint}` : ''}</span></div>`;
+    }).join('');
+    const connections = (stat.newWorldConnections || []).map((id) => worldById(id));
     const cert = stat.certification;
     const certPanel = cert?.requirements?.length ? `<div class="card" style="margin-top:10px;border-left-color:${cert.achieved ? '#65A85B' : '#D3A23A'}"><h3>${cert.achieved ? `★ ${cert.level} 星经营认证通过` : `★ ${cert.level} 星认证待完成`}</h3>
       ${cert.requirements.map((row) => `<div class="row"><span>${row.met ? '✓' : '○'} ${htmlText(row.label)}</span><span class="${row.met ? 'good' : 'bad'}">${htmlText(String(row.current))} / ${htmlText(String(row.target))}</span></div>`).join('')}
@@ -2450,7 +2490,9 @@ export class UI {
       <div class="row"><span>声望变化</span><span class="${stat.repDelta >= 0 ? 'good' : 'bad'}">${stat.repDelta >= 0 ? '+' : ''}${stat.repDelta} → ${Math.round(s.econ.rep)}（${'★'.repeat(s.stars())}）</span></div>
       <div class="row"><span>信用线 ${stat.creditLine}</span><span class="${stat.coinsAfter < stat.creditLine ? 'bad' : ''}">结余 ${Math.round(stat.coinsAfter)}</span></div>
       ${certPanel}
+      ${connections.length ? `<div class="card" style="margin-top:10px;border-left-color:#7A4BE0"><h3>新的位面航路接通</h3><div>${connections.map((world) => `${world.icon} <b>${world.name}</b>：${htmlText(world.identity.summary)}`).join('<br>')}</div><div class="dim">新的文化偏好与经营课题会从明日起进入客流。</div></div>` : ''}
       ${stat.ownerSkillGrowth && Object.values(stat.ownerSkillGrowth).some(Boolean) ? `<div class="card owner-growth" style="margin-top:10px"><h3>✦ 店长经营历练</h3><div>亲自完成一整场营业后，店长对旅店各环节有了新的理解。</div><div class="row" style="flex-wrap:wrap;margin-top:5px">${SKILL_KEYS.map((key) => `<span><b>${SKILL_LABEL[key]}</b> <span class="good">+${stat.ownerSkillGrowth[key] || 0}</span></span>`).join('')}</div><div class="dim">能力最高为 100；本次成长已经写入店长详情。</div></div>` : ''}
+      <h3 style="margin-top:10px">今日世界客群</h3>${worldRows || '<div class="dim">今日没有世界客群记录。</div>'}
       <h3 style="margin-top:10px">员工工作统计</h3>${workRows || '<div class="dim">没有可统计的员工工作。</div>'}
       ${aiPanel}
       ${stat.fiveStarReached ? '<div class="card" style="margin-top:9px"><b class="good">五星经营认证达成：位面评议会已抵达门厅</b><div class="dim">旅店已经同时通过声望与经营条件审核。</div></div>' : ''}

@@ -192,6 +192,168 @@ export const FLAVORS = [
 ]         ;
 export const FLAVOR_LABEL                         = { umami: '鲜', spicy: '辣', sweet: '甜', sour: '酸', mellow: '醇', weird: '猎奇' };
 
+function worldDialogues(name, motifs) {
+  const [a, b, c, d] = motifs;
+  return {
+    arrival: [`${a}的气息还跟在斗篷上——这里就是多元旅店？`, `从${name}跨过位面门，比传闻中平稳多了。`, `先安顿行李，再打听这里有没有${b}。`, `同行的人都到了，别把${c}落在门那边。`],
+    wait: [`在${name}，等这么久已经该换一次${d}了。`, `位面门都穿过了，怎么在柜台前走不动？`, `若还没人招呼，我可要把这段写进旅记。`, `耐心也是旅费的一部分，但不能全花在这里。`],
+    good: [`这份招待让我想起${a}，很合我们的规矩。`, `${b}与这里的手艺竟然如此相配。`, `回到${name}后，我会把这家店画进航图。`, `礼数、火候和气氛都对，值得再跨一次门。`],
+    neutral: [`还算稳妥，只是少了点${c}的味道。`, `能吃能歇，但在${name}还称不上节庆水准。`, `规矩没有出错，惊喜也没有出现。`, `若把${d}再照料好些，我会多留一晚。`],
+    bad: [`这可不是${name}待客的办法。`, `${a}都比这里让人安心，账单却一点不客气。`, `我跨界而来，不是为了等一场失望。`, `把${b}和${c}一起糟蹋，实在罕见。`],
+    journey: [`我从${name}的${a}启程，为了寻找${b}。`, `途中经过${c}，那里的位面潮像倒着下的雨。`, `我们这一行护送${d}，必须在下一次门潮前赶路。`, `${name}并非只有一种族；同一条街上能听见十几种乡音。`],
+  };
+}
+
+const WORLD_DETAILS = {
+  hearth_coast: {
+    identity: { environment: '温带海岸、河谷农地与终年燃烧的炉城', civilization: '港邦、矮人炉城和商路盟约组成的商旅共同体', technology: '成熟手工业、蒸汽雏形与低阶实用魔法' },
+    culture: { values: ['信用', '热诚', '实用'], hospitalityIdeal: '热食及时上桌、床铺可靠、价格说清楚', taboos: ['用冷盘敷衍远道旅客', '临时变价'], speechStyle: '直白朴实，常用炉火与航路作比喻' },
+    visuals: { palette: ['暖铜', '麦金', '炉火红'], clothingThemes: ['厚呢旅行装', '黄铜扣件', '商队披肩'], portalEffect: '铜色火星与短促汽笛' },
+    groupPatterns: [{ type: '商队', min: 2, max: 4, weight: 5 }, { type: '独行匠人', min: 1, max: 1, weight: 2 }],
+    storyHooks: ['一份跨邦货契缺少最后一枚炉印', '旧航路重新出现，却通向地图上不存在的港口'],
+  },
+  verdant_court: {
+    identity: { environment: '巨树冠层、苔光溪谷与季节变化的花园城市', civilization: '由精灵庭议、花妖聚落和林契共同治理的自然文明', technology: '生命魔法、植物建筑与精细药草学' },
+    culture: { values: ['洁净', '克制', '共生'], hospitalityIdeal: '安静、清洁并尊重客人的私人空间', taboos: ['损伤活体植物', '让浓烟污染室内'], speechStyle: '委婉含蓄，偏爱季节和植物隐喻' },
+    visuals: { palette: ['苔绿', '花白', '浅金'], clothingThemes: ['植物纤维', '叶片饰品', '轻薄长袍'], portalEffect: '绿金花粉与叶脉光纹' },
+    groupPatterns: [{ type: '药草商队', min: 2, max: 3, weight: 4 }, { type: '巡礼学者', min: 1, max: 2, weight: 3 }],
+    storyHooks: ['季节议会正在寻找失踪的种子使者', '机械藤蔓开始侵入会唱歌的树桥'],
+  },
+  magma_ridge: {
+    identity: { environment: '火山脊线、玄武岩荒原和露天沸泉', civilization: '兽人部族、龙裔氏族与巨人营地组成的盟誓联盟', technology: '重型锻造、驯兽术与火焰图腾魔法' },
+    culture: { values: ['力量', '同伴', '坦率'], hospitalityIdeal: '大份热食、同桌而坐、爽快招待', taboos: ['拆散同行伙伴', '端上过小份量'], speechStyle: '豪爽直接，赞美和不满都毫不遮掩' },
+    visuals: { palette: ['熔岩橙', '焦黑', '骨白'], clothingThemes: ['皮革护肩', '骨质饰品', '部族纹样'], portalEffect: '火山灰、红色裂光与战鼓震动' },
+    groupPatterns: [{ type: '部族同行团', min: 3, max: 4, weight: 5 }, { type: '竞技旅人', min: 1, max: 2, weight: 2 }],
+    storyHooks: ['两支部族要在旅店完成一场不流血的盟誓', '传说中的沸泉石被异界商人买走'],
+  },
+  neon_ring: {
+    identity: { environment: '环形巨城、悬浮轨道与永不熄灭的商业夜景', civilization: '企业城区、机械社群和虫巢公寓并存的高速都市', technology: '高度信息化、义体机械与稳定能量网络' },
+    culture: { values: ['效率', '透明', '新奇'], hospitalityIdeal: '队列清楚、响应迅速、娱乐设备随时可用', taboos: ['隐藏等待进度', '设备报错却无人处理'], speechStyle: '短句、数字化表达，评价直奔效率指标' },
+    visuals: { palette: ['电青', '霓虹紫', '深蓝'], clothingThemes: ['发光缝线', '城市夹克', '接口饰件'], portalEffect: '像素噪点与环形扫描线' },
+    groupPatterns: [{ type: '下班搭子', min: 2, max: 4, weight: 5 }, { type: '高速差旅客', min: 1, max: 1, weight: 3 }],
+    storyHooks: ['环城排行榜突然出现来自旅店的未知高分', '一段失控广告开始预告尚未发生的菜单'],
+  },
+  moonsea: {
+    identity: { environment: '月光海沟、珊瑚浮岛与潮汐驱动的水下城市', civilization: '海国宫廷、鱼人港邦与史莱姆浮群组成的水域国家', technology: '潮汐工程、水下炼金与声呐魔法' },
+    culture: { values: ['洁净水质', '鲜味', '流动'], hospitalityIdeal: '清水常换、温度稳定、海味新鲜', taboos: ['嘲笑鳍尾', '让水域居民久处干热环境'], speechStyle: '语气舒缓，常以潮涨潮落衡量事情' },
+    visuals: { palette: ['月白', '海蓝', '珊瑚粉'], clothingThemes: ['防水薄纱', '珍珠扣', '波纹披肩'], portalEffect: '悬浮水珠与月轮涟漪' },
+    groupPatterns: [{ type: '潮路船员', min: 2, max: 4, weight: 4 }, { type: '深潜访客', min: 1, max: 2, weight: 3 }],
+    storyHooks: ['沉月港的潮汐钟比现实慢了整整一天', '一枚珍珠保存着失踪航船最后的歌声'],
+  },
+  evernight: {
+    identity: { environment: '永恒夜色、墓园街区与绯月照耀的古老城邦', civilization: '亡灵公会、吸血鬼旧族和幽影剧团共同维持的夜行都市', technology: '记忆术、影像魔法与保存完好的古代工艺' },
+    culture: { values: ['时间', '记忆', '体面'], hospitalityIdeal: '柔暗灯光、陈年饮品和不被催促的长夜', taboos: ['直问寿数', '用强光照射客人'], speechStyle: '古雅从容，玩笑通常冷而克制' },
+    visuals: { palette: ['绯红', '夜黑', '旧银'], clothingThemes: ['古典礼服', '黑蜡饰物', '长披风'], portalEffect: '黑蜡烟雾与绯月剪影' },
+    groupPatterns: [{ type: '夜宴宾客', min: 2, max: 4, weight: 4 }, { type: '记忆收藏家', min: 1, max: 1, weight: 3 }],
+    storyHooks: ['一卷影戏记录了某位客人尚未经历的葬礼', '无钟墓园第一次响起了整点钟声'],
+  },
+  honey_sky: {
+    identity: { environment: '永昼云海、蜜色浮岛与连接群岛的羽桥', civilization: '天使礼仪庭、星灵观测站和花妖园岛构成的空岛文明', technology: '风帆航行、星光魔法与精密礼仪工程' },
+    culture: { values: ['礼仪', '景观', '和谐'], hospitalityIdeal: '称谓准确、迎送完整、视野与庭院保持洁净', taboos: ['打断祝词', '让公共景观蒙尘'], speechStyle: '正式优雅，习惯先致意再表达意见' },
+    visuals: { palette: ['蜜金', '云白', '天青'], clothingThemes: ['羽纹礼服', '金线披帛', '日轮饰品'], portalEffect: '金色云絮与羽毛光点' },
+    groupPatterns: [{ type: '礼仪使团', min: 3, max: 4, weight: 4 }, { type: '星图巡礼者', min: 1, max: 2, weight: 3 }],
+    storyHooks: ['一座浮岛正在失去自己的影子', '礼仪庭希望评定旅店能否接待云海庆典'],
+  },
+  iron_hive: {
+    identity: { environment: '多层机械巢城、蜂格轨道与恒温装配区', civilization: '机械体节点、虫族群落和石魔工序社群组成的秩序文明', technology: '自动化制造、群体协议与高精度炼金测量' },
+    culture: { values: ['准时', '可验证', '秩序'], hospitalityIdeal: '时间准确、设备完好、流程状态完全可见', taboos: ['含糊承诺', '故障后隐瞒状态'], speechStyle: '结构化、精确，喜欢给出编号和完成率' },
+    visuals: { palette: ['铁灰', '警示黄', '冷白'], clothingThemes: ['模块制服', '编号铭牌', '蜂格护具'], portalEffect: '六边形网格与校准刻度' },
+    groupPatterns: [{ type: '工序考察组', min: 3, max: 4, weight: 5 }, { type: '维护专员', min: 1, max: 2, weight: 2 }],
+    storyHooks: ['主序装配层出现无法归档的第零道工序', '某个巢群把旅店误判成了可移动生产节点'],
+  },
+  mask_realm: {
+    identity: { environment: '巨型舞台城市、红幕街道与昼夜不散的节庆灯火', civilization: '剧团、面具家族和喝彩议会构成的表演国家', technology: '幻术、舞台机关与情绪共鸣魔法' },
+    culture: { values: ['戏剧性', '机敏', '场面'], hospitalityIdeal: '接住玩笑、制造高潮、让每位来客有登场感', taboos: ['当众拆穿面具身份', '让场面冷下来'], speechStyle: '夸张机锋，常像在向观众说台词' },
+    visuals: { palette: ['幕布红', '亮金', '深紫'], clothingThemes: ['舞台礼装', '半脸面具', '夸张蝴蝶结'], portalEffect: '红幕拉开与纸屑喝彩' },
+    groupPatterns: [{ type: '巡演剧团', min: 3, max: 4, weight: 5 }, { type: '蒙面看客', min: 1, max: 2, weight: 2 }],
+    storyHooks: ['一张无名面具开始替佩戴者说出真话', '全国最差的剧本为何在每个世界都能卖座'],
+  },
+  inverted_dreamsea: {
+    identity: { environment: '海洋悬于天空、梦境沉入地面、潮雨反向上升', civilization: '星灵梦港、史莱姆漂群和鱼人灯塔组成的松散梦境社会', technology: '梦境航行、感官炼金与不稳定星图学' },
+    culture: { values: ['想象', '体验', '开放'], hospitalityIdeal: '允许反常、提供新奇体验、不粗暴纠正梦话', taboos: ['坚持唯一现实', '用平淡流程压制即兴'], speechStyle: '跳跃诗意，时间和主语经常互换' },
+    visuals: { palette: ['梦紫', '泡沫蓝', '月粉'], clothingThemes: ['漂浮薄纱', '液态饰品', '倒置星纹'], portalEffect: '向上坠落的雨滴与梦泡' },
+    groupPatterns: [{ type: '拾梦同行者', min: 2, max: 4, weight: 4 }, { type: '迷航梦客', min: 1, max: 1, weight: 3 }],
+    storyHooks: ['一场梦拒绝醒来并要求在旅店登记入住', '倒雨码头寄来一只装着明日潮声的瓶子'],
+  },
+  ash_dragoncourt: {
+    identity: { environment: '灰烬高原、黑金宫城与龙火锻造山脉', civilization: '龙裔宫廷、矮人锻城与恶魔契约家族组成的贵胄体系', technology: '顶级锻造、契约魔法与龙火能源' },
+    culture: { values: ['品质', '位阶', '承诺'], hospitalityIdeal: '昂贵但无可挑剔，席位与出品匹配身份', taboos: ['用平庸品冒充珍品', '混淆正式席位'], speechStyle: '高傲审慎，赞美稀少但分量很重' },
+    visuals: { palette: ['黑金', '余烬红', '龙骨白'], clothingThemes: ['宫廷长衣', '鳞纹金属', '契约印章'], portalEffect: '龙焰轮廓与灰烬王冠' },
+    groupPatterns: [{ type: '龙庭使团', min: 3, max: 4, weight: 4 }, { type: '珍品鉴定师', min: 1, max: 2, weight: 3 }],
+    storyHooks: ['一枚龙庭印玺拒绝承认它的新主人', '灰烬王宴缺少一道从未有人做出的料理'],
+  },
+  timeless_bazaar: {
+    identity: { environment: '不同年代重叠的棚市、停摆街区与不断改写的十字路口', civilization: '所有种族和时代共同维持的时间贸易枢纽', technology: '从古代手工艺到未来科技同时存在，缺乏统一标准' },
+    culture: { values: ['适应', '交易', '时机'], hospitalityIdeal: '先确认客人时代，再快速适配规则与需求', taboos: ['把未来礼法强加给古代客人', '追问悖论来源'], speechStyle: '混合多时代词汇，同一句话可能包含古语和未来缩写' },
+    visuals: { palette: ['钟铜', '集市彩布', '时间蓝'], clothingThemes: ['多时代拼接', '怀表饰件', '旅行商披风'], portalEffect: '倒走钟针与多层街景残影' },
+    groupPatterns: [{ type: '跨时代商团', min: 2, max: 4, weight: 5 }, { type: '迷时旅人', min: 1, max: 2, weight: 3 }],
+    storyHooks: ['昨日棚市正在出售旅店明天才会丢失的家具', '一名客人声称自己已经参加过旅店的五星庆典'],
+  },
+};
+
+function worldProfile(profile) {
+  const detail = WORLD_DETAILS[profile.id];
+  const population = profile.raceWeights.map(([raceId, weight], index) => ({ raceId, weight, role: index === 0 ? '主体居民' : index === 1 ? '常住居民' : '移民与商旅' }));
+  const regions = profile.regions.map((name, index) => ({
+    id: `${profile.id}_region_${index + 1}`, name,
+    type: detail.identity.environment.split('、')[index % detail.identity.environment.split('、').length],
+    traits: detail.culture.values.slice(0, 2),
+    commonOccupations: [profile.occupations[index % profile.occupations.length], profile.occupations[(index + 1) % profile.occupations.length]],
+  }));
+  return {
+    id: profile.id, name: profile.name, icon: profile.icon, unlockStars: profile.unlockStars,
+    identity: { summary: profile.lore, ...detail.identity },
+    population, regions,
+    culture: { ...detail.culture, etiquette: profile.etiquette },
+    hospitality: {
+      wantWeights: profile.wantWeights,
+      flavorLikes: profile.flavors,
+      flavorDislikes: FLAVORS.map((flavor) => flavor.id).filter((id) => !profile.flavors.includes(id)).slice(0, 1),
+      roomStyleLikes: profile.styles,
+      servicePriorities: { hygiene: profile.modifiers.hygiene, etiquette: profile.modifiers.etiquette },
+      dailyTrend: profile.id === 'timeless_bazaar',
+    },
+    travel: {
+      occupations: profile.occupations, purposes: profile.purposes, groupPatterns: detail.groupPatterns,
+      budgetMultiplier: profile.modifiers.budget, patienceMultiplier: profile.modifiers.patience,
+    },
+    visuals: { ...detail.visuals, appearanceThemes: profile.lookThemes },
+    dialogue: worldDialogues(profile.name, profile.motifs),
+    storyHooks: detail.storyHooks,
+    knowledge: {
+      firstArrival: ['name', 'summary', 'etiquetteHint'], firstService: ['wantWeights', 'roomStyleLikes'],
+      servedThree: ['flavorLikes', 'servicePriorities'], deepDiscovery: ['taboos', 'culture', 'storyHooks'],
+    },
+  };
+}
+
+/**
+ * 十二个固定来源世界。raceWeights 使用 chargen.js 中稳定的种族序号；世界决定文化，
+ * 种族只决定外观与生理特征，两者不再互相替代。所有数值修正均限制在 0.8–1.25。
+ */
+export const WORLD_PROFILES = [
+  worldProfile({ id: 'hearth_coast', name: '炉岸诸邦', icon: '♨', unlockStars: 0, raceWeights: [[0, 6], [16, 4], [3, 2], [17, 1]], lookThemes: ['ancient'], wantWeights: { meal: 1.25, sleep: 1.18, drink: 1.08 }, flavors: ['umami', 'mellow'], styles: ['rustic', 'forge'], modifiers: { patience: 1.08, budget: 1, hygiene: .94, etiquette: 1 }, lore: '由港口、炉城与商路盟约串成的商旅社会，热食与可靠床铺就是最直接的信用。', etiquette: '先上热食、说清价格；冷盘和花哨空话容易被视为怠慢。', motifs: ['铜炉港', '热炖菜', '商队钟', '旧航图'], regions: ['铜炉港', '麦浪丘', '赤烟驿', '七桥城'], occupations: ['行商', '护炉匠', '驿路向导', '账房'], purposes: ['采购异界食材', '寻找新商路', '护送货契', '拜访旧友'] }),
+  worldProfile({ id: 'verdant_court', name: '森冠庭域', icon: '❧', unlockStars: 0, raceWeights: [[1, 6], [13, 4], [3, 2], [0, 1]], lookThemes: ['magic', 'ancient'], wantWeights: { meal: 1.08, stroll: 1.25, sleep: .9 }, flavors: ['sweet', 'umami'], styles: ['rustic', 'astral'], modifiers: { patience: 1.12, budget: .92, hygiene: 1.25, etiquette: 1.18 }, lore: '林冠城市与花灵聚落共享季节议会，安静、洁净和自然景观被视为待客礼仪。', etiquette: '保持清洁与轻声交谈；破坏植物或用浓烟熏染房间是大忌。', motifs: ['露叶长阶', '花蜜茶', '会唱歌的树桥', '种子信物'], regions: ['露叶长阶', '苔光谷', '百花议庭', '鹿铃林'], occupations: ['药草商', '树冠信使', '花粉画师', '林契学者'], purposes: ['交换稀有种子', '记录异界庭院', '寻找安静住处', '参加园艺巡礼'] }),
+  worldProfile({ id: 'magma_ridge', name: '熔脊荒原', icon: '▲', unlockStars: 0, raceWeights: [[2, 5], [4, 4], [17, 3], [5, 2]], lookThemes: ['ancient'], wantWeights: { meal: 1.25, bath: 1.2, play: 1.15 }, flavors: ['spicy', 'umami'], styles: ['forge', 'rustic'], modifiers: { patience: .92, budget: 1.06, hygiene: .88, etiquette: .9 }, lore: '火山脊线间的部族联盟，以大份食物、结伴竞技和热泉盟誓维系关系。', etiquette: '份量要足、态度要直；把同伴拆桌或端小份菜会被当作挑衅。', motifs: ['赤骨营地', '硫火烤肉', '战鼓峡', '盟誓石'], regions: ['赤骨营地', '龙息坳', '黑砧寨', '沸泉谷'], occupations: ['兽群领路人', '龙鳞商', '巨石选手', '战歌手'], purposes: ['挑战异界台球手', '寻找最辣料理', '泡遍万界热泉', '护送部族礼物'] }),
+  worldProfile({ id: 'neon_ring', name: '霓虹环城', icon: '◆', unlockStars: 0, raceWeights: [[9, 5], [0, 4], [10, 3], [15, 1]], lookThemes: ['cyber'], wantWeights: { drink: 1.2, game: 1.25, meal: .95 }, flavors: ['sour', 'weird'], styles: ['neon'], modifiers: { patience: .8, budget: 1.08, hygiene: 1.04, etiquette: .9 }, lore: '永不熄灯的环形都市，居民习惯即时服务、清晰队列和高速娱乐。', etiquette: '效率就是礼貌；让客人看不见排队进度比等待本身更糟。', motifs: ['第七码头', '脉冲饮料', '磁悬街', '通行芯片'], regions: ['第七码头', '镜屏区', '蜂巢公寓', '零点商圈'], occupations: ['接口技师', '夜班速递员', '街机选手', '数据掮客'], purposes: ['刷新异界纪录', '采购旧时代零件', '体验无网夜晚', '寻找新饮品配方'] }),
+  worldProfile({ id: 'moonsea', name: '月沉海国', icon: '≈', unlockStars: 1, raceWeights: [[11, 6], [8, 4], [0, 1], [12, 1]], lookThemes: ['magic'], wantWeights: { bath: 1.25, meal: 1.12, sleep: .92 }, flavors: ['umami', 'sour'], styles: ['frost', 'astral'], modifiers: { patience: 1.04, budget: .98, hygiene: 1.25, etiquette: 1.08 }, lore: '建在月光海沟与浮岛礁上的水域国家，对水质、鲜味和湿润环境极为讲究。', etiquette: '清水要勤换、海味要新鲜；嘲笑鳍尾或让客人久处干热环境是禁忌。', motifs: ['沉月港', '盐柑汤', '鲸骨回廊', '潮汐珠'], regions: ['沉月港', '蓝藻宫', '泡泡街', '珊瑚边城'], occupations: ['潮路领航员', '珊瑚医师', '珍珠税吏', '深潜厨师'], purposes: ['校准异界潮汐', '寻找洁净温泉', '交换海产食谱', '追踪失落月影'] }),
+  worldProfile({ id: 'evernight', name: '永夜墓都', icon: '☾', unlockStars: 1, raceWeights: [[7, 5], [18, 4], [15, 3], [5, 1]], lookThemes: ['magic', 'ancient'], wantWeights: { drink: 1.25, show: 1.18, sleep: 1.12 }, flavors: ['mellow', 'weird'], styles: ['astral', 'frost'], modifiers: { patience: 1.18, budget: 1.1, hygiene: .94, etiquette: 1.12 }, lore: '长夜中的墓园都市，夜行居民以陈年酒、影戏与漫长住宿消磨不流动的时间。', etiquette: '勿催促、勿直问寿数；灯光柔暗、酒液陈醇会被视作尊重。', motifs: ['无钟墓园', '百年窖酒', '影幕街', '黑蜡邀请函'], regions: ['无钟墓园', '绯月区', '静棺坊', '影幕街'], occupations: ['墓志抄写员', '夜宴侍从', '记忆收藏家', '影戏演员'], purposes: ['寻找失传影卷', '品尝异界陈酒', '躲避百年宴会', '拜访故人后裔'] }),
+  worldProfile({ id: 'honey_sky', name: '蜜昼浮岛', icon: '☀', unlockStars: 2, raceWeights: [[6, 5], [12, 4], [13, 3], [1, 1]], lookThemes: ['magic'], wantWeights: { stroll: 1.18, stargaze: 1.25, meal: 1.05 }, flavors: ['sweet', 'umami'], styles: ['astral', 'rustic'], modifiers: { patience: 1.16, budget: 1.12, hygiene: 1.12, etiquette: 1.25 }, lore: '漂浮在永昼云海上的礼仪文明，以甜点、景观和周到服务衡量一处停泊地。', etiquette: '迎送称谓与桌边礼数不可省；打断祝词或让景观蒙尘会严重失礼。', motifs: ['金蜜云港', '日轮甜点', '羽桥花园', '风帆祷签'], regions: ['金蜜云港', '羽桥花园', '晨钟岛', '星槎台'], occupations: ['云帆领航员', '礼仪官', '星图绘师', '蜜酿师'], purposes: ['观测陌生星座', '评鉴异界礼仪', '搜集花蜜', '参加云海巡游'] }),
+  worldProfile({ id: 'iron_hive', name: '铁律机巢', icon: '⌬', unlockStars: 2, raceWeights: [[9, 5], [10, 4], [14, 3], [0, 1]], lookThemes: ['cyber'], wantWeights: { game: 1.18, brew: 1.25, drink: .9 }, flavors: ['sour', 'mellow'], styles: ['neon', 'forge'], modifiers: { patience: .82, budget: 1.04, hygiene: 1.14, etiquette: 1.22 }, lore: '由工序、班次和群体协议驱动的秩序文明，设施状态与准时程度高于口头热情。', etiquette: '承诺时间必须准确、设备必须可用；含糊答复会被记录为流程故障。', motifs: ['主序装配层', '校准饮剂', '蜂格轨道', '工序令牌'], regions: ['主序装配层', '六足居住环', '石核仓', '校准塔'], occupations: ['工序审计员', '巢群译员', '构装维护师', '炼金测量员'], purposes: ['测试异界设施', '交换制造参数', '参加游艺联赛', '回收异常样本'] }),
+  worldProfile({ id: 'mask_realm', name: '千面戏国', icon: '♭', unlockStars: 3, raceWeights: [[5, 5], [3, 4], [15, 3], [0, 1]], lookThemes: ['magic', 'ancient'], wantWeights: { show: 1.25, drink: 1.15, play: 1.12 }, flavors: ['weird', 'sweet'], styles: ['neon', 'astral'], modifiers: { patience: .94, budget: 1.15, hygiene: .92, etiquette: 1.12 }, lore: '整座国度如同永不落幕的舞台，身份随面具更换，热闹和精彩比安静更珍贵。', etiquette: '要接住玩笑、给足场面；当众拆穿面具后的身份是最大的冒犯。', motifs: ['红幕王街', '变脸甜酒', '倒彩巷', '无名面具'], regions: ['红幕王街', '倒彩巷', '猫步台', '幕后城'], occupations: ['巡演艺人', '面具商', '喝彩官', '剧本盗贼'], purposes: ['寻找新剧目', '挑战酒桌传说', '物色异界演员', '逃离一场烂戏'] }),
+  worldProfile({ id: 'inverted_dreamsea', name: '倒悬梦海', icon: '∿', unlockStars: 3, raceWeights: [[12, 5], [8, 4], [11, 3], [15, 1]], lookThemes: ['magic'], wantWeights: { stargaze: 1.18, brew: 1.2, bath: 1.15 }, flavors: ['sweet', 'weird'], styles: ['astral', 'frost'], modifiers: { patience: 1.2, budget: 1.02, hygiene: 1.02, etiquette: .96 }, lore: '海洋悬在天空、梦境会沉入地面的奇异世界，居民把反常体验视为旅途必需品。', etiquette: '别急着纠正梦话或物理常识；过度平淡比偶尔失误更令人失望。', motifs: ['倒雨码头', '梦糖', '沉睡灯塔', '瓶装潮声'], regions: ['倒雨码头', '沉睡灯塔', '软月湾', '鲸梦原'], occupations: ['拾梦人', '潮声装瓶师', '星灵潜水员', '漂浮牧者'], purposes: ['寻找醒不来的梦', '采集异界怪味', '校对颠倒星图', '泡一池向下的水'] }),
+  worldProfile({ id: 'ash_dragoncourt', name: '灰烬龙庭', icon: '♛', unlockStars: 4, raceWeights: [[4, 5], [16, 4], [5, 3], [17, 1]], lookThemes: ['ancient', 'magic'], wantWeights: { meal: 1.22, drink: 1.2, brew: 1.05 }, flavors: ['spicy', 'mellow'], styles: ['forge'], modifiers: { patience: .9, budget: 1.25, hygiene: 1.05, etiquette: 1.18 }, lore: '龙族宫廷与锻城贵胄控制的高消费世界，愿意豪掷界币，也会苛刻审视每一道出品。', etiquette: '品质必须配得上价格；端上平庸菜品或混淆席位尊卑会招致冷评。', motifs: ['余烬王城', '龙焰陈酿', '黑金长阶', '鳞纹印玺'], regions: ['余烬王城', '黑金长阶', '矮炉领', '焦冠谷'], occupations: ['龙庭使者', '珍矿鉴定师', '宴席监察官', '恶魔契约师'], purposes: ['评定异界宴席', '采购传奇陈酿', '寻找炼金珍品', '巡视旧日封地'] }),
+  worldProfile({ id: 'timeless_bazaar', name: '无时集市', icon: '∞', unlockStars: 4, raceWeights: Array.from({ length: 19 }, (_, i) => [i, 1]), lookThemes: ['cyber', 'ancient', 'magic'], wantWeights: { meal: 1.05, drink: 1.05, game: 1.05, stroll: 1.05, sleep: 1.05 }, flavors: ['weird', 'mellow'], styles: ['neon', 'astral', 'rustic'], modifiers: { patience: .9, budget: 1.25, hygiene: 1.05, etiquette: 1.02 }, lore: '所有时代与种族在此交汇，潮流每天变化，复杂需求与高额消费同时出现。', etiquette: '先确认客人所属时段再谈规矩；把未来习俗套给古代来客会闹出麻烦。', motifs: ['零时十字街', '明日特饮', '昨日棚市', '停摆怀表'], regions: ['零时十字街', '昨日棚市', '明日廊', '失刻巷'], occupations: ['时间商贩', '纪元导游', '悖论修补师', '跨界掮客'], purposes: ['追赶今日潮流', '寻找遗失年代', '倒卖未来食谱', '等待正确的昨天'] }),
+];
+
+export function worldById(id) {
+  return WORLD_PROFILES.find((world) => world.id === id) || WORLD_PROFILES[0];
+}
+
+export function worldsForStars(stars) {
+  return WORLD_PROFILES.filter((world) => world.unlockStars <= Math.max(0, Number(stars) || 0));
+}
+
 export const DISH_FUN = [
   { id: 'glow', name: '位面辉光', note: '菜品微微发光：售价 +25%，味道略升' },
   { id: 'huge', name: '巨无霸份量', note: '售价 +45%，厨艺要求 +8，烹饪耗时 ×1.3' },

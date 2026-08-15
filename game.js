@@ -6,7 +6,7 @@ const ACTOR_S = 0.5;          // 世界里的小人按 50% 画（美术画布 64
 import { FLOOR_VARIANTS, floorVariant, glowPix, rugTile, wallDecoPix } from './src/floor.js';
 import { hexToNum, mix, PAL, Rng } from './src/pix.js';
 import {
-  BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById,
+  BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById, worldById,
 } from './src/data.js';
 import { DAY_LEN,            makeStaff, newEcon, Sim,            } from './src/sim.js';
 import { canPersistSim } from './src/save-policy.js';
@@ -2237,6 +2237,7 @@ class Game                    {
       const cp = this.tavern.clampFeet(m.x, m.y);
       const cx = (cp.x + 0.5) * T, cy = (cp.y + 1) * T;
       const speakingGuest = gr.members.find((member) => member.bubble);
+      const origin = worldById(m.originWorldId || gr.originWorldId);
       const pct = gr.patience / gr.maxPatience;
       const col = pct > 0.5 ? hexToNum(PAL.acid) : pct > 0.25 ? hexToNum(PAL.honey) : hexToNum(PAL.coral);
       if (gr.state === 'wait' || gr.state === 'seated' || gr.state === 'ordered') {
@@ -2256,7 +2257,7 @@ class Game                    {
         bubble(speakingGuest.bubble.text, (speakerPos.x + 0.5) * T, (speakerPos.y + 1) * T - 48, speakingGuest.bubble.tone || 'neutral');
       } else if ((gr.state === 'wait' || gr.state === 'seating' || gr.state === 'toFac') && gr.leaveReason === '') {
         const w = wantById(gr.want);
-        label(`${gr.size}人·${w.bubble}`, cx - 20, cy - 52, gr.state === 'wait' ? 0xf3b84b : 0xffe6b0);
+        label(`${origin.icon}${origin.name}·${gr.size}人·${w.bubble}`, cx - 30, cy - 52, gr.state === 'wait' ? 0xf3b84b : 0xffe6b0);
       }
       if (gr.state === 'using') {
         const w = wantById(gr.want);

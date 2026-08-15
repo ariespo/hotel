@@ -7,6 +7,7 @@ import {
   FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef,
   DUTIES, GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName, SEASON_NAMES,                              SKILL_KEYS, SKILL_LABEL,
   ROOM_CHARM, ROOM_LABEL, STAR_CERTIFICATIONS, STAR_THRESHOLDS, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
+  WORLD_PROFILES, worldById, worldsForStars,
 } from './data.js';
 import {            Tavern, dirDelta, furnFootprint } from './world.js';
 
@@ -316,6 +317,58 @@ function clamp(v        , a        , b        )         { return v < a ? a : v >
 
 const LOOK_THEMES = ['cyber', 'ancient', 'magic'];
 
+function stableHash(text) {
+  let hash = 2166136261;
+  for (const char of String(text || '')) { hash ^= char.charCodeAt(0); hash = Math.imul(hash, 16777619); }
+  return hash >>> 0;
+}
+
+function weightedPick(rng, rows, weightOf) {
+  if (!rows.length) return null;
+  let roll = rng.next() * rows.reduce((sum, row) => sum + Math.max(0, weightOf(row)), 0);
+  for (const row of rows) { roll -= Math.max(0, weightOf(row)); if (roll <= 0) return row; }
+  return rows[rows.length - 1];
+}
+
+export function worldForecastForDay(seed, day, stars) {
+  const available = worldsForStars(stars);
+  const count = Math.min(available.length, 2 + (stableHash(`${seed}:${day}:count`) % 2));
+  return [...available]
+    .sort((a, b) => stableHash(`${seed}:${day}:${a.id}`) - stableHash(`${seed}:${day}:${b.id}`))
+    .slice(0, count)
+    .map((world) => world.id);
+}
+
+export function worldModifier(world, key) {
+  const value = key === 'budget' ? world?.travel?.budgetMultiplier
+    : key === 'patience' ? world?.travel?.patienceMultiplier
+      : world?.hospitality?.servicePriorities?.[key];
+  return clamp(Number(value) || 1, .8, 1.25);
+}
+
+function blankWorldKnowledge() {
+  return Object.fromEntries(WORLD_PROFILES.map((world) => [world.id, { level: 0, arrivals: 0, served: 0, firstDay: 0, reviewed: false, journeyAsked: false }]));
+}
+
+function travelIdentity(world, seed) {
+  const n = stableHash(seed);
+  return {
+    homeRegion: world.regions[n % world.regions.length].name,
+    travelOccupation: world.travel.occupations[Math.floor(n / 7) % world.travel.occupations.length],
+    travelPurpose: world.travel.purposes[Math.floor(n / 17) % world.travel.purposes.length],
+  };
+}
+
+export function worldWantWeight(world, wantId, day = 1, seed = 0) {
+  let weight = Number(world?.hospitality?.wantWeights?.[wantId]) || 1;
+  if (world?.hospitality?.dailyTrend) {
+    const ranked = GUEST_WANTS.map((want) => want.id)
+      .sort((a, b) => stableHash(`${seed}:${day}:${world.id}:${a}`) - stableHash(`${seed}:${day}:${world.id}:${b}`));
+    if (ranked.slice(0, 3).includes(wantId)) weight *= 1.2;
+  }
+  return clamp(weight, .8, 1.25);
+}
+
 function traitPairValue(a        , b        )         {
   if (a === b) return TRAIT_SAME[a] !== undefined ? TRAIT_SAME[a] : 1;
   let value = 0;
@@ -565,7 +618,45 @@ export class Sim {
     const certified = Number(this.econ.certifiedStars);
     this.econ.certifiedStars = Math.max(0, Math.min(5, Number.isFinite(certified) ? Math.round(certified) : starsOf(this.econ.rep)));
     this.econ.certificationHistory = Array.isArray(this.econ.certificationHistory) ? this.econ.certificationHistory : [];
+    this.econ.worldKnowledge = { ...blankWorldKnowledge(), ...(this.econ.worldKnowledge || {}) };
+    this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.econ.certifiedStars);
     this.rng = new Rng(econ.seed || 12345);
+  }
+
+  worldKnowledge(id) {
+    if (!this.econ.worldKnowledge[id]) this.econ.worldKnowledge[id] = blankWorldKnowledge()[id];
+    return this.econ.worldKnowledge[id];
+  }
+
+  discoverWorld(id, kind = 'arrival') {
+    const entry = this.worldKnowledge(id);
+    if (kind === 'arrival') { entry.arrivals++; entry.level = Math.max(entry.level, 1); entry.firstDay ||= this.econ.day; }
+    if (kind === 'served') { entry.served++; entry.level = Math.max(entry.level, entry.served >= 3 ? 3 : 2); }
+    if (kind === 'review') { entry.reviewed = true; entry.level = 4; }
+    if (kind === 'journey') { entry.journeyAsked = true; entry.level = 4; }
+    return entry;
+  }
+
+  recordWorldOutcome(g, score, revenue, reviewed = true) {
+    const counts = {};
+    if (this.dayReport) this.dayReport.worldGuests ||= {};
+    for (const member of g.members || []) {
+      const id = member.originWorldId || g.originWorldId || WORLD_PROFILES[0].id;
+      counts[id] = (counts[id] || 0) + 1;
+    }
+    for (const [id, count] of Object.entries(counts)) {
+      this.discoverWorld(id, 'served');
+      if (reviewed) this.discoverWorld(id, 'review');
+      if (!this.dayReport) continue;
+      const world = worldById(id);
+      const row = this.dayReport.worldGuests[id] || { name: world.name, arrivals: 0, served: 0, lost: 0, revenue: 0, scoreTotal: 0, scoreSamples: 0, complaints: {} };
+      row.served += count; row.revenue += Math.round(revenue * count / Math.max(1, g.size)); row.scoreTotal += score * count; row.scoreSamples += count;
+      if (score < 2.75) {
+        const weakest = Object.entries(g.lastReview?.parts || {}).sort((a, b) => a[1] - b[1])[0]?.[0] || 'service';
+        row.complaints[weakest] = (row.complaints[weakest] || 0) + count;
+      }
+      this.dayReport.worldGuests[id] = row;
+    }
   }
 
   id()         { return this.nextId++; }
@@ -1066,6 +1157,7 @@ export class Sim {
 
   // ---------- 营业日 ----------
   openDay()       {
+    this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.stars());
     this.dayT = 0;
     this.aiEventRequested = false;
     this.queuedDynamicEvent = null;
@@ -1084,7 +1176,7 @@ export class Sim {
         coins: this.econ.coins, rep: this.econ.rep, stock: { ...this.econ.stock },
         staff: this.staff.map((s) => ({ id: s.id, name: s.name, job: s.job, skills: { ...s.skills }, needs: { ...s.needs } })),
       },
-      work: {}, dishSales: {}, facilitySales: {}, stockUsed: {}, lostReasons: {}, events: [], moments: [],
+      work: {}, dishSales: {}, facilitySales: {}, stockUsed: {}, lostReasons: {}, events: [], moments: [], worldGuests: {},
       facilityByFurn: {},
       facilityService: { started: 0, completed: 0, byType: {} }, facilityChallenges: { started: 0, resolved: 0, failed: 0 },
     };
@@ -1180,13 +1272,20 @@ export class Sim {
       coinsAfter: this.econ.coins, sealed, creditLine, scoreBreakdown, fiveStarReached, ownerSkillGrowth,
     };
     stat.report = this.finishDayReport(stat);
+    const starsBeforeCertification = this.stars();
     stat.certification = this.evaluateCertification(stat);
     if (stat.certification.achieved) {
       this.econ.certifiedStars = stat.certification.level;
       fiveStarReached = !this.endingSeen && this.stars() >= 5;
       if (fiveStarReached) this.endingSeen = true;
       stat.fiveStarReached = fiveStarReached;
+      const connected = WORLD_PROFILES.filter((world) => world.unlockStars > starsBeforeCertification && world.unlockStars <= this.stars());
+      if (connected.length) {
+        stat.newWorldConnections = connected.map((world) => world.id);
+        this.toast(`位面航路接通：${connected.map((world) => world.name).join('、')}`);
+      }
     }
+    this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.stars());
     this.lastStat = stat;
     return stat;
   }
@@ -1212,7 +1311,7 @@ export class Sim {
   finishDayReport(stat       )         {
     const report = this.dayReport || {
       day: stat.day, started: { coins: stat.coinsAfter - (stat.revenue - stat.wages - stat.maintenance - stat.restock), rep: this.econ.rep - stat.repDelta, stock: {}, staff: [] },
-      work: {}, dishSales: {}, facilitySales: {}, stockUsed: {}, lostReasons: {}, events: [], moments: [],
+      work: {}, dishSales: {}, facilitySales: {}, stockUsed: {}, lostReasons: {}, events: [], moments: [], worldGuests: {},
       facilityByFurn: {}, facilityService: { started: 0, completed: 0, byType: {} }, facilityChallenges: { started: 0, resolved: 0, failed: 0 },
     };
     const byId = new Map(this.staff.map((s) => [s.id, s]));
@@ -1355,56 +1454,74 @@ export class Sim {
           spawnAcc = 0;
 
   spawnGroup()       {
-    // 只有当前酒馆能满足的需求才会有客人带着它上门
     const wants = this.availableWants();
     if (!wants.length) return;
-    let roll = this.rng.next() * wants.reduce((n, w) => n + w.weight, 0);
-    let want = wants[0];
-    for (const w of wants) { roll -= w.weight; if (roll <= 0) { want = w; break; } }
     const activeRegulars = new Set(this.groups.map((group) => group.regularId).filter(Boolean));
     const returningPool = this.regulars.filter((profile) => !activeRegulars.has(profile.id) && profile.lastVisitDay < this.econ.day);
     const returning = returningPool.length && this.rng.chance(Math.min(.55, .22 + returningPool.length * .025))
       ? returningPool[this.rng.int(returningPool.length)] : null;
-    if (returning?.want && wants.some((item) => item.id === returning.want) && this.rng.chance(.7)) want = wants.find((item) => item.id === returning.want);
+    const availableWorlds = worldsForStars(this.stars());
+    const forecast = new Set(this.econ.worldForecast || []);
+    const origin = returning?.originWorldId ? worldById(returning.originWorldId) : weightedPick(this.rng, availableWorlds, (world) => forecast.has(world.id) ? 1.85 : 1);
+    const crossWorld = !returning && this.stars() >= 5 && availableWorlds.length > 1 && this.rng.chance(.24);
+    let secondary = crossWorld ? weightedPick(this.rng, availableWorlds.filter((world) => world.id !== origin.id), (world) => forecast.has(world.id) ? 1.5 : 1) : null;
+    const want = returning?.want && wants.some((item) => item.id === returning.want) && this.rng.chance(.7)
+      ? wants.find((item) => item.id === returning.want)
+      : weightedPick(this.rng, wants, (item) => {
+        const first = worldWantWeight(origin, item.id, this.econ.day, this.econ.seed);
+        const second = secondary ? worldWantWeight(secondary, item.id, this.econ.day, this.econ.seed) : first;
+        return item.weight * ((first + second) / 2);
+      });
     const e = this.tavern.entrance();
     const sizeCap = this.econ.day <= 1 ? 2 : this.econ.day <= 3 ? 3 : 4;
-    let size = 1 + this.rng.int(this.rng.chance(0.5) ? Math.min(2, sizeCap) : sizeCap);
+    const groupPattern = weightedPick(this.rng, origin.travel.groupPatterns, (pattern) => pattern.weight);
+    let size = Math.min(sizeCap, groupPattern.min + this.rng.int(groupPattern.max - groupPattern.min + 1));
     if (want.facility) {                       // 设施容量决定这组最多几个人
       const caps = this.facilitiesOf(want).map((f) => this.facilityCap(f));
       const maxCap = caps.length ? Math.max(...caps) : 1;
       size = Math.min(size, maxCap);
+      if (secondary && maxCap < 2) secondary = null;
     }
+    if (secondary) size = Math.max(2, size);
     const gid = this.id();
     const members          = [];
     for (let i = 0; i < size; i++) {
+      const memberWorld = secondary && i % 2 ? secondary : origin;
       if (i === 0 && returning) {
         members.push({
           id: this.id(), app: returning.app, name: returning.name, race: returning.race, regularId: returning.id,
+          originWorldId: origin.id, homeRegion: returning.homeRegion, travelOccupation: returning.travelOccupation, travelPurpose: returning.travelPurpose,
           groupId: gid, x: e.x - .2, y: e.y, dir: 0, pose: 'idle', animT: this.rng.next() * 2,
           path: [], seatId: 0, mood: 1, aff: returning.aff || 0, aiChatLog: [...(returning.aiChatLog || [])],
           relationshipSummary: returning.relationshipSummary || '', background: returning.background || null,
         });
         continue;
       }
-      const race = this.rng.int(18);
+      const race = weightedPick(this.rng, memberWorld.population, (row) => row.weight).raceId;
+      const identity = travelIdentity(memberWorld, `${this.econ.seed}:${this.econ.day}:${gid}:${i}`);
+      const theme = memberWorld.visuals.appearanceThemes[this.rng.int(memberWorld.visuals.appearanceThemes.length)];
       members.push({
-        id: this.id(), app: randomAppearance(this.rng, race, false, this.rng.chance(0.5) ? LOOK_THEMES[this.rng.int(3)] : undefined),
+        id: this.id(), app: randomAppearance(this.rng, race, false, theme),
         name: makeName(this.rng), race: RACE_NAMES[race],
+        originWorldId: memberWorld.id, ...identity,
         groupId: gid, x: e.x + (i % 2) * 0.4 - 0.2, y: e.y + 0.2 * i, dir: 0, pose: 'idle', animT: this.rng.next() * 2,
         path: [], seatId: 0, mood: 1, aff: 0, aiChatLog: [],
       });
     }
     const pool = want.facility ? this.allDishes() : this.makeableDishes(want.drink);
     const taste = returning?.taste?.length ? [...returning.taste] : [pool[this.rng.int(pool.length)].id, pool[this.rng.int(pool.length)].id];
-    // 口味偏好：两个不重复的口味标签
-    const f1 = returning?.flavors?.[0] || FLAVORS[this.rng.int(FLAVORS.length)].id;
+    const preferredFlavors = [...new Set([...(origin.hospitality.flavorLikes || []), ...(secondary?.hospitality.flavorLikes || [])])];
+    const f1 = returning?.flavors?.[0] || (this.rng.chance(.75) ? preferredFlavors[this.rng.int(preferredFlavors.length)] : FLAVORS[this.rng.int(FLAVORS.length)].id);
     const rememberedF2 = returning?.flavors?.[1];
     const alternatives = FLAVORS.map((item) => item.id).filter((id) => id !== f1);
     const f2 = rememberedF2 && rememberedF2 !== f1 ? rememberedF2 : alternatives[this.rng.int(alternatives.length)] || f1;
     const g        = {
       id: gid, members, size, tableId: 0, state: 'wait', want: want.id, greeted: false, seatCd: 0, facId: 0, useT: 0, facT: 0,
-      maxPatience: Math.round(this.rng.range(78, 135)), patience: 0, budget: Math.round(this.rng.range(30, 120)),
-      hygieneSens: this.rng.range(0.4, 1.5), taste, flavors: [f1, f2], orderId: 0,
+      originWorldId: origin.id, worldIds: secondary ? [origin.id, secondary.id] : [origin.id], crossWorld: !!secondary,
+      homeRegion: members[0].homeRegion, travelOccupation: members[0].travelOccupation, travelPurpose: members[0].travelPurpose,
+      maxPatience: Math.round(this.rng.range(78, 135) * worldModifier(origin, 'patience')), patience: 0,
+      budget: Math.round(this.rng.range(30, 120) * worldModifier(origin, 'budget')),
+      hygieneSens: this.rng.range(0.4, 1.5) * worldModifier(origin, 'hygiene'), taste, flavors: [f1, f2], orderId: 0,
       enterT: this.dayT, orderedT: 0, servedT: 0, eatT: 0, leaveReason: '',
       praised: 0, mocked: 0, intCd: 0, regularId: returning?.id || null,
     };
@@ -1417,8 +1534,21 @@ export class Sim {
     g.patience = g.maxPatience;
     this.groups.push(g);
     this.guests.push(...members);
+    for (const id of g.worldIds) this.discoverWorld(id, 'arrival');
+    if (this.dayReport) {
+      for (const member of members) {
+        const id = member.originWorldId; const world = worldById(id);
+        const row = this.dayReport.worldGuests[id] || { name: world.name, arrivals: 0, served: 0, lost: 0, revenue: 0, scoreTotal: 0, scoreSamples: 0, complaints: {} };
+        row.arrivals++; this.dayReport.worldGuests[id] = row;
+      }
+    }
     this.fx.push({ x: e.x, y: e.y, t: 0.6, kind: 'portal' });
     this.sounds.push('chime');
+    const arrival = secondary
+      ? `跨界使团抵达：${origin.name} × ${secondary.name}`
+      : `来自${origin.name}的${g.travelOccupation}旅行团抵达`;
+    members[0].bubble = { text: origin.dialogue.arrival[this.rng.int(origin.dialogue.arrival.length)], t: 6.5, tone: 'neutral' };
+    this.toast(arrival);
     // 所有客人先到前台：由前台完成迎宾并引导入座/入房。
     this.goWaitArea(g);
   }
@@ -1818,6 +1948,11 @@ export class Sim {
       }
       if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered' || g.state === 'facility_prepare' || g.state === 'facility_waiting_attend') {
         g.patience -= dt * (1 + (g.state === 'ordered' ? 0.15 : 0));
+        if (!g.worldWaitSpoken && g.patience < g.maxPatience * .55) {
+          const guest = g.members[0]; const world = worldById(guest?.originWorldId || g.originWorldId);
+          if (guest) { const text = world.dialogue.wait[this.rng.int(world.dialogue.wait.length)]; guest.bubble = { text, t: 6, tone: 'neutral' }; this.say(`${guest.name}：${text}`); }
+          g.worldWaitSpoken = true;
+        }
         if (g.patience <= 0) { this.leave(g, g.state === 'wait' ? '在前台等太久' : '等菜太久'); continue; }
       }
       if (g.state === 'wait') {
@@ -1913,6 +2048,13 @@ export class Sim {
       this.recordScoreParts({ wait: 1.2, service: 1.2 });
       this.toast(`一组客人离店：${reason}`);
       this.sounds.push('angry');
+      const guest = g.members[0]; const world = worldById(guest?.originWorldId || g.originWorldId);
+      if (guest) guest.bubble = { text: world.dialogue.bad[this.rng.int(world.dialogue.bad.length)], t: 6, tone: 'bad' };
+      if (this.dayReport) for (const member of g.members || []) {
+        const id = member.originWorldId || g.originWorldId; const w = worldById(id);
+        const row = this.dayReport.worldGuests[id] || { name: w.name, arrivals: 0, served: 0, lost: 0, revenue: 0, scoreTotal: 0, scoreSamples: 0, complaints: {} };
+        row.lost++; row.complaints.wait = (row.complaints.wait || 0) + 1; this.dayReport.worldGuests[id] = row;
+      }
     }
     this.rememberGuests(g, reason ? 1.2 : 3);
     for (const m of g.members) {
@@ -1929,6 +2071,20 @@ export class Sim {
     return (dish.flavors || []).some((f) => (g.flavors || []).includes(f));
   }
 
+  worldServiceMultipliers(g, room = null, dish = null) {
+    const worlds = (g.worldIds || [g.originWorldId]).filter(Boolean).map(worldById);
+    const average = (fn) => worlds.reduce((sum, world) => sum + fn(world), 0) / Math.max(1, worlds.length);
+    const flavorHit = dish ? average((world) => (dish.flavors || []).some((flavor) => world.hospitality.flavorLikes.includes(flavor)) ? 1.08 : .96) : 1;
+    const styleId = room ? this.tavern.roomStyle(room) : '';
+    const styleFit = room ? average((world) => world.hospitality.roomStyleLikes.includes(styleId) ? 1.08 : .98) : 1;
+    const etiquette = average((world) => worldModifier(world, 'etiquette'));
+    return {
+      quality: clamp(flavorHit, .8, 1.25),
+      comfort: clamp(styleFit, .8, 1.25),
+      service: clamp(g.greeted ? 1 + Math.max(0, etiquette - 1) * .22 : 1 - etiquette * .12, .8, 1.25),
+    };
+  }
+
   rememberGuests(g, score = 3) {
     for (const guest of g.members || []) {
       let profile = guest.regularId ? this.regulars.find((item) => item.id === guest.regularId) : null;
@@ -1936,6 +2092,8 @@ export class Sim {
       if (!profile && adjustedAff >= 5 && this.regulars.length < 60) {
         profile = {
           id: this.id(), name: guest.name, race: guest.race, app: guest.app, aff: adjustedAff,
+          originWorldId: guest.originWorldId || g.originWorldId, homeRegion: guest.homeRegion || g.homeRegion,
+          travelOccupation: guest.travelOccupation || g.travelOccupation, travelPurpose: guest.travelPurpose || g.travelPurpose,
           visits: 1, lastVisitDay: this.econ.day, aiChatLog: [], relationshipSummary: '', background: null,
           taste: [...(g.taste || [])], flavors: [...(g.flavors || [])], want: g.want, offer: null,
         };
@@ -1947,7 +2105,7 @@ export class Sim {
       profile.aiChatLog = [...(guest.aiChatLog || [])].slice(0, 20);
       profile.relationshipSummary = guest.relationshipSummary || profile.relationshipSummary || '';
       profile.want = g.want; profile.taste = [...(g.taste || [])]; profile.flavors = [...(g.flavors || [])];
-      if (profile.aff >= 20 && !profile.background) profile.background = `${profile.name}来自${profile.race}聚居的远方位面，把这家旅店当作穿越世界时可以安心停靠的熟悉灯火。`;
+      if (profile.aff >= 20 && !profile.background) profile.background = `${profile.name}是来自${worldById(profile.originWorldId).name}${profile.homeRegion || ''}的${profile.travelOccupation || '旅人'}，因${profile.travelPurpose || '跨界旅行'}来到多元旅店。`;
       if (profile.aff >= 35 && !profile.offer) profile.offer = { kind: 'commission', text: `希望旅店为其准备带有${FLAVOR_LABEL[profile.flavors[0]] || '独特'}风味的特别招待`, reward: 90 };
       if (profile.aff >= 60) profile.offer = { kind: 'vip', text: '愿意为招牌体验支付更高费用，但希望店主亲自照应', reward: 160 };
     }
@@ -1983,7 +2141,10 @@ export class Sim {
     const guest = g.members[this.rng.int(g.members.length)] || g.members[0];
     if (!guest || !pool?.length) return null;
     const item = itemName || wantById(g.want).name;
-    const text = pool[this.rng.int(pool.length)].replaceAll('{item}', item);
+    const serviceText = pool[this.rng.int(pool.length)].replaceAll('{item}', item);
+    const world = worldById(guest.originWorldId || g.originWorldId);
+    const worldPool = world.dialogue[tier] || world.dialogue.neutral;
+    const text = `${serviceText} ${worldPool[this.rng.int(worldPool.length)]}`;
     guest.bubble = { text, t: 6.5, tone: tier };
     g.lastReview = { tier, score, text, speaker: guest.name, parts: { ...parts } };
     const label = tier === 'good' ? '好评' : tier === 'bad' ? '恶评' : '中评';
@@ -2009,12 +2170,13 @@ export class Sim {
     if (afterMastery > beforeMastery) this.toast(`★ 招牌菜成长：《${dish.name}》升至 ${afterMastery} 级，售价与风味提升`);
     // 评价 6 项
     const waitPen = clamp(3 + (g.patience / g.maxPatience) * 2.4, 1, 5);
-    const taste = clamp((order ? order.quality : 2) * (this.guestLikes(g, dish) ? 1.15 : 1) * (this.econ.markup > 2 ? 0.8 : 1), 1, 5);    const serveScore = clamp(2 + this.bestSkill('serve').value / 30 + (g.greeted ? 0.5 : 0)
+    const worldFit = this.worldServiceMultipliers(g, room, dish);
+    const taste = clamp((order ? order.quality : 2) * (this.guestLikes(g, dish) ? 1.15 : 1) * (this.econ.markup > 2 ? 0.8 : 1) * worldFit.quality, 1, 5);    const serveScore = clamp((2 + this.bestSkill('serve').value / 30 + (g.greeted ? 0.5 : 0)
       + (this.staff.some((x) => x.traits.includes('sociable')) ? 0.3 : 0)
-      + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75), 1, 5);
+      + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75)) * worldFit.service, 1, 5);
     const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
     const roomCharm = room ? this.charmIn(room.id) : 0;
-    const comfort = clamp(1.6 + (table ? table.quality : 1) * 0.8 + (room ? room.quality * 0.4 : 0) + roomCharm + (room?.kind === 'parlor' ? .45 : 0), 1, 5);
+    const comfort = clamp((1.6 + (table ? table.quality : 1) * 0.8 + (room ? room.quality * 0.4 : 0) + roomCharm + (room?.kind === 'parlor' ? .45 : 0)) * worldFit.comfort, 1, 5);
     const spectacle = clamp(1.8 + this.tavern.rooms.length * 0.25 + this.tavern.furns.length * 0.03 + this.charmTotal() * 0.18 + (room?.kind === 'parlor' ? .35 : 0), 1, 5);
     const score = (taste * 1.25 + waitPen * 1.15 + serveScore + hygiene * 1.1 + comfort * 0.85 + spectacle * 0.65) / 6.0;
     this.scores.push(score);
@@ -2026,6 +2188,7 @@ export class Sim {
     this.fx.push({ x: table ? table.x : g.members[0].x, y: table ? table.y : g.members[0].y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
     if (score >= 3.6) this.sounds.push('happy');
     this.showGuestReview(g, score, { quality: taste, wait: waitPen, service: serveScore, hygiene, comfort, spectacle }, dish.name);
+    this.recordWorldOutcome(g, score, revenue, true);
     this.rememberGuests(g, score);
     if (this.advanceWant(g)) return;   // 住店客：吃完这摊去睡觉
     g.state = 'leaving';
@@ -2060,11 +2223,12 @@ export class Sim {
     }
     const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
     const charm = room ? this.charmIn(room.id) : 0;
-    const comfort = clamp(1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm, 1, 5);
+    const worldFit = this.worldServiceMultipliers(g, room, null);
+    const comfort = clamp((1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm) * worldFit.comfort, 1, 5);
     const facilityService = SPECIAL_FACILITY_WANTS.has(g.want);
     const serviceSkill = facilityService ? (g.facilityAttendantSkill || 0) : this.bestSkill('serve').value;
-    const serveScore = clamp(2 + serviceSkill / 34 + (g.greeted ? 0.5 : 0)
-      + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75), 1, 5);
+    const serveScore = clamp((2 + serviceSkill / 34 + (g.greeted ? 0.5 : 0)
+      + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75)) * worldFit.service, 1, 5);
     if (this.dayReport && f) {
       const row = this.dayReport.facilityByFurn[f.id];
       row.qualityTotal = (row.qualityTotal || 0) + serveScore * g.size;
@@ -2090,6 +2254,7 @@ export class Sim {
     this.fx.push({ x: m0.x, y: m0.y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
     if (score >= 3.6) this.sounds.push('happy');
     this.showGuestReview(g, score, { quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, spectacle }, w.name);
+    this.recordWorldOutcome(g, score, revenue, true);
     this.rememberGuests(g, score);
     this.releaseFacility(g);
     if (this.advanceWant(g)) return;   // 住店客：玩完这摊去睡觉
@@ -2258,7 +2423,12 @@ export class Sim {
     if (!g || !guest) return '';
     if (g.intCd > 0) return '客人正在消化刚才的话题。';
     let line = '';
-    if (kind === 'journey') line = `${guest.name}说起一路经过的位面：有倒悬的海、有整夜不熄的集市，也有只卖回忆的旧货铺。`;
+    if (kind === 'journey') {
+      const world = worldById(guest.originWorldId || g.originWorldId);
+      const story = world.dialogue.journey[this.rng.int(world.dialogue.journey.length)];
+      line = `${guest.name}来自${world.name}的${guest.homeRegion || g.homeRegion}，是一名${guest.travelOccupation || g.travelOccupation}。${story} 此行是为了${guest.travelPurpose || g.travelPurpose}。`;
+      this.discoverWorld(world.id, 'journey');
+    }
     else if (kind === 'revisit' && profile?.visits >= 2) line = `${guest.name}笑着提起上次来店时的服务与对话，还准确记得当时坐过的位置。`;
     else if (kind === 'commission' && profile?.offer) {
       g.offerAccepted = true;
@@ -3433,6 +3603,8 @@ export class Sim {
     this.econ = data.econ;
     this.econ.certifiedStars = clamp(Math.round(Number(this.econ.certifiedStars) || 0), 0, 5);
     this.econ.certificationHistory = Array.isArray(this.econ.certificationHistory) ? this.econ.certificationHistory : [];
+    this.econ.worldKnowledge = { ...blankWorldKnowledge(), ...(this.econ.worldKnowledge || {}) };
+    this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.econ.certifiedStars);
     if (!this.econ.menu) this.econ.menu = {};   // 老存档：全部上架
     if (!this.econ.customDishes) this.econ.customDishes = [];   // 老存档：无自创菜
     if (!this.econ.aiChronicles) this.econ.aiChronicles = [];
@@ -3492,6 +3664,7 @@ export function newEcon(seed        )       {
     stock: { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 },
     menu: {},
     customDishes: [], dishMastery: {}, aiChronicles: [], aiNightStories: [],
+    worldKnowledge: blankWorldKnowledge(), worldForecast: worldForecastForDay(seed, 1, 0),
     revenue: 0, served: 0, lost: 0, seed,
   };
 }
