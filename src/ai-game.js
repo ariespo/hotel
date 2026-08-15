@@ -242,6 +242,7 @@ const DEFINITIONS = Object.freeze({
     },
     rules: [
       '只整理创作简报，不直接生成完整世界；不得遗漏玩家的 mustInclude、mustAvoid 和 tone。',
+      '若 facts.input.name 非空，workingName 必须逐字采用该名称，并仅根据名称也能主动补齐类型、核心体验、规律、冲突、差异化与原创方案；不得要求玩家先补写概念。',
       '玩家输入提及现有作品、角色或专有名词时，不沿用其专有名称、人物、组织、地点或具体历史，只提炼类型体验。',
       '核心规律必须同时影响宏观世界与普通人的日常生活，并具有明确代价、资源或边界。',
       '世界必须能容纳多种种族，种族不等同于世界。',
@@ -251,6 +252,7 @@ const DEFINITIONS = Object.freeze({
     schema: { world: WORLD_CONTENT_SCHEMA },
     rules: [
       '严格依据 facts.brief 与玩家原始输入生成完整原创世界；不得直接复刻现有作品的专有名词、角色、势力和历史。',
+      '若 facts.input.name 非空，world.name 必须逐字采用该名称；完整吸收 facts.input.compileNotes、mustInclude 与 tone，即使概念栏为空也要补齐全部世界字段。',
       'regions 必须 6-10 项，history 6-8 项，factions 4-6 项，notableCharacters 6-8 项，localRules 至少 3 项，festivals 至少 2 项。',
       '前三名 notableCharacters 将作为稀有访客，因此必须有明确动机并能在旅店场景中交流，其余人物仍需可用于传闻与图鉴。',
       '所有经营倍率必须在 0.85-1.20；当地规则不得禁用餐饮、饮酒、住宿或任何基础设施。',
@@ -263,6 +265,7 @@ const DEFINITIONS = Object.freeze({
     schema: { world: WORLD_CONTENT_SCHEMA, repairs: ['本轮实际完成的 1-12 条修复摘要'] },
     rules: [
       '逐项审核 facts.candidate，并在 world 中返回完整修复稿；不得只返回意见或省略未修改字段。',
+      '若 facts.input.name 非空，修复后仍须逐字保留该名称；把 facts.input.reviewNotes 与 mustAvoid 作为本轮审核重点。',
       '删除或原创化任何直接复制现有作品的专有名称、角色、组织、地点和具体情节，同时保留玩家要求的抽象类型体验。',
       '修复世界规律、历史、势力、经济、人物之间的矛盾，并补齐所有数量要求。',
       '所有倍率夹在 0.85-1.20；优势和限制成对出现，不得让世界成为纯收益最优选择。',

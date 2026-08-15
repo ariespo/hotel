@@ -232,7 +232,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui.compact.scrimOn #scrim{display:block}
 .prompt-editor{display:block;margin:5px 0 12px;width:100%;min-height:88px;box-sizing:border-box;resize:vertical;line-height:1.55}
 .prompt-card{padding:8px 10px;border:2px solid #E3C9A4;border-left:5px solid #8A74B8;border-radius:10px;background:#FFF8E9;margin-top:8px}
-.prompt-tabs{display:flex;gap:6px;position:sticky;top:-12px;z-index:2;padding:8px 0;background:#F5E6C8;flex-wrap:wrap}.prompt-tabs button{min-width:100px}.prompt-tabs button.on{background:#7A4BE0;color:#fff;border-color:#5E3EA0}.prompt-pane{display:none}.prompt-pane.on{display:block}.prompt-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.prompt-module{padding:8px 9px;border:2px solid #E3C9A4;border-radius:9px;background:#FFF8E9}.prompt-module textarea{width:100%;min-height:112px;box-sizing:border-box;margin-top:5px;resize:vertical;line-height:1.5}
+.prompt-tabs{display:flex;gap:6px;position:sticky;top:-12px;z-index:2;padding:8px 0;background:#F5E6C8;flex-wrap:wrap}.prompt-tabs button{min-width:100px}.prompt-tabs button.on{background:#7A4BE0;color:#fff;border-color:#5E3EA0}.prompt-pane{display:none}.prompt-pane.on{display:block}.world-prompt-tabs,.world-builder-tabs{position:static;top:auto}.world-prompt-stage-pane{display:none}.world-prompt-stage-pane.on{display:block}.prompt-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.prompt-module{padding:8px 9px;border:2px solid #E3C9A4;border-radius:9px;background:#FFF8E9}.prompt-module textarea{width:100%;min-height:112px;box-sizing:border-box;margin-top:5px;resize:vertical;line-height:1.5}
 .world-title{font-weight:900;border-color:var(--world-tint,#C9922F);box-shadow:0 0 0 1px color-mix(in srgb,var(--world-tint,#C9922F) 35%,transparent);white-space:nowrap}.world-picker{display:flex;gap:5px;overflow-x:auto;padding:4px 0 8px}.world-picker button{flex:0 0 auto}.world-card-tabs{position:static;background:transparent}.world-card-tabs button{min-width:70px}.world-card-body{min-height:280px;max-height:55vh;overflow:auto;padding-right:4px}.world-hero{display:flex;align-items:center;gap:14px;padding:14px;border:2px solid var(--world-card-tint);border-radius:12px;background:linear-gradient(135deg,#FFF8E9,color-mix(in srgb,var(--world-card-tint) 16%,#FFF8E9))}.world-hero h2{margin:0 0 4px}.world-glyph{font-size:46px;min-width:56px;text-align:center;color:var(--world-card-tint);text-shadow:0 2px 0 #fff}.world-timeline .card{border-left-color:var(--world-tint,#7A4BE0)}
 #tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper2.png');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
@@ -303,7 +303,9 @@ export class UI {
           acc = 0;
           interactionLock = false;
           interactionRelease = 0;
-          purchaseConfirm = null;
+  purchaseConfirm = null;
+  customWorldActiveTab = 'concept';
+  worldPromptActiveStage = 'world_concept';
           panelHTML = new WeakMap();
 
   constructor(g         ) {
@@ -474,6 +476,11 @@ export class UI {
     else if (act === 'worldswitch') this.openWorldSwitchConfirm(v);
     else if (act === 'worldswitchgo') g.travelToWorld(v);
     else if (act === 'customworld') this.openCustomWorldBuilder();
+    else if (act === 'customworldtab') {
+      this.customWorldDraft = this.customWorldFormData();
+      if (['concept', 'compile', 'review'].includes(v)) this.customWorldActiveTab = v;
+      this.openCustomWorldBuilder();
+    }
     else if (act === 'customworldgenerate') this.generateCustomWorld();
     else if (act === 'customworldsave') this.saveCustomWorld();
     else if (act === 'customworldcancelai') this.customWorldController?.abort();
@@ -590,6 +597,7 @@ export class UI {
     else if (act === 'help') this.openHelp();
     else if (act === 'prompts') this.openPromptSettings();
     else if (act === 'prompttab') this.switchPromptTab(v);
+    else if (act === 'promptworldstage') this.switchWorldPromptStage(v);
     else if (act === 'promptsave') this.savePromptSettings();
     else if (act === 'promptmodreset') {
       const stage = t.dataset.stage; const moduleId = t.dataset.module;
@@ -1285,26 +1293,42 @@ export class UI {
   }
 
   customWorldFormData() {
-    const old = this.customWorldDraft || { name: '', genre: '', concept: '', mustInclude: '', mustAvoid: '', tone: '' };
+    const old = { name: '', genre: '', concept: '', mustInclude: '', compileNotes: '', tone: '', mustAvoid: '', reviewNotes: '', ...(this.customWorldDraft || {}) };
     if (!this.modal) return old;
     const value = (key) => this.modal.querySelector(`[data-custom-world="${key}"]`)?.value ?? old[key];
-    return { name: value('name'), genre: value('genre'), concept: value('concept'), mustInclude: value('mustInclude'), mustAvoid: value('mustAvoid'), tone: value('tone') };
+    return {
+      name: value('name'), genre: value('genre'), concept: value('concept'), mustInclude: value('mustInclude'),
+      compileNotes: value('compileNotes'), tone: value('tone'), mustAvoid: value('mustAvoid'), reviewNotes: value('reviewNotes'),
+    };
   }
 
   openCustomWorldBuilder(status = '', isError = false) {
     const sim = this.g.sim; const econ = sim.econ;
     if (sim.stars() < 3) { sim.toast('三星后开放 AI 自定义世界'); return; }
-    const draft = this.customWorldDraft || { name: '', genre: '', concept: '', mustInclude: '', mustAvoid: '', tone: '' };
+    const draft = { name: '', genre: '', concept: '', mustInclude: '', compileNotes: '', tone: '', mustAvoid: '', reviewNotes: '', ...(this.customWorldDraft || {}) };
     const result = this.customWorldResult;
     const fee = customWorldCreationCost(econ.customWorlds.length);
+    const activeTab = ['concept', 'compile', 'review'].includes(this.customWorldActiveTab) ? this.customWorldActiveTab : 'concept';
+    const tabs = [['concept', '① 概念提炼'], ['compile', '② 完整编译'], ['review', '③ 审核修复']];
+    const tabButtons = tabs.map(([key, label]) => `<button data-act="customworldtab" data-v="${key}" class="${activeTab === key ? 'on' : ''}">${label}</button>`).join('');
+    const stageContent = activeTab === 'concept'
+      ? `<div class="dim">只填写世界名称也可以：AI 会把名称作为固定创作种子，自动补齐类型、规律、文明、历史、势力、经济、人物、经营规则和对白。</div>
+        <div class="creator-identity" style="margin-top:8px"><label>世界名称<input data-custom-world="name" maxlength="24" value="${htmlText(draft.name)}" placeholder="如：逆潮天城"></label><label>类型（可选）<input data-custom-world="genre" maxlength="80" value="${htmlText(draft.genre)}" placeholder="如东方修仙、海洋科幻"></label></div>
+        <label style="display:block;margin-top:7px"><b>世界构想（可选）</b><textarea class="prompt-editor" data-custom-world="concept" maxlength="2400" placeholder="可补充世界气质、自然规律、文明和想体验的冲突；留空时 AI 根据名称自行展开。">${htmlText(draft.concept)}</textarea></label>`
+      : activeTab === 'compile'
+        ? `<div class="dim">这一页直接约束完整设定的编译，不要求先填写概念页。</div>
+          <label style="display:block;margin-top:7px"><b>必须包含</b><textarea class="prompt-editor" data-custom-world="mustInclude" maxlength="1200" placeholder="地点、文明、力量体系、人物、经营特色等，可逐行填写。">${htmlText(draft.mustInclude)}</textarea></label>
+          <label style="display:block;margin-top:7px"><b>完整设定补充要求</b><textarea class="prompt-editor" data-custom-world="compileNotes" maxlength="1800" placeholder="例如：历史必须与当代矛盾互相因果；至少有一座适合旅店驻留的城市。">${htmlText(draft.compileNotes)}</textarea></label>
+          <label style="display:block;margin-top:7px">叙事基调<input data-custom-world="tone" maxlength="120" value="${htmlText(draft.tone)}" placeholder="如宏大但有人间烟火、冷峻克制"></label>`
+        : `<div class="dim">这一页可提前填写审核底线和修复重点，不要求概念或编译阶段已经完成。</div>
+          <label style="display:block;margin-top:7px"><b>禁止包含</b><textarea class="prompt-editor" data-custom-world="mustAvoid" maxlength="1200" placeholder="不希望出现的专有名词、题材、表达或玩法倾向。">${htmlText(draft.mustAvoid)}</textarea></label>
+          <label style="display:block;margin-top:7px"><b>审核与修复重点</b><textarea class="prompt-editor" data-custom-world="reviewNotes" maxlength="1800" placeholder="例如：检查普通人的日常生活；避免只有宏观设定而缺少经营影响。">${htmlText(draft.reviewNotes)}</textarea></label>`;
     const preview = result ? `<div class="card" style="border-left-color:${htmlText(result.visuals?.atmosphere?.tint || '#7A4BE0')}"><div class="row"><h3>${htmlText(result.icon)} ${htmlText(result.name)}</h3><b>${htmlText(result.genre)}</b></div><div>${htmlText(result.tagline)}</div><div class="dim" style="margin-top:5px">${htmlText(result.identity?.summary || '')}</div><div class="dim" style="margin-top:5px">地区 ${result.regions?.length || 0} · 历史 ${result.history?.length || 0} · 势力 ${result.factions?.length || 0} · 标志人物 ${result.notableCharacters?.length || 0}</div></div>` : '';
     const archived = econ.archivedWorlds?.length ? `<details><summary>已归档世界 ${econ.archivedWorlds.length}</summary>${econ.archivedWorlds.map((world) => `<div class="card"><div class="row"><b>${htmlText(world.icon || '◈')} ${htmlText(world.name)}</b><button data-act="worldrestore" data-v="${htmlText(world.id)}" ${econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>重新生成</button></div><div class="dim">${htmlText(world.summary || '')}</div></div>`).join('')}</details>` : '';
-    this.showModal(`<h3>✦ AI 自定义世界</h3><div class="dim">依次完成概念提炼、完整编译和原创性/经营校验。生成预览免费，确认保存时收费并占用一个世界槽。</div>${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
-      <div class="creator-identity" style="margin-top:8px"><label>期望名称<input data-custom-world="name" maxlength="24" value="${htmlText(draft.name)}" placeholder="可留空，让 AI 命名"></label><label>类型<input data-custom-world="genre" maxlength="80" value="${htmlText(draft.genre)}" placeholder="如东方修仙、海洋科幻"></label></div>
-      <label style="display:block;margin-top:7px"><b>你想穿越到怎样的世界？</b><textarea class="prompt-editor" data-custom-world="concept" maxlength="2400" placeholder="描述世界气质、规则、文明、想体验的冲突或任何灵感。">${htmlText(draft.concept)}</textarea></label>
-      <div class="creator-identity"><label>必须包含<textarea data-custom-world="mustInclude" maxlength="800">${htmlText(draft.mustInclude)}</textarea></label><label>禁止包含<textarea data-custom-world="mustAvoid" maxlength="800">${htmlText(draft.mustAvoid)}</textarea></label></div>
-      <label style="display:block;margin-top:7px">叙事基调<input data-custom-world="tone" maxlength="120" value="${htmlText(draft.tone)}" placeholder="如宏大但有人间烟火、冷峻克制"></label>
-      ${preview}${archived}<div class="row" style="margin-top:10px"><button data-act="customworldgenerate" ${this.customWorldBusy || econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>${this.customWorldBusy ? '生成中…' : result ? '重新生成三阶段世界' : '开始三阶段生成'}</button>${this.customWorldBusy ? '<button data-act="customworldcancelai">取消</button>' : ''}${result ? `<button data-act="customworldsave" ${econ.coins < fee ? 'disabled' : ''}>确认保存 · ${fee} 币</button>` : ''}<span style="flex:1"></span><span class="dim">槽位 ${econ.customWorlds.length}/${CUSTOM_WORLD_LIMIT}</span><button data-act="worldcard" data-v="${htmlText(econ.currentWorldId)}">返回航路</button></div>`);
+    const generateLabel = this.customWorldBusy ? '生成中…' : draft.name.trim() ? '按名称填充全部世界内容' : result ? '重新生成完整世界' : '生成完整世界';
+    this.showModal(`<h3>✦ AI 自定义世界</h3><div class="dim">三个标签可随时切换和输入，无需按顺序完成；生成时 AI 会一次读取三页内容。生成预览免费，确认保存时收费并占用一个世界槽。</div>${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
+      <div class="prompt-tabs world-builder-tabs" data-custom-world-tabs>${tabButtons}</div><div data-custom-world-pane="${activeTab}">${stageContent}</div>
+      ${preview}${archived}<div class="row" style="margin-top:10px"><button data-act="customworldgenerate" ${this.customWorldBusy || econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>${generateLabel}</button>${this.customWorldBusy ? '<button data-act="customworldcancelai">取消</button>' : ''}${result ? `<button data-act="customworldsave" ${econ.coins < fee ? 'disabled' : ''}>确认保存 · ${fee} 币</button>` : ''}<span style="flex:1"></span><span class="dim">槽位 ${econ.customWorlds.length}/${CUSTOM_WORLD_LIMIT}</span><button data-act="worldcard" data-v="${htmlText(econ.currentWorldId)}">返回航路</button></div>`);
   }
 
   async generateCustomWorld() {
@@ -1317,18 +1341,27 @@ export class UI {
     this.openCustomWorldBuilder('阶段 1/3：正在提炼世界概念…');
     const controller = new AbortController(); this.customWorldController = controller;
     const tasks = savePromptTasks(this.readPromptTasksForm());
-    const input = { ...this.customWorldDraft, mustInclude: this.customWorldDraft.mustInclude.split(/[\n,，；;]/).map((row) => row.trim()).filter(Boolean), mustAvoid: this.customWorldDraft.mustAvoid.split(/[\n,，；;]/).map((row) => row.trim()).filter(Boolean) };
+    const requestedName = this.customWorldDraft.name.trim();
+    const input = { ...this.customWorldDraft, name: requestedName, mustInclude: this.customWorldDraft.mustInclude.split(/[\n,，；;]/).map((row) => row.trim()).filter(Boolean), mustAvoid: this.customWorldDraft.mustAvoid.split(/[\n,，；;]/).map((row) => row.trim()).filter(Boolean) };
     try {
       const brief = await requestGameAI('world_concept', { input, existingWorlds: WORLD_PROFILES.map((world) => ({ name: world.name, genre: world.genre, tagline: world.tagline })) }, { signal: controller.signal, promptTasks: tasks });
       if (controller.signal.aborted) throw new Error('已取消生成');
+      if (requestedName) brief.workingName = requestedName;
+      this.customWorldDraft = {
+        ...this.customWorldDraft,
+        name: requestedName || brief.workingName,
+        genre: this.customWorldDraft.genre.trim() || brief.genre,
+        concept: this.customWorldDraft.concept.trim() || brief.corePromise,
+      };
       this.openCustomWorldBuilder('阶段 2/3：正在编译地理、历史、势力、经济与人物…');
       const compiled = await requestGameAI('world_compile', { input, brief, races: RACE_NAMES.map((name, id) => ({ id, name })), fixedWorldNames: WORLD_PROFILES.map((world) => world.name) }, { signal: controller.signal, promptTasks: tasks });
       if (controller.signal.aborted) throw new Error('已取消生成');
+      if (requestedName) compiled.world.name = requestedName;
       this.openCustomWorldBuilder('阶段 3/3：正在检查原创性、一致性和经营平衡…');
       const reviewed = await requestGameAI('world_review', { input, brief, candidate: compiled.world, fixedWorldNames: WORLD_PROFILES.map((world) => world.name), allowedRanges: { allMultipliers: [.85, 1.2], activeCustomWorldLimit: CUSTOM_WORLD_LIMIT } }, { signal: controller.signal, promptTasks: tasks });
-      this.customWorldResult = normalizeCustomWorld({ ...reviewed.world, generationBrief: JSON.stringify(brief), generatedAt: Date.now() }, `custom_${Date.now().toString(36)}`);
+      this.customWorldResult = normalizeCustomWorld({ ...reviewed.world, name: requestedName || reviewed.world.name, generationBrief: JSON.stringify(brief), generatedAt: Date.now() }, `custom_${Date.now().toString(36)}`);
       this.customWorldBusy = false; this.customWorldController = null;
-      this.openCustomWorldBuilder(`三阶段生成完成；审核修复 ${reviewed.repairs?.length || 0} 项。保存前可先核对预览。`);
+      this.openCustomWorldBuilder(`${requestedName ? `已根据“${requestedName}”` : '已'}填充全部世界内容；审核修复 ${reviewed.repairs?.length || 0} 项。保存前可先核对预览。`);
     } catch (error) {
       this.customWorldBusy = false; this.customWorldController = null;
       this.openCustomWorldBuilder(error?.message === '已取消生成' || controller.signal.aborted ? '已取消生成；输入内容已保留。' : `生成失败：${error?.message || '未知错误'}。可直接重试，尚未扣费。`, true);
@@ -1343,7 +1376,7 @@ export class UI {
     econ.coins -= cost; econ.customWorlds.push(world);
     econ.archivedWorlds = (econ.archivedWorlds || []).filter((row) => row.name !== world.name);
     econ.worldKnowledge[world.id] = { level: 4, arrivals: 0, served: 0, firstDay: econ.day, reviewed: true, journeyAsked: true };
-    this.customWorldResult = null; this.customWorldDraft = null;
+    this.customWorldResult = null; this.customWorldDraft = null; this.customWorldActiveTab = 'concept';
     sim.toast(`已锚定原创世界 ${world.icon} ${world.name}（-${cost} 界币）`); this.g.save(); this.openWorldCard(world.id);
   }
 
@@ -1365,7 +1398,13 @@ export class UI {
     const archived = this.g.sim.econ.archivedWorlds?.find((world) => world.id === id);
     if (!archived || this.g.sim.econ.customWorlds.length >= CUSTOM_WORLD_LIMIT) return;
     this.customWorldResult = null;
-    this.customWorldDraft = { name: archived.name, genre: archived.genre || '', concept: `重新生成已归档世界“${archived.name}”。保留以下核心记忆并补齐完整规则：${archived.summary || ''}\n旧创作简报：${archived.generationBrief || '无'}`, mustInclude: archived.summary || '', mustAvoid: '不要复制现有作品的专有角色、势力、地点与历史', tone: '' };
+    this.customWorldActiveTab = 'concept';
+    this.customWorldDraft = {
+      name: archived.name, genre: archived.genre || '',
+      concept: `重新生成已归档世界“${archived.name}”。保留以下核心记忆并补齐完整规则：${archived.summary || ''}\n旧创作简报：${archived.generationBrief || '无'}`,
+      mustInclude: archived.summary || '', compileNotes: '保留旧世界的核心身份，同时补齐全部地区、历史、势力、经济、人物与经营字段。', tone: '',
+      mustAvoid: '不要复制现有作品的专有角色、势力、地点与历史', reviewNotes: '核对新版本与旧世界核心记忆的一致性。',
+    };
     this.openCustomWorldBuilder('已载入归档摘要；重新生成并确认保存后才会重新占用槽位。');
   }
 
@@ -2491,15 +2530,17 @@ export class UI {
       const fields = NIGHT_PROMPT_MODULES.map(({ id, label }) => `<label class="prompt-module"><b>${htmlText(label)}</b><textarea data-night-task="${key}" data-night-module="${id}" maxlength="1600" spellcheck="false">${htmlText(modules[id])}</textarea></label>`).join('');
       return `<div class="prompt-pane ${activeTab === tab ? 'on' : ''}" data-prompt-pane="${tab}"><div class="dim">${htmlText(intro)} JSON 输出结构与解析由游戏固定。</div><div class="prompt-module-grid">${fields}</div></div>`;
     };
+    const activeWorldStage = Object.prototype.hasOwnProperty.call(WORLD_PROMPT_STAGES, this.worldPromptActiveStage) ? this.worldPromptActiveStage : 'world_concept';
+    const worldStageTabs = Object.entries(WORLD_PROMPT_STAGES).map(([stage, meta]) => `<button data-act="promptworldstage" data-v="${stage}" class="${activeWorldStage === stage ? 'on' : ''}">${htmlText(meta.label.replace('世界生成 · ', ''))}</button>`).join('');
     const worldStages = Object.entries(WORLD_PROMPT_STAGES).map(([stage, meta]) => {
       const modules = parseWorldPromptModules(stage, tasks[stage], PROMPT_TASKS[stage].defaultText);
       const fields = meta.modules.map(([id, label]) => `<label class="prompt-module"><div class="row"><b>${htmlText(label)}</b><button type="button" data-act="promptmodreset" data-stage="${stage}" data-module="${id}">恢复此模块</button></div><textarea data-world-stage="${stage}" data-world-module="${id}" maxlength="1800" spellcheck="false">${htmlText(modules[id])}</textarea></label>`).join('');
-      return `<section class="prompt-card"><h3>${htmlText(meta.label)}</h3><div class="prompt-module-grid">${fields}</div></section>`;
+      return `<section class="world-prompt-stage-pane ${activeWorldStage === stage ? 'on' : ''}" data-world-prompt-pane="${stage}"><h3>${htmlText(meta.label)}</h3><div class="prompt-module-grid">${fields}</div></section>`;
     }).join('');
     this.showModal(`<h3>提示词</h3>
       <div class="dim">修改 AI 的任务和叙事模块。夜间剧情除 JSON 输出外均可分模块编辑。</div>
       ${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
-      <div class="prompt-tabs"><button data-act="prompttab" data-v="general" class="${activeTab === 'general' ? 'on' : ''}">通用</button><button data-act="prompttab" data-v="raid" class="${activeTab === 'raid' ? 'on' : ''}">夜袭</button><button data-act="prompttab" data-v="romance" class="${activeTab === 'romance' ? 'on' : ''}">共度春宵</button><button data-act="prompttab" data-v="world" class="${activeTab === 'world' ? 'on' : ''}">世界生成</button></div>
+      <div class="prompt-tabs" data-prompt-root-tabs><button data-act="prompttab" data-v="general" class="${activeTab === 'general' ? 'on' : ''}">通用</button><button data-act="prompttab" data-v="raid" class="${activeTab === 'raid' ? 'on' : ''}">夜袭</button><button data-act="prompttab" data-v="romance" class="${activeTab === 'romance' ? 'on' : ''}">共度春宵</button><button data-act="prompttab" data-v="world" class="${activeTab === 'world' ? 'on' : ''}">世界生成</button></div>
       <div class="prompt-pane ${activeTab === 'general' ? 'on' : ''}" data-prompt-pane="general"><section class="prompt-card" style="border-left-color:#7A4BE0">
         <div class="row"><b>玩家身份与背景</b><span class="dim">档位 ${this.g.currentSlot} 独立保存</span></div>
         <div class="dim">固定角色：${htmlText(owner?.name || '店主')}｜${htmlText(owner?.sex || '未知')}｜${htmlText(owner?.race || '未知')}｜旅店所有者与经营者。AI 不得把你当成来消费的客人。</div>
@@ -2510,18 +2551,25 @@ export class UI {
       ${cards}</div>
       ${nightPane('night_raid', 'raid', '分别设定夜袭的八个叙事模块。')}
       ${nightPane('night_romance', 'romance', '分别设定共度春宵的八个叙事模块。')}
-      <div class="prompt-pane ${activeTab === 'world' ? 'on' : ''}" data-prompt-pane="world"><div class="dim">世界生成分为概念提炼、完整编译和审核修复。下列创作模块可编辑；JSON 字段、枚举、数量和数值边界由游戏固定。</div>${worldStages}</div>
+      <div class="prompt-pane ${activeTab === 'world' ? 'on' : ''}" data-prompt-pane="world"><div class="dim">三个阶段以独立标签呈现，可任意切换并提前填写，不要求先完成上一阶段；JSON 字段、枚举、数量和数值边界由游戏固定。</div><div class="prompt-tabs world-prompt-tabs">${worldStageTabs}</div>${worldStages}</div>
       <div class="row" style="margin-top:12px"><button data-act="promptreset" class="warn">恢复默认</button><span style="flex:1"></span><button data-act="promptsave">保存任务文本</button><button data-act="closemodal">关闭</button></div>`);
   }
 
   activePromptTab() {
-    return this.modal?.querySelector('.prompt-tabs button.on')?.dataset.v || 'general';
+    return this.modal?.querySelector('[data-prompt-root-tabs] button.on')?.dataset.v || 'general';
   }
 
   switchPromptTab(tab) {
     if (!this.modal || !['general', 'raid', 'romance', 'world'].includes(tab)) return;
-    for (const button of this.modal.querySelectorAll('.prompt-tabs button')) button.classList.toggle('on', button.dataset.v === tab);
+    for (const button of this.modal.querySelectorAll('[data-prompt-root-tabs] button')) button.classList.toggle('on', button.dataset.v === tab);
     for (const pane of this.modal.querySelectorAll('[data-prompt-pane]')) pane.classList.toggle('on', pane.dataset.promptPane === tab);
+  }
+
+  switchWorldPromptStage(stage) {
+    if (!this.modal || !Object.prototype.hasOwnProperty.call(WORLD_PROMPT_STAGES, stage)) return;
+    this.worldPromptActiveStage = stage;
+    for (const button of this.modal.querySelectorAll('[data-act="promptworldstage"]')) button.classList.toggle('on', button.dataset.v === stage);
+    for (const pane of this.modal.querySelectorAll('[data-world-prompt-pane]')) pane.classList.toggle('on', pane.dataset.worldPromptPane === stage);
   }
 
   readPromptTasksForm() {
@@ -2529,13 +2577,17 @@ export class UI {
     if (!this.modal) return current;
     for (const input of this.modal.querySelectorAll('[data-prompt-key]')) current[input.dataset.promptKey] = input.value;
     for (const task of ['night_raid', 'night_romance']) {
+      const inputs = [...this.modal.querySelectorAll(`[data-night-task="${task}"]`)];
+      if (!inputs.length) continue;
       const modules = {};
-      for (const input of this.modal.querySelectorAll(`[data-night-task="${task}"]`)) modules[input.dataset.nightModule] = input.value;
+      for (const input of inputs) modules[input.dataset.nightModule] = input.value;
       current[task] = composeNightPromptModules(modules);
     }
     for (const stage of Object.keys(WORLD_PROMPT_STAGES)) {
+      const inputs = [...this.modal.querySelectorAll(`[data-world-stage="${stage}"]`)];
+      if (!inputs.length) continue;
       const modules = {};
-      for (const input of this.modal.querySelectorAll(`[data-world-stage="${stage}"]`)) modules[input.dataset.worldModule] = input.value;
+      for (const input of inputs) modules[input.dataset.worldModule] = input.value;
       current[stage] = composeWorldPromptModules(stage, modules);
     }
     return current;
