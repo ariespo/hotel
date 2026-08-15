@@ -27,6 +27,10 @@ const morningKeyFor = (slot        ) => slot === 1 ? MORNING_KEY : `wjbdy.mornin
 const backupKeyFor = (slot        ) => `wjbdy.save.backup.v3.slot.${slot}`;
 const ROOM_BLUEPRINT_KEY = 'wjbdy.room-blueprints.v1';
 const LAYOUT_BLUEPRINT_KEY = 'wjbdy.layout-blueprints.v1';
+const WORLD_BACKGROUND_IDS = new Set([
+  'hearth_coast', 'verdant_court', 'magma_ridge', 'neon_ring', 'moonsea', 'evernight',
+  'honey_sky', 'iron_hive', 'mask_realm', 'inverted_dreamsea', 'ash_dragoncourt', 'timeless_bazaar',
+]);
 const cloneData = (value) => JSON.parse(JSON.stringify(value));
 // 只列出 assets/ 里确实存在的音轨：抓不到的文件会在控制台刷 CORS/404 噪音。
 // 补上 bgm-tavern / bgm-plan / bgm-night 后，把对应行加回来即可分阶段切换。
@@ -247,6 +251,15 @@ class Game                    {
   stars = new PIXI.Graphics();
   starGlintsA = new PIXI.Graphics();
   starGlintsB = new PIXI.Graphics();
+  worldBackgroundFar = new PIXI.Container();
+  worldBackgroundMid = new PIXI.Container();
+  worldBackgroundWeather = new PIXI.Graphics();
+  worldBackgroundMask = new PIXI.Graphics();
+  worldBackgroundId = '';
+  worldBackgroundLoad = 0;
+  worldBackgroundFarSprite = null;
+  worldBackgroundMidSprite = null;
+  worldBackgroundParticles = [];
 
   tavern = new Tavern();
   sim      ;
@@ -314,7 +327,9 @@ class Game                    {
         if (res) this.floorBase.set(name, res                     );
       } catch (e) { /* 缺失贴图用纯色兜底 */ }
     }
-    this.app.stage.addChild(this.stars, this.starGlintsA, this.starGlintsB, this.world, this.labelLayer);
+    this.app.stage.addChild(this.stars, this.worldBackgroundFar, this.worldBackgroundMid, this.worldBackgroundMask, this.starGlintsA, this.starGlintsB, this.worldBackgroundWeather, this.world, this.labelLayer);
+    this.worldBackgroundMask.renderable = false;
+    this.worldBackgroundMid.mask = this.worldBackgroundMask;
     this.world.addChild(this.floorLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.overlay);
     this.actorLayer.sortableChildren = true;
     this.labelLayer.addChild(this.speechLayer);
@@ -1558,6 +1573,86 @@ class Game                    {
     this.ui.tick(dt);
   }
 
+  ensureWorldBackground() {
+    if (!this.sim) return;
+    const id = this.sim.currentWorld()?.id || 'hearth_coast';
+    if (id === this.worldBackgroundId) return;
+    this.worldBackgroundId = id;
+    const load = ++this.worldBackgroundLoad;
+    this.worldBackgroundFar.removeChildren();
+    this.worldBackgroundMid.removeChildren();
+    this.worldBackgroundFarSprite = null;
+    this.worldBackgroundMidSprite = null;
+    const seed = [...id].reduce((sum, ch) => (sum * 33 + ch.charCodeAt(0)) >>> 0, 5381);
+    this.worldBackgroundParticles = Array.from({ length: 34 }, (_, i) => ({
+      x: ((seed ^ (i * 2654435761)) >>> 0) / 4294967295,
+      y: ((seed * (i + 19) * 2246822519) >>> 0) / 4294967295,
+      size: 1 + (i % 4), speed: 0.012 + (i % 7) * 0.004, phase: (i * 0.173) % 1,
+    }));
+    if (!WORLD_BACKGROUND_IDS.has(id)) return;
+    PIXI.Assets.load(`assets/world-backgrounds/${id}.webp`).then((texture) => {
+      if (load !== this.worldBackgroundLoad) return;
+      texture.source.scaleMode = 'linear';
+      const far = new PIXI.Sprite(texture), mid = new PIXI.Sprite(texture);
+      far.anchor.set(0.5); mid.anchor.set(0.5);
+      far.alpha = 0.94;
+      mid.alpha = 0.18;
+      this.worldBackgroundFar.addChild(far);
+      this.worldBackgroundMid.addChild(mid);
+      this.worldBackgroundFarSprite = far;
+      this.worldBackgroundMidSprite = mid;
+      this.layoutWorldBackground();
+    }).catch(() => { /* 自定义世界或缺失资产使用世界色天空，不显示临时剪影。 */ });
+  }
+
+  layoutWorldBackground() {
+    const w = this.app?.renderer?.width || 1, h = this.app?.renderer?.height || 1;
+    this.worldBackgroundMask.clear().rect(0, Math.round(h * 0.43), w, Math.ceil(h * 0.57)).fill(0xffffff);
+    for (const sp of [this.worldBackgroundFarSprite, this.worldBackgroundMidSprite]) {
+      if (!sp?.texture) continue;
+      const tw = sp.texture.width || 1, th = sp.texture.height || 1;
+      const extra = sp === this.worldBackgroundMidSprite ? 1.12 : 1.06;
+      sp.scale.set(Math.max(w / tw, h / th) * extra);
+      sp.position.set(w / 2, h / 2);
+    }
+  }
+
+  renderWorldBackground(time) {
+    this.ensureWorldBackground();
+    const w = this.app.renderer.width, h = this.app.renderer.height;
+    const driftX = Math.sin((this.cam.x || 0) * 0.045), driftY = Math.sin((this.cam.y || 0) * 0.04);
+    if (this.worldBackgroundFarSprite) this.worldBackgroundFarSprite.position.set(w / 2 - driftX * 3, h / 2 - driftY * 2);
+    if (this.worldBackgroundMidSprite) this.worldBackgroundMidSprite.position.set(w / 2 - driftX * 11, h / 2 - driftY * 5);
+    const g = this.worldBackgroundWeather;
+    g.clear();
+    const world = this.sim?.currentWorld?.();
+    const id = world?.id || 'hearth_coast';
+    const tint = hexToNum(world?.visuals?.atmosphere?.tint || world?.atmosphere?.tint || '#9BC7E8');
+    const veil = id === 'magma_ridge' || id === 'honey_sky' || id === 'inverted_dreamsea' ? 0.11 : 0.045;
+    g.rect(0, 0, w, h).fill({ color: 0x07111d, alpha: veil });
+    for (const p of this.worldBackgroundParticles) {
+      let x = (p.x + time * p.speed) % 1 * w;
+      let y = (p.y + time * p.speed * 0.45) % 1 * h;
+      const pulse = 0.45 + Math.sin(time * 1.7 + p.phase * 12) * 0.2;
+      if (id === 'neon_ring') g.moveTo(x, y).lineTo(x - 5, y + 18 + p.size * 3).stroke({ width: 1, color: tint, alpha: 0.18 });
+      else if (id === 'iron_hive' || id === 'ash_dragoncourt') {
+        y = (p.y - time * p.speed + 5) % 1 * h;
+        g.rect(x, y, p.size, p.size + 2).fill({ color: tint, alpha: pulse * 0.35 });
+      } else if (id === 'moonsea' || id === 'inverted_dreamsea') {
+        y = (p.y - time * p.speed + 5) % 1 * h;
+        g.circle(x, y, 2 + p.size).stroke({ width: 1, color: tint, alpha: pulse * 0.28 });
+      } else if (id === 'verdant_court' || id === 'honey_sky') {
+        y = (p.y - time * p.speed * 0.7 + 5) % 1 * h;
+        g.circle(x + Math.sin(time + p.phase * 20) * 8, y, p.size).fill({ color: tint, alpha: pulse * 0.36 });
+      } else if (id === 'magma_ridge') {
+        y = (p.y - time * p.speed * 0.55 + 5) % 1 * h;
+        g.moveTo(x - p.size * 2, y).lineTo(x + p.size * 2, y).stroke({ width: 1, color: tint, alpha: pulse * 0.3 });
+      } else if (id === 'evernight') {
+        g.circle(x + Math.sin(time * 0.6 + p.phase * 9) * 12, y, 1 + p.size).fill({ color: tint, alpha: pulse * 0.22 });
+      } else g.rect(x, y, p.size, p.size).fill({ color: tint, alpha: pulse * 0.22 });
+    }
+  }
+
   drawStars()       {
     const g = this.stars;
     g.clear();
@@ -1596,47 +1691,8 @@ class Game                    {
       layer.rect(star.x, star.y, 1, 1).fill(0xffffff);
       if (r >= 5) layer.circle(star.x, star.y, 4).fill({ color: star.color, alpha: 0.08 });
     }
-    const worldId = this.sim?.currentWorld?.()?.id || 'hearth_coast';
-    const tint = hexToNum(atmosphere?.tint || '#9BC7E8');
-    const horizonY = Math.round(h * 0.78);
-    const seed = [...worldId].reduce((sum, ch) => (sum * 33 + ch.charCodeAt(0)) >>> 0, 5381);
-    for (let i = 0; i < 18; i++) {
-      const x = (seed * (i + 17) * 2654435761 >>> 0) % Math.max(1, w);
-      const y = ((seed ^ (i * 2246822519)) >>> 0) % Math.max(1, horizonY);
-      if (worldId === 'neon_ring' || worldId === 'iron_hive') g.rect(x, y, 2, 8 + i % 9).fill({ color: tint, alpha: 0.08 + (i % 4) * 0.025 });
-      else if (worldId === 'moonsea') g.ellipse(x, y, 7 + i % 5, 2).stroke({ width: 1, color: tint, alpha: 0.14 });
-      else if (worldId === 'magma_ridge' || worldId === 'honey_sky') g.circle(x, y, 1 + i % 3).fill({ color: tint, alpha: 0.12 + (i % 3) * 0.05 });
-      else g.rect(x, y, 2 + i % 2, 2 + i % 2).fill({ color: tint, alpha: 0.12 });
-    }
-    const silhouette = { color: tint, alpha: 0.075 };
-    if (worldId === 'neon_ring' || worldId === 'iron_hive') {
-      for (let x = 0, i = 0; x < w; i++) {
-        const bw = 18 + (i * 17 % 42), bh = 24 + (i * 29 % Math.max(25, h * 0.2));
-        g.rect(x, horizonY - bh, bw, bh).fill(silhouette);
-        if (worldId === 'iron_hive' && i % 3 === 0) g.rect(x + bw / 2, horizonY - bh - 28, 3, 28).fill(silhouette);
-        x += bw + 5;
-      }
-    } else if (worldId === 'moonsea' || worldId === 'inverted_dreamsea') {
-      for (let y = horizonY; y < h; y += 12) g.moveTo(0, y).bezierCurveTo(w * 0.25, y - 8, w * 0.75, y + 8, w, y).stroke({ width: 2, color: tint, alpha: 0.08 });
-      if (worldId === 'inverted_dreamsea') for (let i = 0; i < 5; i++) g.ellipse(w * (i + 1) / 6, horizonY - 35 - (i % 2) * 28, 30 + i * 4, 9).fill(silhouette);
-    } else if (worldId === 'magma_ridge' || worldId === 'ash_dragoncourt' || worldId === 'verdant_court') {
-      for (let x = -40, i = 0; x < w; i++, x += 70) {
-        const peak = horizonY - 45 - (i * 31 % 110);
-        g.poly([x, horizonY, x + 55, peak, x + 115, horizonY]).fill(silhouette);
-      }
-    } else if (worldId === 'honey_sky') {
-      for (let i = 0; i < 7; i++) {
-        const x = w * (i + 1) / 8, y = horizonY - 30 - (i % 3) * 34;
-        g.ellipse(x, y, 36, 10).fill(silhouette);
-        g.poly([x - 25, y + 5, x + 25, y + 5, x, y + 34]).fill(silhouette);
-      }
-    } else {
-      for (let x = 0, i = 0; x < w; i++, x += 58) {
-        const bh = 22 + (i * 23 % 55);
-        g.rect(x, horizonY - bh, 42, bh).fill(silhouette);
-        if (i % 2 === 0) g.poly([x + 8, horizonY - bh, x + 21, horizonY - bh - 24, x + 34, horizonY - bh]).fill(silhouette);
-      }
-    }
+    this.ensureWorldBackground();
+    this.layoutWorldBackground();
   }
 
   render()       {
@@ -1651,6 +1707,7 @@ class Game                    {
     const skyTime = performance.now() * 0.001;
     this.starGlintsA.alpha = 0.48 + Math.sin(skyTime * 1.35) * 0.22;
     this.starGlintsB.alpha = 0.52 + Math.sin(skyTime * 1.07 + 2.1) * 0.2;
+    this.renderWorldBackground(skyTime);
 
     if (this.staticVersion !== this.tavern.version) { this.rebuildStatic(); this.staticVersion = this.tavern.version; }
     this.rebuildDirt();
