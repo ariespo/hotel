@@ -243,6 +243,7 @@ class Game                    {
   actorLayer = new PIXI.Container();
   overlay = new PIXI.Graphics();
   labelLayer = new PIXI.Container();
+  speechLayer = new PIXI.Graphics();
   stars = new PIXI.Graphics();
   starGlintsA = new PIXI.Graphics();
   starGlintsB = new PIXI.Graphics();
@@ -316,7 +317,8 @@ class Game                    {
     this.app.stage.addChild(this.stars, this.starGlintsA, this.starGlintsB, this.world, this.labelLayer);
     this.world.addChild(this.floorLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.overlay);
     this.actorLayer.sortableChildren = true;
-    for (let i = 0; i < 14; i++) {
+    this.labelLayer.addChild(this.speechLayer);
+    for (let i = 0; i < 32; i++) {
       const t = new PIXI.Text({ text: '', style: { fontFamily: 'FusionPixel, monospace', fontSize: 11, fill: 0xffe6b0 } });
       t.visible = false;
       this.labelLayer.addChild(t);
@@ -2046,7 +2048,9 @@ class Game                    {
   renderOverlay()       {
     const g = this.overlay;
     g.clear();
+    this.speechLayer.clear();
     let li = 0;
+    const bubbleBoxes = [];
     // 标签在屏幕空间（不随缩放模糊）
     const label = (text        , wx        , wy        , color = 0xffe6b0)       => {
       if (li >= this.labels.length) return;
@@ -2055,7 +2059,34 @@ class Game                    {
       t.x = Math.round(this.world.x + wx * this.zoom);
       t.y = Math.round(this.world.y + wy * this.zoom);
       t.visible = true;
+      t.style.wordWrap = false;
       t.style.fill = color === undefined ? 0xffe6b0 : color;
+    };
+    const bubble = (text, wx, wy, tone = 'neutral') => {
+      if (li >= this.labels.length || !text) return;
+      const t = this.labels[li++];
+      t.text = text;
+      t.style.wordWrap = true;
+      t.style.wordWrapWidth = Math.min(168, Math.max(96, this.app.screen.width - 28));
+      t.style.fill = 0xfff7df;
+      const anchorX = Math.round(this.world.x + wx * this.zoom);
+      const anchorY = Math.round(this.world.y + wy * this.zoom);
+      const padX = 7, padY = 5;
+      const boxW = Math.ceil(t.width) + padX * 2;
+      const boxH = Math.ceil(t.height) + padY * 2;
+      const boxX = Math.max(8, Math.min(this.app.screen.width - boxW - 8, Math.round(anchorX - boxW / 2)));
+      let boxY = Math.max(8, Math.round(anchorY - boxH - 9));
+      while (bubbleBoxes.some((box) => boxX < box.x + box.w + 4 && boxX + boxW + 4 > box.x && boxY < box.y + box.h + 4 && boxY + boxH + 4 > box.y) && boxY > 8) {
+        boxY = Math.max(8, boxY - boxH - 7);
+      }
+      bubbleBoxes.push({ x: boxX, y: boxY, w: boxW, h: boxH });
+      const edge = tone === 'good' ? 0x8ddb4a : tone === 'bad' ? 0xe7685d : 0xf3b84b;
+      this.speechLayer.roundRect(boxX, boxY, boxW, boxH, 6).fill({ color: 0x241a26, alpha: 0.94 }).stroke({ width: 2, color: edge, alpha: 0.96 });
+      const tailX = Math.max(boxX + 10, Math.min(boxX + boxW - 10, anchorX));
+      this.speechLayer.moveTo(tailX - 5, boxY + boxH - 1).lineTo(tailX, boxY + boxH + 7).lineTo(tailX + 5, boxY + boxH - 1).fill({ color: 0x241a26, alpha: 0.94 });
+      t.x = boxX + padX;
+      t.y = boxY + padY;
+      t.visible = true;
     };
 
     // 热图
@@ -2195,7 +2226,7 @@ class Game                    {
         g.arc(cx, cy - 46, 7, -Math.PI / 2, -Math.PI / 2 + p * Math.PI * 2).stroke({ width: 2, color: hexToNum(PAL.honey) });
       }
       if (s.needs.stamina < 25) label('汗', cx + 10, cy - 40, 0x39d7d2);
-      if (s.bubble) label(s.bubble.text, cx - 8, cy - 46, 0xfff3a8);
+      if (s.bubble) bubble(s.bubble.text, cx, cy - 48, s.bubble.tone || 'neutral');
       else if (s.task && s.actT > 0) label(s.task.label, cx - 10, cy - 46, 0xffe6b0);
     }
 
@@ -2205,6 +2236,7 @@ class Game                    {
       if (!m) continue;
       const cp = this.tavern.clampFeet(m.x, m.y);
       const cx = (cp.x + 0.5) * T, cy = (cp.y + 1) * T;
+      const speakingGuest = gr.members.find((member) => member.bubble);
       const pct = gr.patience / gr.maxPatience;
       const col = pct > 0.5 ? hexToNum(PAL.acid) : pct > 0.25 ? hexToNum(PAL.honey) : hexToNum(PAL.coral);
       if (gr.state === 'wait' || gr.state === 'seated' || gr.state === 'ordered') {
@@ -2219,7 +2251,10 @@ class Game                    {
           g.circle(t.x * T + 16, t.y * T - 9, 4).fill(hexToNum(dish.color || '#F5F1E6'));
         }
       }
-      if ((gr.state === 'wait' || gr.state === 'seating' || gr.state === 'toFac') && gr.leaveReason === '') {
+      if (speakingGuest) {
+        const speakerPos = this.tavern.clampFeet(speakingGuest.x, speakingGuest.y);
+        bubble(speakingGuest.bubble.text, (speakerPos.x + 0.5) * T, (speakerPos.y + 1) * T - 48, speakingGuest.bubble.tone || 'neutral');
+      } else if ((gr.state === 'wait' || gr.state === 'seating' || gr.state === 'toFac') && gr.leaveReason === '') {
         const w = wantById(gr.want);
         label(`${gr.size}人·${w.bubble}`, cx - 20, cy - 52, gr.state === 'wait' ? 0xf3b84b : 0xffe6b0);
       }
