@@ -225,6 +225,15 @@ export const EYES           = [
   { id: 'mono', name: '机械瞳', rows: ['KKKK', 'GKEK', 'SKGK'] },
   { id: 'heart', name: '心形瞳', rows: ['K.KK', 'GSEG', '.SSK'] },
   { id: 'wink', name: '俏皮眼', rows: ['.KKK', 'GSeK', 'SK..'], lash: [[21, 8, 'K'], [22, 7, 'KK']] },
+  // 新增眼型只追加在旧索引之后，避免既有存档中的 0..17 眼型发生漂移。
+  // menace：上沿厚重、眼裂压低，只露出一线虹膜。
+  { id: 'menace', name: '危险压迫眯眼', rows: ['KKKK', '.eeK'], lash: [[18, 12, 'KKK']] },
+  // sanpaku：小虹膜上移，下方连续露出眼白。
+  { id: 'sanpaku', name: '三白眼', rows: ['KKKK', 'SeES', 'SSSS'] },
+  // monolid：取消额外眼褶，用单一平缓上眼睑构成眼裂。
+  { id: 'monolid', name: '单眼皮', rows: ['.KKK', 'SGeK', '.SS.'] },
+  // diamond：上下中央收尖，形成清晰菱形轮廓。
+  { id: 'diamond', name: '菱形眼', rows: ['.KK.', 'KGEK', '.SS.'] },
 ];
 
 /** 光头：没有头发时补上的头骨（皮肤色，比脸宽 1px） */

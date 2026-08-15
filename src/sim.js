@@ -399,14 +399,37 @@ function blankWorldKnowledge() {
   return Object.fromEntries(WORLD_PROFILES.map((world) => [world.id, { level: 0, arrivals: 0, served: 0, firstDay: 0, reviewed: false, journeyAsked: false }]));
 }
 
+const FORMAL_IDENTITY_RE = /王庭|王国|贵族|使者|官吏|军人|军团|舰队|教廷|议会|议庭|公会|宗门|仙朝|董事|监察|领航|修会|税吏|骑士|医师|院长|舰长|指挥|队长|圣女|国师|领袖|礼仪官|补给官/;
+
+/**
+ * 用客人的真实身份决定称呼档位。旧存档只有 socialRegister 时仍可兼容，
+ * 新客人则由标志人物、阶层/职业与年龄依次判定。
+ */
+export function socialRegisterForGuest(identity = {}) {
+  if (identity.isNotable || identity.travelOccupation === '世界标志人物' || identity.notableRole) return 'notable';
+  const formalSource = `${identity.culturalStratum || ''} ${identity.culturalIdentity || ''} ${identity.travelOccupation || ''}`;
+  if (FORMAL_IDENTITY_RE.test(formalSource)) return 'formal';
+  if (Number(identity.age) >= 55) return 'elder';
+  if (!identity.age && !formalSource.trim() && ['peer', 'formal', 'elder', 'notable'].includes(identity.socialRegister)) return identity.socialRegister;
+  return 'peer';
+}
+
 function travelIdentity(world, seed) {
   const n = stableHash(seed);
-  return {
-    homeRegion: world.regions[n % world.regions.length].name,
-    travelOccupation: world.travel.occupations[Math.floor(n / 7) % world.travel.occupations.length],
+  const homeRegion = world.regions[n % world.regions.length].name;
+  const travelOccupation = world.travel.occupations[Math.floor(n / 7) % world.travel.occupations.length];
+  const strata = world.culture?.socialStrata || ['跨界旅人'];
+  const selfReferences = world.culture?.selfReferences || ['我'];
+  const identity = {
+    homeRegion,
+    travelOccupation,
     travelPurpose: world.travel.purposes[Math.floor(n / 17) % world.travel.purposes.length],
-    socialRegister: ['peer', 'formal', 'peer', 'elder'][Math.floor(n / 29) % 4],
+    age: 18 + Math.floor(n / 53) % 63,
+    culturalStratum: strata[Math.floor(n / 37) % strata.length],
+    culturalIdentity: `${homeRegion}的${travelOccupation}`,
+    selfReference: selfReferences[Math.floor(n / 43) % selfReferences.length],
   };
+  return { ...identity, socialRegister: socialRegisterForGuest(identity) };
 }
 
 export function worldWantWeight(world, wantId, day = 1, seed = 0) {
@@ -526,15 +549,15 @@ export const TRAINING_PROGRAMS = Object.freeze({
   clean: '高效清洁研修', carry: '搬运与路线训练', calm: '危机应对课程',
 });
 
-const TRAINING_WORLD_SCENES = Object.freeze({
-  hearth_coast: { venue: '铜炉港的商队公学', method: '以炉火、账本和真实客流反复校验手艺', trial: '商队钟每响一次，学员就必须在下一批旅人抵达前完成整套流程' },
+export const TRAINING_WORLD_SCENES = Object.freeze({
+  hearth_coast: { venue: '长桌公会城的联合实训厅', method: '以委托契约、冒险小队协作和地下城补给清单反复校验手艺', trial: '公会钟一响，学员就要为临时归来的救援队完成热食、床位与伤员交接' },
   verdant_court: { venue: '露叶长阶的季节学舍', method: '跟随花妖导师观察气味、声音与客人的细微反应', trial: '会唱歌的树桥会把每一次急躁和疏漏直接唱给所有学员听' },
-  magma_ridge: { venue: '赤骨营地的盟誓训练场', method: '用大份实作、结伴竞技和直截了当的现场复盘锤炼能力', trial: '战鼓一响便要在高温、喧闹和围观中把工作做完' },
+  magma_ridge: { venue: '太虚剑山的外门讲堂', method: '依照师承、礼序与因果契约拆解步骤，再借灵息变化反复演练', trial: '灵潮会突然改写火候与符阵，学员必须守住承诺并在香尽前完成招待' },
   neon_ring: { venue: '第七码头的夜班实训站', method: '依靠计时屏、模拟队列和即时反馈压缩每一个多余动作', trial: '磁悬街的客流模型会突然加速，任何迟疑都会在整面镜屏上标红' },
   moonsea: { venue: '沉月港的潮汐研修馆', method: '在水质、鲜度和动作洁净都被严格记录的环境中练习', trial: '潮汐珠会映出看不见的杂质，也会放大每一次破坏节奏的动作' },
   evernight: { venue: '影幕街的长夜私塾', method: '在柔暗灯光下学习耐心、分寸与跨越漫长岁月的待客经验', trial: '无钟墓园没有报时声，学员只能靠观察客人的神情判断节奏' },
   honey_sky: { venue: '金蜜云港的礼仪学院', method: '把称谓、仪态、景观与服务顺序编成一套严谨的迎送仪式', trial: '羽桥花园的风会吹乱准备好的陈设，考验临场修正和礼数' },
-  iron_hive: { venue: '主序装配层的工序校准所', method: '把任务拆成可复核步骤，用蜂格轨道记录时间与设备状态', trial: '工序令牌会随机宣布设备停机，学员必须立即切换备用流程' },
+  iron_hive: { venue: '第九边疆的后勤学院', method: '按伤员优先级、配给契约与设备故障等级组织服务，并对每次疏漏留下可追责记录', trial: '模拟炮击会同时切断照明和一台设备，学员必须启用备用流程并保障难民餐线' },
   mask_realm: { venue: '红幕王街的巡演学堂', method: '借面具、即兴演出和观众喝彩训练表现力与现场应变', trial: '导师会在最热闹处突然换上陌生面具，要求学员接住新的身份和台词' },
   inverted_dreamsea: { venue: '沉睡灯塔的倒向课堂', method: '在颠倒的空间与梦境暗示中寻找不依赖常识的解决方法', trial: '瓶装潮声会让步骤的先后次序短暂倒转，迫使学员重新理解流程' },
   ash_dragoncourt: { venue: '余烬王城的宴席监察院', method: '以龙庭标准检验品质、席位和每一处足以影响高价体验的细节', trial: '宴席监察官会故意混入一件平庸成品，要求学员当场识别并补救' },
@@ -775,12 +798,12 @@ export class Sim {
     const world = this.worldById(guest?.originWorldId || fallbackWorldId || this.econ.currentWorldId);
     const pool = world.dialogue?.[kind] || world.dialogue?.neutral || ['……'];
     const template = pool[this.rng.int(pool.length)] || '……';
-    let address = '掌柜';
-    if (world.id === 'magma_ridge') {
-      const register = guest?.socialRegister || ['peer', 'formal', 'elder'][stableHash(guest?.name || '') % 3];
-      address = register === 'elder' ? '小友' : register === 'peer' ? '道友' : '掌柜';
-    }
-    return String(template).replaceAll('{address}', address);
+    const register = socialRegisterForGuest(guest || {});
+    const addresses = world.culture?.addressForms || { peer: '店主', formal: '掌柜', elder: '年轻掌柜', notable: '东道主' };
+    const address = addresses[register] || addresses.formal || '掌柜';
+    const selfReferences = world.culture?.selfReferences || ['我'];
+    const selfReference = guest?.selfReference || selfReferences[stableHash(`${guest?.name || ''}:self`) % selfReferences.length] || '我';
+    return String(template).replaceAll('{address}', address).replaceAll('{self}', selfReference);
   }
 
   recordWorldOutcome(g, score, revenue, reviewed = true) {
@@ -1654,7 +1677,9 @@ export class Sim {
       if (i === 0 && returning) {
         members.push({
           id: this.id(), app: returning.app, name: returning.name, race: returning.race, regularId: returning.id,
-          originWorldId: origin.id, homeRegion: returning.homeRegion, travelOccupation: returning.travelOccupation, travelPurpose: returning.travelPurpose, socialRegister: returning.socialRegister,
+          originWorldId: origin.id, homeRegion: returning.homeRegion, travelOccupation: returning.travelOccupation, travelPurpose: returning.travelPurpose, age: returning.age, socialRegister: returning.socialRegister,
+          culturalStratum: returning.culturalStratum, culturalIdentity: returning.culturalIdentity, selfReference: returning.selfReference,
+          isNotable: returning.isNotable, notableRole: returning.notableRole,
           groupId: gid, x: e.x - .2, y: e.y, dir: 0, pose: 'idle', animT: this.rng.next() * 2,
           path: [], seatId: 0, mood: 1, aff: returning.aff || 0, aiChatLog: [...(returning.aiChatLog || [])],
           relationshipSummary: returning.relationshipSummary || '', background: returning.background || null,
@@ -1677,6 +1702,7 @@ export class Sim {
     if (visitorPool.length && this.rng.chance(.08)) {
       const visitor = visitorPool[this.rng.int(visitorPool.length)]; const lead = members[0];
       lead.name = visitor.name; lead.travelOccupation = '世界标志人物'; lead.travelPurpose = visitor.detail;
+      lead.isNotable = true; lead.notableRole = visitor.name; lead.culturalStratum = '世界标志人物'; lead.socialRegister = socialRegisterForGuest(lead);
       lead.background = { role: `${origin.name}的标志人物`, background: visitor.detail, aspiration: '亲自观察多元旅店如何接待自己的世界。', quirk: '言谈中会自然提及故乡的局势。' };
       this.econ.notableVisits ||= {}; this.econ.notableVisits[`${origin.id}:${visitor.name}`] = this.econ.day;
       this.toast(`✦ 稀有访客抵达：${origin.name}的${visitor.name}`);
@@ -1696,6 +1722,7 @@ export class Sim {
       id: gid, members, size, tableId: 0, state: 'wait', want: want.id, greeted: false, seatCd: 0, facId: 0, useT: 0, facT: 0,
       originWorldId: origin.id, worldIds: secondary ? [origin.id, secondary.id] : [origin.id], crossWorld: !!secondary,
       homeRegion: members[0].homeRegion, travelOccupation: members[0].travelOccupation, travelPurpose: members[0].travelPurpose,
+      culturalStratum: members[0].culturalStratum, culturalIdentity: members[0].culturalIdentity,
       maxPatience: Math.round(this.rng.range(78, 135) * worldModifier(origin, 'patience') * hostFactor('patience')), patience: 0,
       budget: Math.round(this.rng.range(30, 120) * worldModifier(origin, 'budget') * hostFactor('budget')),
       hygieneSens: this.rng.range(0.4, 1.5) * worldModifier(origin, 'hygiene') * hostFactor('hygiene'), taste, flavors: [f1, f2], orderId: 0,
@@ -2306,7 +2333,9 @@ export class Sim {
         profile = {
           id: this.id(), name: guest.name, race: guest.race, app: guest.app, aff: adjustedAff,
           originWorldId: guest.originWorldId || g.originWorldId, homeRegion: guest.homeRegion || g.homeRegion,
-          travelOccupation: guest.travelOccupation || g.travelOccupation, travelPurpose: guest.travelPurpose || g.travelPurpose, socialRegister: guest.socialRegister,
+          travelOccupation: guest.travelOccupation || g.travelOccupation, travelPurpose: guest.travelPurpose || g.travelPurpose, age: guest.age, socialRegister: socialRegisterForGuest(guest),
+          culturalStratum: guest.culturalStratum || g.culturalStratum, culturalIdentity: guest.culturalIdentity || g.culturalIdentity, selfReference: guest.selfReference,
+          isNotable: guest.isNotable, notableRole: guest.notableRole,
           visits: 1, lastVisitDay: this.econ.day, aiChatLog: [], relationshipSummary: '', background: null,
           taste: [...(g.taste || [])], flavors: [...(g.flavors || [])], want: g.want, offer: null,
         };

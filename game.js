@@ -31,12 +31,21 @@ const WORLD_BACKGROUND_IDS = new Set([
   'hearth_coast', 'verdant_court', 'magma_ridge', 'neon_ring', 'moonsea', 'evernight',
   'honey_sky', 'iron_hive', 'mask_realm', 'inverted_dreamsea', 'ash_dragoncourt', 'timeless_bazaar',
 ]);
-const WORLD_LAYERED_BACKGROUND_IDS = new Set(['hearth_coast', 'verdant_court', 'magma_ridge', 'neon_ring']);
+const WORLD_LAYERED_BACKGROUND_IDS = new Set(WORLD_BACKGROUND_IDS);
+const WORLD_SEPARATE_FAR_BACKGROUND_IDS = new Set(['hearth_coast', 'verdant_court', 'magma_ridge', 'neon_ring']);
 const WORLD_BACKGROUND_MOTION = {
   hearth_coast: { x: 10, y: 6, xSpeed: 0.11, ySpeed: 0.085, alpha: 0.39, farAlpha: 1 },
   verdant_court: { x: 8, y: 7, xSpeed: 0.075, ySpeed: 0.06, alpha: 0.28, farAlpha: 1 },
   magma_ridge: { x: 18, y: 8, xSpeed: 0.28, ySpeed: 0.16, alpha: 0.45, farAlpha: 1 },
   neon_ring: { x: 18, y: 4, xSpeed: 0.2, ySpeed: 0.11, alpha: 0.3, farAlpha: 1 },
+  moonsea: { x: 12, y: 10, xSpeed: 0.09, ySpeed: 0.14, alpha: 0.38, farAlpha: 1 },
+  evernight: { x: 7, y: 5, xSpeed: 0.045, ySpeed: 0.06, alpha: 0.34, farAlpha: 1 },
+  honey_sky: { x: 15, y: 8, xSpeed: 0.1, ySpeed: 0.075, alpha: 0.36, farAlpha: 1 },
+  iron_hive: { x: 22, y: 6, xSpeed: 0.24, ySpeed: 0.11, alpha: 0.42, farAlpha: 1 },
+  mask_realm: { x: 14, y: 10, xSpeed: 0.13, ySpeed: 0.17, alpha: 0.4, farAlpha: 1 },
+  inverted_dreamsea: { x: 18, y: 14, xSpeed: 0.12, ySpeed: 0.09, alpha: 0.38, farAlpha: 1 },
+  ash_dragoncourt: { x: 12, y: 8, xSpeed: 0.18, ySpeed: 0.13, alpha: 0.44, farAlpha: 1 },
+  timeless_bazaar: { x: 9, y: 6, xSpeed: 0.07, ySpeed: 0.19, alpha: 0.36, farAlpha: 1 },
 };
 const cloneData = (value) => JSON.parse(JSON.stringify(value));
 // 只列出 assets/ 里确实存在的音轨：抓不到的文件会在控制台刷 CORS/404 噪音。
@@ -1279,8 +1288,8 @@ class Game                    {
 
   worldBackgroundUrls(id        )            {
     if (!WORLD_BACKGROUND_IDS.has(id)) return [];
-    if (WORLD_LAYERED_BACKGROUND_IDS.has(id)) return [`assets/world-backgrounds/${id}-far.webp`, `assets/world-backgrounds/${id}-mid.webp`];
-    return [`assets/world-backgrounds/${id}.webp`];
+    const far = WORLD_SEPARATE_FAR_BACKGROUND_IDS.has(id) ? `${id}-far.webp` : `${id}.webp`;
+    return [`assets/world-backgrounds/${far}`, `assets/world-backgrounds/${id}-mid.webp`];
   }
 
   async preloadWorldBackground(id        )                 {
@@ -1713,8 +1722,9 @@ class Game                    {
     }));
     if (!WORLD_BACKGROUND_IDS.has(id)) return;
     const layered = WORLD_LAYERED_BACKGROUND_IDS.has(id);
-    const farUrl = layered ? `assets/world-backgrounds/${id}-far.webp` : `assets/world-backgrounds/${id}.webp`;
-    const midUrl = layered ? `assets/world-backgrounds/${id}-mid.webp` : farUrl;
+    const farName = WORLD_SEPARATE_FAR_BACKGROUND_IDS.has(id) ? `${id}-far.webp` : `${id}.webp`;
+    const farUrl = `assets/world-backgrounds/${farName}`;
+    const midUrl = `assets/world-backgrounds/${id}-mid.webp`;
     Promise.all([PIXI.Assets.load(farUrl), PIXI.Assets.load(midUrl)]).then(([farTexture, midTexture]) => {
       if (load !== this.worldBackgroundLoad) return;
       farTexture.source.scaleMode = 'linear';
@@ -1794,6 +1804,13 @@ class Game                    {
         g.moveTo(x - p.size * 3, y).lineTo(x + p.size * 3, y).stroke({ width: 1, color: tint, alpha: pulse * 0.48 });
       } else if (id === 'evernight') {
         g.circle(x + Math.sin(time * 0.6 + p.phase * 9) * 12, y, 1 + p.size).fill({ color: tint, alpha: pulse * 0.22 });
+      } else if (id === 'mask_realm') {
+        const sway = Math.sin(time * 0.9 + p.phase * 16) * 9;
+        g.rect(x + sway, y, 2 + p.size, 1 + p.size).fill({ color: tint, alpha: pulse * 0.32 });
+      } else if (id === 'timeless_bazaar') {
+        const radius = 2 + p.size;
+        g.circle(x, y, radius).stroke({ width: 1, color: tint, alpha: pulse * 0.3 });
+        g.moveTo(x, y).lineTo(x + Math.cos(time + p.phase * 24) * radius, y + Math.sin(time + p.phase * 24) * radius).stroke({ width: 1, color: tint, alpha: pulse * 0.34 });
       } else g.rect(x, y, p.size, p.size).fill({ color: tint, alpha: pulse * 0.22 });
     }
   }

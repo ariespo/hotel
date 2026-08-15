@@ -2092,7 +2092,8 @@ export class UI {
         <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
           <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}${regular ? `｜常客·第 ${regular.visits} 次来访·好感 ${Math.round(regular.aff)}` : ''}</div>
           <div class="hi">${origin.icon} ${origin.name} · ${htmlText(gu.homeRegion || gr.homeRegion || '')}</div>
-          <div class="dim">${htmlText(gu.travelOccupation || gr.travelOccupation || '旅人')}｜此行：${htmlText(gu.travelPurpose || gr.travelPurpose || '跨界旅行')}</div>
+          <div class="dim">${htmlText(gu.culturalIdentity || `${gu.homeRegion || gr.homeRegion || ''}的${gu.travelOccupation || gr.travelOccupation || '旅人'}`)}｜${htmlText(gu.culturalStratum || gr.culturalStratum || '跨界旅人')}</div>
+          <div class="dim">此行：${htmlText(gu.travelPurpose || gr.travelPurpose || '跨界旅行')}</div>
           ${known >= 4 ? `<div class="dim">礼仪：${htmlText(origin.culture.etiquette)}</div>` : ''}
           <div class="row"><span class="dim">耐心</span>${bar(gr.patience, gr.maxPatience, pct > 50 ? '#8DDB4A' : pct > 25 ? '#F3B84B' : '#FF6B5A')}<span>${pct}%</span></div></div></div>
       <div class="dim" style="margin-top:6px">${near ? '客人正看着你，要搭话吗？' : `太远了（${d.toFixed(1)} 格）：走到 2.8 格内才能搭话。`}${gr.intCd > 0 ? `｜刚聊过，${Math.ceil(gr.intCd)} 秒后才会再理你` : ''}</div>
