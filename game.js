@@ -1619,7 +1619,7 @@ class Game                    {
       if (!sp?.texture) continue;
       const tw = sp.texture.width || 1, th = sp.texture.height || 1;
       const layered = WORLD_LAYERED_BACKGROUND_IDS.has(this.worldBackgroundId);
-      const extra = sp === this.worldBackgroundMidSprite ? (layered ? 1.18 : 1.12) : 1.08;
+      const extra = sp === this.worldBackgroundMidSprite ? (layered ? 1.06 : 1.12) : (layered ? 1.015 : 1.08);
       const scale = Math.max(w / tw, h / th) * extra;
       sp.scale.set(scale);
       if (sp === this.worldBackgroundFarSprite) this.worldBackgroundFarScale = scale;
@@ -1634,15 +1634,15 @@ class Game                    {
     const driftX = Math.sin((this.cam.x || 0) * 0.045), driftY = Math.sin((this.cam.y || 0) * 0.04);
     const layered = WORLD_LAYERED_BACKGROUND_IDS.has(this.worldBackgroundId);
     if (this.worldBackgroundFarSprite) {
-      const farX = layered ? Math.sin(time * 0.07) * 3 : 0;
-      const farY = layered ? Math.cos(time * 0.055) * 2 : 0;
-      this.worldBackgroundFarSprite.position.set(w / 2 - driftX * 3 + farX, h / 2 - driftY * 2 + farY);
+      const farX = layered ? Math.sin(time * 0.07) * 1.5 : 0;
+      const farY = layered ? Math.cos(time * 0.055) * 1.2 : 0;
+      this.worldBackgroundFarSprite.position.set(w / 2 - driftX * 1.5 + farX, h / 2 - driftY + farY);
       this.worldBackgroundFarSprite.scale.set(this.worldBackgroundFarScale * (layered ? 1 + Math.sin(time * 0.045) * 0.0025 : 1));
     }
     if (this.worldBackgroundMidSprite) {
-      const midX = layered ? Math.sin(time * 0.11 + 0.8) * 16 : 0;
-      const midY = layered ? Math.cos(time * 0.085) * 9 : 0;
-      this.worldBackgroundMidSprite.position.set(w / 2 - driftX * 13 + midX, h / 2 - driftY * 6 + midY);
+      const midX = layered ? Math.sin(time * 0.11 + 0.8) * 10 : 0;
+      const midY = layered ? Math.cos(time * 0.085) * 6 : 0;
+      this.worldBackgroundMidSprite.position.set(w / 2 - driftX * 9 + midX, h / 2 - driftY * 4 + midY);
       this.worldBackgroundMidSprite.scale.set(this.worldBackgroundMidScale * (layered ? 1 + Math.sin(time * 0.08) * 0.006 : 1));
       if (layered) this.worldBackgroundMidSprite.alpha = 0.39 + Math.sin(time * 0.17) * 0.03;
     }
