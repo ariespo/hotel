@@ -265,8 +265,26 @@ export function normalizeCustomWorld(raw, fallbackId = `custom_${Date.now().toSt
     for (const line of fallback) if (rows.length < 5 && !rows.includes(line)) rows.push(line);
     return [kind, rows];
   }));
+  const rawSource = source.source && typeof source.source === 'object' && !Array.isArray(source.source) ? source.source : {};
+  const sourceMode = rawSource.mode === 'existing_work' ? 'existing_work' : 'original';
+  const worldSource = {
+    mode: sourceMode,
+    workName: sourceMode === 'existing_work' ? text(rawSource.workName, source.name).slice(0, 120) : '',
+    medium: text(rawSource.medium, sourceMode === 'existing_work' ? '既有作品' : '原创').slice(0, 40),
+    note: text(rawSource.note, sourceMode === 'existing_work' ? '基于玩家指定的既有作品世界。' : '玩家创建的原创世界。').slice(0, 240),
+  };
+  const notableCharacters = named(list(source.notableCharacters).slice(0, 8)).map((row, index) => {
+    const raceId = Number(row.raceId);
+    return {
+      ...row,
+      canonical: sourceMode === 'existing_work' && row.canonical === true,
+      ...(Number.isInteger(raceId) ? { raceId: Math.max(0, Math.min(18, raceId)) } : {}),
+      visitor: index < 3,
+    };
+  });
   return {
     id, custom: true, name: text(source.name, '未命名世界').slice(0, 24), icon: text(source.icon, '◈').slice(0, 2), unlockStars: 3,
+    source: worldSource,
     genre: text(source.genre, '原创异世界').slice(0, 40), tagline: text(source.tagline, '一处等待被旅店理解的新世界。').slice(0, 100),
     identity: { summary: text(source.summary || source.identity?.summary, '这个世界与多元旅店建立了新的航路。').slice(0, 500), environment: text(source.identity?.environment, '多样异界环境'), civilization: text(source.identity?.civilization, '多元文明'), technology: text(source.identity?.technology, '独特力量体系'), genre: text(source.genre, '原创异世界'), tagline: text(source.tagline) },
     cosmology: { ...COMMON, ...(source.cosmology || {}) }, society: source.society && typeof source.society === 'object' ? source.society : {},
@@ -277,7 +295,7 @@ export function normalizeCustomWorld(raw, fallbackId = `custom_${Date.now().toSt
     visuals: { ...(source.visuals || {}), atmosphere: (() => { const rawAtmosphere = source.atmosphere || source.visuals?.atmosphere || {}; return { sky: [color(rawAtmosphere.sky?.[0], '#17263c'), color(rawAtmosphere.sky?.[1], '#634f70')], tint: color(rawAtmosphere.tint, '#d2b4e8'), particle: text(rawAtmosphere.particle, '位面微光').slice(0, 80), weather: text(rawAtmosphere.weather, '异界天象').slice(0, 160), horizon: text(rawAtmosphere.horizon, '陌生城市轮廓').slice(0, 160), sound: text(rawAtmosphere.sound, '遥远的异界环境声').slice(0, 160) }; })(), appearanceThemes },
     history: named(list(source.history).slice(0, 8)), factions: named(list(source.factions).slice(0, 6)),
     economy: { currency: text(economy.currency, '当地通货与界币'), industries: list(economy.industries).slice(0, 8), exports: list(economy.exports).slice(0, 8), imports: list(economy.imports).slice(0, 8), labor: text(economy.labor, '多种劳动制度并存'), prices },
-    notableCharacters: named(list(source.notableCharacters).slice(0, 8)).map((row, index) => ({ ...row, visitor: index < 3 })),
+    notableCharacters,
     environmentRule: { name: text(source.environmentRule?.name, '异界环境').slice(0, 60), detail: text(source.environmentRule?.detail, '当地环境对经营产生温和、公开的影响。').slice(0, 240), effects: normalizeEffects(source.environmentRule?.effects) }, localRules,
     festivals: named(list(source.festivals).slice(0, 4)).map((festival) => ({ ...festival, effects: normalizeEffects(festival.effects) })), recommendedFacilities: list(source.recommendedFacilities).filter((kind) => ['dining', 'bar', 'parlor', 'guestroom', 'onsen', 'billiard', 'theater', 'garden', 'observatory', 'arcade', 'alchemy'].includes(kind)).slice(0, 4), conflicts: list(source.conflicts).slice(0, 6), storyHooks: list(source.storyHooks).slice(0, 8),
     dialogue, knowledge: source.knowledge || { firstArrival: ['name', 'summary'], firstService: ['hospitality'], servedThree: ['economy'], deepDiscovery: ['history', 'factions', 'notableCharacters'] },

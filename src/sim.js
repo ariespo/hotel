@@ -1702,8 +1702,13 @@ export class Sim {
     if (visitorPool.length && this.rng.chance(.08)) {
       const visitor = visitorPool[this.rng.int(visitorPool.length)]; const lead = members[0];
       lead.name = visitor.name; lead.travelOccupation = '世界标志人物'; lead.travelPurpose = visitor.detail;
+      if (Number.isInteger(Number(visitor.raceId)) && Number(visitor.raceId) >= 0 && Number(visitor.raceId) < RACE_NAMES.length) {
+        const visitorRace = Number(visitor.raceId);
+        const visitorTheme = origin.visuals.appearanceThemes[this.rng.int(origin.visuals.appearanceThemes.length)];
+        lead.race = RACE_NAMES[visitorRace]; lead.app = randomAppearance(this.rng, visitorRace, false, visitorTheme);
+      }
       lead.isNotable = true; lead.notableRole = visitor.name; lead.culturalStratum = '世界标志人物'; lead.socialRegister = socialRegisterForGuest(lead);
-      lead.background = { role: `${origin.name}的标志人物`, background: visitor.detail, aspiration: '亲自观察多元旅店如何接待自己的世界。', quirk: '言谈中会自然提及故乡的局势。' };
+      lead.background = { role: visitor.canonical ? `${origin.source?.workName || origin.name}的著名原作角色` : `${origin.name}的标志人物`, background: visitor.detail, aspiration: '亲自观察多元旅店如何接待自己的世界。', quirk: '言谈中会自然提及故乡的局势。' };
       this.econ.notableVisits ||= {}; this.econ.notableVisits[`${origin.id}:${visitor.name}`] = this.econ.day;
       this.toast(`✦ 稀有访客抵达：${origin.name}的${visitor.name}`);
     }

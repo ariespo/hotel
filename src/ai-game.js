@@ -8,6 +8,7 @@ import { promptTaskFor } from './prompt-settings.js';
 
 const WORLD_CONTENT_SCHEMA = {
   name: '世界名称，2-24 个汉字', icon: '一个符号或汉字徽记', genre: '类型标签', tagline: '世界宣传语，15-100 个汉字', summary: '世界总览，120-500 个汉字',
+  source: { mode: 'original 或 existing_work', workName: '原创时为空；既有作品时填写正式作品名', medium: '原创、动画、漫画、游戏、小说、电影、戏剧或其他', note: '说明是原创设定还是基于既有作品世界' },
   identity: { environment: '主要环境', civilization: '文明形态', technology: '科技或超自然技术' },
   cosmology: { cosmology: '宇宙结构', naturalLaws: '自然与超自然规律及代价', powerSystem: '力量体系、层级和上限', deathRule: '死亡、灵魂与复生规则' },
   society: { government: '政治制度', languages: ['3-5 种语言或交流体系'], classes: ['4-6 个社会阶层'], faith: '信仰', family: '家庭与共同体', education: '教育', clothing: '服饰', cuisine: '饮食' },
@@ -22,7 +23,7 @@ const WORLD_CONTENT_SCHEMA = {
   localRules: [{ name: '规则名', detail: '每日轮换的当地法令或习惯' }], festivals: [{ name: '节庆名', detail: '经营影响' }],
   recommendedFacilities: ['dining、bar、parlor、guestroom、onsen、billiard、theater、garden、observatory、arcade、alchemy 中 2-4 项'],
   conflicts: ['3-6 个当代矛盾'], storyHooks: ['4-8 个经营或旅行故事钩子'],
-  notableCharacters: [{ name: '原创人物名', detail: '身份、阵营、公开目标与个人矛盾' }],
+  notableCharacters: [{ name: '人物正式名称', detail: '身份、阵营、公开目标、个人矛盾与来店动机', canonical: '既有作品原作角色为 true，否则 false', raceId: '最接近外观与生理的整数 0-18' }],
   dialogue: { arrival: ['5-8 句到店对白'], wait: ['5-8 句等待对白'], good: ['5-8 句好评'], neutral: ['5-8 句中评'], bad: ['5-8 句恶评'], journey: ['5-8 句旅途故事；称谓和语域必须符合当地文化'] },
   visuals: { appearanceThemes: ['cyber、ancient、magic 中 1-3 项'] }, atmosphere: { sky: ['两个十六进制颜色'], tint: '十六进制强调色', particle: '粒子', weather: '天气与动态天象', horizon: '远景', sound: '环境声' },
 };
@@ -232,18 +233,21 @@ const DEFINITIONS = Object.freeze({
   },
   world_concept: {
     schema: {
-      workingName: '原创工作名，2-24 个汉字', genre: '类型与文明尺度，10-80 个汉字',
+      workingName: '世界工作名，2-24 个汉字', genre: '类型与文明尺度，10-80 个汉字',
+      sourceMode: 'original 或 existing_work', sourceWork: '原创时为空字符串；既有作品时填写正式作品名',
       corePromise: '玩家最想体验到的核心感觉，30-180 个汉字',
       hardConstraints: ['必须保留的 3-8 项要素'], exclusions: ['禁止出现的 0-8 项要素'],
       coreLaws: ['3-6 条贯穿自然、力量和社会的规律，每条包含代价或限制'],
       centralConflicts: ['2-5 个能影响普通生活和经营的矛盾'],
       differentiation: '相对现有世界的差异化说明，50-300 个汉字',
-      originalityPlan: '若输入涉及现有作品，说明如何抽象类型体验并全面原创化，30-220 个汉字',
+      canonicalGuestPlan: ['既有作品世界填写 3-6 名应作为旅店访客的著名原作角色；原创世界为空数组'],
+      originalityPlan: '原创世界说明差异化方案；既有作品世界说明如何忠实保持设定并为角色创作全新的旅店情境，30-220 个汉字',
     },
     rules: [
       '只整理创作简报，不直接生成完整世界；不得遗漏玩家的 mustInclude、mustAvoid 和 tone。',
       '若 facts.input.name 非空，workingName 必须逐字采用该名称，并仅根据名称也能主动补齐类型、核心体验、规律、冲突、差异化与原创方案；不得要求玩家先补写概念。',
-      '玩家输入提及现有作品、角色或专有名词时，不沿用其专有名称、人物、组织、地点或具体历史，只提炼类型体验。',
+      '判断玩家要创建的是原创世界还是已经存在的动画、漫画、游戏、小说、电影、戏剧等作品世界；若 facts.input.sourceMode 明确指定则服从该值，否则根据名称与描述识别。',
+      '既有作品世界使用 sourceMode=existing_work，保留正式作品名、世界专名和著名角色名称，并在 canonicalGuestPlan 列出至少三名适合到店的著名原作角色；原创或仅受启发的世界使用 sourceMode=original，不借用受保护的专名。',
       '核心规律必须同时影响宏观世界与普通人的日常生活，并具有明确代价、资源或边界。',
       '世界必须能容纳多种种族，种族不等同于世界。',
     ], temperature: .8, maxTokens: 1300,
@@ -251,10 +255,11 @@ const DEFINITIONS = Object.freeze({
   world_compile: {
     schema: { world: WORLD_CONTENT_SCHEMA },
     rules: [
-      '严格依据 facts.brief 与玩家原始输入生成完整原创世界；不得直接复刻现有作品的专有名词、角色、势力和历史。',
+      '严格依据 facts.brief 与玩家原始输入生成完整世界。sourceMode=original 时保持完全原创；sourceMode=existing_work 时忠实使用对应作品的正式世界、地点、势力和人物名称，不得用原创替身替换著名角色。',
       '若 facts.input.name 非空，world.name 必须逐字采用该名称；完整吸收 facts.input.compileNotes、mustInclude 与 tone，即使概念栏为空也要补齐全部世界字段。',
       'regions 必须 6-10 项，history 6-8 项，factions 4-6 项，notableCharacters 6-8 项，localRules 至少 3 项，festivals 至少 2 项。',
-      '前三名 notableCharacters 将作为稀有访客，因此必须有明确动机并能在旅店场景中交流，其余人物仍需可用于传闻与图鉴。',
+      '前三名 notableCharacters 将作为稀有访客，因此必须有明确动机并能在旅店场景中交流；既有作品世界的前三名必须是大众可识别的著名原作角色，canonical=true，且名称不得改写。',
+      '既有作品角色的旅店对白与来店事件必须是本游戏的新情境，不复制原作长段台词、歌词或完整场景；人物性格、关系和能力边界应与原作一致。',
       '所有经营倍率必须在 0.85-1.20；当地规则不得禁用餐饮、饮酒、住宿或任何基础设施。',
       'population.raceId 只能使用 facts.races 中的整数 ID；经营枚举只能使用输出规范给出的英文 ID。',
       '历史、政治、经济、日常生活和标志人物必须互相引用并形成因果，而不是互不相关的设定清单。',
@@ -266,7 +271,8 @@ const DEFINITIONS = Object.freeze({
     rules: [
       '逐项审核 facts.candidate，并在 world 中返回完整修复稿；不得只返回意见或省略未修改字段。',
       '若 facts.input.name 非空，修复后仍须逐字保留该名称；把 facts.input.reviewNotes 与 mustAvoid 作为本轮审核重点。',
-      '删除或原创化任何直接复制现有作品的专有名称、角色、组织、地点和具体情节，同时保留玩家要求的抽象类型体验。',
+      'sourceMode=original 时删除或原创化借用的专有名称；sourceMode=existing_work 时保留正式作品名、世界专名和著名原作角色，不得在审核阶段把他们改成原创替身。',
+      '既有作品世界须复核 notableCharacters 前三名均为著名原作角色且 canonical=true、具有来店动机；同时确保对白和旅店事件为新写内容而非复刻原作段落。',
       '修复世界规律、历史、势力、经济、人物之间的矛盾，并补齐所有数量要求。',
       '所有倍率夹在 0.85-1.20；优势和限制成对出现，不得让世界成为纯收益最优选择。',
       '不得增加输出规范之外的玩法资源、永久能力或新基础设施 ID。',
@@ -391,12 +397,19 @@ export function ownerCreatorCatalogs(ageMax = []) {
   };
 }
 
-export function validateGameAIResult(kind, raw) {
+export function validateGameAIResult(kind, raw, facts = {}) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('AI 返回的根节点不是对象');
   if (kind === 'world_concept') {
-    for (const key of ['hardConstraints', 'exclusions', 'coreLaws', 'centralConflicts']) if (!Array.isArray(raw[key])) throw new Error(`AI 返回缺少字段：${key}`);
+    for (const key of ['hardConstraints', 'exclusions', 'coreLaws', 'centralConflicts', 'canonicalGuestPlan']) if (!Array.isArray(raw[key])) throw new Error(`AI 返回缺少字段：${key}`);
+    const requestedMode = ['original', 'existing_work'].includes(facts?.input?.sourceMode) ? facts.input.sourceMode : '';
+    const sourceMode = raw.sourceMode === 'existing_work' ? 'existing_work' : 'original';
+    if (requestedMode && sourceMode !== requestedMode) throw new Error('AI 返回的世界来源模式与玩家选择不一致');
+    const sourceWork = sourceMode === 'existing_work' ? requiredText(raw.sourceWork, 'sourceWork', 2, 120) : String(raw.sourceWork || '').trim().slice(0, 120);
+    const canonicalGuestPlan = raw.canonicalGuestPlan.slice(0, 6).map(String).map((name) => name.trim()).filter(Boolean);
+    if (sourceMode === 'existing_work' && canonicalGuestPlan.length < 3) throw new Error('既有作品世界至少需要三名著名原作角色作为访客');
     return {
       workingName: requiredText(raw.workingName, 'workingName', 2, 24), genre: requiredText(raw.genre, 'genre', 4, 100),
+      sourceMode, sourceWork, canonicalGuestPlan,
       corePromise: requiredText(raw.corePromise, 'corePromise', 12, 240), hardConstraints: raw.hardConstraints.slice(0, 8).map(String), exclusions: raw.exclusions.slice(0, 8).map(String),
       coreLaws: raw.coreLaws.slice(0, 6).map(String), centralConflicts: raw.centralConflicts.slice(0, 5).map(String),
       differentiation: requiredText(raw.differentiation, 'differentiation', 20, 400), originalityPlan: requiredText(raw.originalityPlan, 'originalityPlan', 10, 300),
@@ -412,6 +425,15 @@ export function validateGameAIResult(kind, raw) {
     for (const key of ['arrival', 'wait', 'good', 'neutral', 'bad', 'journey']) {
       if (!Array.isArray(world.dialogue?.[key]) || world.dialogue[key].length < 5) throw new Error(`AI 世界对白 dialogue.${key} 至少需要 5 句`);
       world.dialogue[key] = world.dialogue[key].slice(0, 8).map(String);
+    }
+    const expectedMode = facts?.brief?.sourceMode === 'existing_work' ? 'existing_work' : facts?.brief?.sourceMode === 'original' ? 'original' : '';
+    const sourceMode = world.source?.mode === 'existing_work' ? 'existing_work' : 'original';
+    if (expectedMode && sourceMode !== expectedMode) throw new Error('AI 世界来源模式在生成阶段发生变化');
+    if (sourceMode === 'existing_work') {
+      requiredText(world.source?.workName, 'world.source.workName', 2, 120);
+      const canonicalVisitors = world.notableCharacters.slice(0, 3).filter((character) => character && typeof character === 'object' && character.canonical === true && String(character.name || '').trim());
+      if (canonicalVisitors.length < 3) throw new Error('既有作品世界的前三名标志人物必须是著名原作角色');
+      if (new Set(canonicalVisitors.map((character) => String(character.name).trim())).size < 3) throw new Error('既有作品世界需要三名不同的著名原作角色');
     }
     requiredText(world.name, 'world.name', 2, 24); requiredText(world.summary, 'world.summary', 30, 700);
     return kind === 'world_review' ? { world, repairs: Array.isArray(raw.repairs) ? raw.repairs.slice(0, 12).map(String) : [] } : { world };
@@ -545,5 +567,5 @@ export async function requestGameAI(kind, facts, options = {}) {
     maxTokens: spec.maxTokens,
     signal: options.signal,
   });
-  return validateGameAIResult(kind, parseGameAIJSON(content));
+  return validateGameAIResult(kind, parseGameAIJSON(content), facts);
 }

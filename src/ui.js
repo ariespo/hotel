@@ -1269,6 +1269,7 @@ export class UI {
     let content = '';
     if (!unlocked) content = `<div class="card"><b>尚未建立稳定航路</b><div class="dim">达到 ${world.unlockStars} 星经营认证后解锁。当前只能确认其世界类型：${htmlText(world.genre || world.identity?.genre || '未知世界')}。</div></div>`;
     else if (tab === 'overview') content = `<div class="world-hero" style="--world-card-tint:${htmlText(world.visuals?.atmosphere?.tint || '#F3B84B')}"><div class="world-glyph">${htmlText(world.icon)}</div><div><h2>${htmlText(world.name)}</h2><b>${htmlText(world.genre || world.identity?.genre || '')}</b><div>${htmlText(world.tagline || world.identity?.tagline || '')}</div></div></div>
+      ${world.source?.mode === 'existing_work' ? `<div class="card hi"><b>既有作品世界</b><div>${htmlText(world.source.workName)} · 著名原作角色会作为稀有访客到店</div></div>` : ''}
       <div class="card">${htmlText(world.identity?.summary || '')}</div>
       <div class="card"><b>今日驻留规则</b><div>${htmlText(world.environmentRule?.name || '异界环境')}：${htmlText(world.environmentRule?.detail || '')}</div><div>${rule ? `${htmlText(rule.name)}：${htmlText(rule.detail)}` : '今日无额外法令'}</div>${festival ? `<div class="hi">节庆 · ${htmlText(festival.name)}：${htmlText(festival.detail)}</div>` : ''}</div>
       <div class="card"><b>天象与远景</b><div class="dim">${htmlText(world.visuals?.atmosphere?.weather || '')} · ${htmlText(world.visuals?.atmosphere?.horizon || '')}</div><div class="dim">环境声：${htmlText(world.visuals?.atmosphere?.sound || '')}</div></div>`;
@@ -1277,7 +1278,7 @@ export class UI {
     else if (tab === 'history') content = `<div class="world-timeline">${namedRows(world.history)}</div><h3>当代矛盾</h3>${list(world.conflicts, (row) => `<div class="card">• ${htmlText(row)}</div>`)}`;
     else if (tab === 'factions') content = namedRows(world.factions);
     else if (tab === 'economy') content = `<div class="card"><b>货币</b><div>${htmlText(world.economy?.currency || '')}</div><b>劳动制度</b><div>${htmlText(world.economy?.labor || '')}</div></div>${[['主要产业', world.economy?.industries], ['出口', world.economy?.exports], ['进口', world.economy?.imports]].map(([label, rows]) => `<div class="card"><b>${label}</b><div class="dim">${(rows || []).map(htmlText).join(' · ')}</div></div>`).join('')}<h3>当地采购价</h3>${priceRows}`;
-    else if (tab === 'people') content = namedRows(world.notableCharacters?.map((character) => ({ name: `${character.visitor ? '✦ ' : ''}${character.name}`, detail: `${character.detail || ''}${character.visitor ? ' · 可能作为稀有访客到店' : ' · 出现在传闻与图鉴中'}` })));
+    else if (tab === 'people') content = namedRows(world.notableCharacters?.map((character) => ({ name: `${character.visitor ? '✦ ' : ''}${character.name}`, detail: `${character.canonical ? '原作著名角色 · ' : ''}${character.detail || ''}${character.visitor ? ' · 可能作为稀有访客到店' : ' · 出现在传闻与图鉴中'}` })));
     else content = `<div class="card"><b>客流构成</b><div>约 60% 当前世界当地客、30% 其他已连接世界、10% 潮汐或使团。</div></div><div class="card"><b>环境规则</b><div>${htmlText(world.environmentRule?.detail || '')}</div></div><div class="card"><b>推荐设施</b><div>${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join(' · ') || '无特定设施'}</div></div><div class="card"><b>招聘</b><div>约 60% 候选人取自当地人口与职业结构。</div></div><h3>采购影响</h3>${priceRows}`;
     const worldButtons = worlds.map((row) => `<button data-act="worldcard" data-v="${htmlText(row.id)}" class="${row.id === world.id ? 'on' : ''}" title="${row.unlockStars > sim.stars() && !row.custom ? `${row.unlockStars} 星解锁` : row.genre || ''}">${htmlText(row.icon)} ${htmlText(row.name)}${row.unlockStars > sim.stars() && !row.custom ? ' 🔒' : ''}</button>`).join('');
     const action = unlocked && !current ? pending ? '<span class="hi">位面穿越准备中</span>' : econ.pendingWorldSwitch ? '<span class="dim">正在穿越其他世界</span>' : `<button data-act="worldswitch" data-v="${htmlText(world.id)}" ${sim.dayActive ? 'disabled title="请在打烊规划期切换"' : ''}>穿越至此 · ${worldSwitchCost(world)} 币</button>` : current ? '<span class="good">● 当前驻留世界</span>' : '';
@@ -1293,11 +1294,11 @@ export class UI {
   }
 
   customWorldFormData() {
-    const old = { name: '', genre: '', concept: '', mustInclude: '', compileNotes: '', tone: '', mustAvoid: '', reviewNotes: '', ...(this.customWorldDraft || {}) };
+    const old = { name: '', sourceMode: 'auto', genre: '', concept: '', mustInclude: '', compileNotes: '', tone: '', mustAvoid: '', reviewNotes: '', ...(this.customWorldDraft || {}) };
     if (!this.modal) return old;
     const value = (key) => this.modal.querySelector(`[data-custom-world="${key}"]`)?.value ?? old[key];
     return {
-      name: value('name'), genre: value('genre'), concept: value('concept'), mustInclude: value('mustInclude'),
+      name: value('name'), sourceMode: value('sourceMode'), genre: value('genre'), concept: value('concept'), mustInclude: value('mustInclude'),
       compileNotes: value('compileNotes'), tone: value('tone'), mustAvoid: value('mustAvoid'), reviewNotes: value('reviewNotes'),
     };
   }
@@ -1305,15 +1306,16 @@ export class UI {
   openCustomWorldBuilder(status = '', isError = false) {
     const sim = this.g.sim; const econ = sim.econ;
     if (sim.stars() < 3) { sim.toast('三星后开放 AI 自定义世界'); return; }
-    const draft = { name: '', genre: '', concept: '', mustInclude: '', compileNotes: '', tone: '', mustAvoid: '', reviewNotes: '', ...(this.customWorldDraft || {}) };
+    const draft = { name: '', sourceMode: 'auto', genre: '', concept: '', mustInclude: '', compileNotes: '', tone: '', mustAvoid: '', reviewNotes: '', ...(this.customWorldDraft || {}) };
     const result = this.customWorldResult;
     const fee = customWorldCreationCost(econ.customWorlds.length);
     const activeTab = ['concept', 'compile', 'review'].includes(this.customWorldActiveTab) ? this.customWorldActiveTab : 'concept';
     const tabs = [['concept', '① 概念提炼'], ['compile', '② 完整编译'], ['review', '③ 审核修复']];
     const tabButtons = tabs.map(([key, label]) => `<button data-act="customworldtab" data-v="${key}" class="${activeTab === key ? 'on' : ''}">${label}</button>`).join('');
+    const sourceModeOptions = [['auto', 'AI 自动识别'], ['original', '原创世界'], ['existing_work', '既有作品世界']].map(([value, label]) => `<option value="${value}" ${draft.sourceMode === value ? 'selected' : ''}>${label}</option>`).join('');
     const stageContent = activeTab === 'concept'
-      ? `<div class="dim">只填写世界名称也可以：AI 会把名称作为固定创作种子，自动补齐类型、规律、文明、历史、势力、经济、人物、经营规则和对白。</div>
-        <div class="creator-identity" style="margin-top:8px"><label>世界名称<input data-custom-world="name" maxlength="24" value="${htmlText(draft.name)}" placeholder="如：逆潮天城"></label><label>类型（可选）<input data-custom-world="genre" maxlength="80" value="${htmlText(draft.genre)}" placeholder="如东方修仙、海洋科幻"></label></div>
+      ? `<div class="dim">只填写世界名称也可以：AI 会识别它是原创构想还是既有作品世界，并补齐规律、文明、历史、势力、经济、人物、经营规则和对白。既有作品世界会保留著名原作角色作为稀有访客。</div>
+        <div class="creator-identity" style="margin-top:8px"><label>世界名称<input data-custom-world="name" maxlength="24" value="${htmlText(draft.name)}" placeholder="如：逆潮天城或作品世界名"></label><label>来源模式<select data-custom-world="sourceMode">${sourceModeOptions}</select></label><label>类型（可选）<input data-custom-world="genre" maxlength="80" value="${htmlText(draft.genre)}" placeholder="如东方修仙、海洋科幻"></label></div>
         <label style="display:block;margin-top:7px"><b>世界构想（可选）</b><textarea class="prompt-editor" data-custom-world="concept" maxlength="2400" placeholder="可补充世界气质、自然规律、文明和想体验的冲突；留空时 AI 根据名称自行展开。">${htmlText(draft.concept)}</textarea></label>`
       : activeTab === 'compile'
         ? `<div class="dim">这一页直接约束完整设定的编译，不要求先填写概念页。</div>
@@ -1323,7 +1325,7 @@ export class UI {
         : `<div class="dim">这一页可提前填写审核底线和修复重点，不要求概念或编译阶段已经完成。</div>
           <label style="display:block;margin-top:7px"><b>禁止包含</b><textarea class="prompt-editor" data-custom-world="mustAvoid" maxlength="1200" placeholder="不希望出现的专有名词、题材、表达或玩法倾向。">${htmlText(draft.mustAvoid)}</textarea></label>
           <label style="display:block;margin-top:7px"><b>审核与修复重点</b><textarea class="prompt-editor" data-custom-world="reviewNotes" maxlength="1800" placeholder="例如：检查普通人的日常生活；避免只有宏观设定而缺少经营影响。">${htmlText(draft.reviewNotes)}</textarea></label>`;
-    const preview = result ? `<div class="card" style="border-left-color:${htmlText(result.visuals?.atmosphere?.tint || '#7A4BE0')}"><div class="row"><h3>${htmlText(result.icon)} ${htmlText(result.name)}</h3><b>${htmlText(result.genre)}</b></div><div>${htmlText(result.tagline)}</div><div class="dim" style="margin-top:5px">${htmlText(result.identity?.summary || '')}</div><div class="dim" style="margin-top:5px">地区 ${result.regions?.length || 0} · 历史 ${result.history?.length || 0} · 势力 ${result.factions?.length || 0} · 标志人物 ${result.notableCharacters?.length || 0}</div></div>` : '';
+    const preview = result ? `<div class="card" style="border-left-color:${htmlText(result.visuals?.atmosphere?.tint || '#7A4BE0')}"><div class="row"><h3>${htmlText(result.icon)} ${htmlText(result.name)}</h3><b>${htmlText(result.genre)}</b></div><div>${htmlText(result.tagline)}</div>${result.source?.mode === 'existing_work' ? `<div class="hi">既有作品世界 · ${htmlText(result.source.workName)} · ${result.notableCharacters?.filter((character) => character.canonical && character.visitor).length || 0} 名著名角色可到店</div>` : '<div class="dim">原创世界</div>'}<div class="dim" style="margin-top:5px">${htmlText(result.identity?.summary || '')}</div><div class="dim" style="margin-top:5px">地区 ${result.regions?.length || 0} · 历史 ${result.history?.length || 0} · 势力 ${result.factions?.length || 0} · 标志人物 ${result.notableCharacters?.length || 0}</div></div>` : '';
     const archived = econ.archivedWorlds?.length ? `<details><summary>已归档世界 ${econ.archivedWorlds.length}</summary>${econ.archivedWorlds.map((world) => `<div class="card"><div class="row"><b>${htmlText(world.icon || '◈')} ${htmlText(world.name)}</b><button data-act="worldrestore" data-v="${htmlText(world.id)}" ${econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>重新生成</button></div><div class="dim">${htmlText(world.summary || '')}</div></div>`).join('')}</details>` : '';
     const generateLabel = this.customWorldBusy ? '生成中…' : draft.name.trim() ? '按名称填充全部世界内容' : result ? '重新生成完整世界' : '生成完整世界';
     this.showModal(`<h3>✦ AI 自定义世界</h3><div class="dim">三个标签可随时切换和输入，无需按顺序完成；生成时 AI 会一次读取三页内容。生成预览免费，确认保存时收费并占用一个世界槽。</div>${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
@@ -1350,6 +1352,7 @@ export class UI {
       this.customWorldDraft = {
         ...this.customWorldDraft,
         name: requestedName || brief.workingName,
+        sourceMode: brief.sourceMode,
         genre: this.customWorldDraft.genre.trim() || brief.genre,
         concept: this.customWorldDraft.concept.trim() || brief.corePromise,
       };
@@ -1377,7 +1380,7 @@ export class UI {
     econ.archivedWorlds = (econ.archivedWorlds || []).filter((row) => row.name !== world.name);
     econ.worldKnowledge[world.id] = { level: 4, arrivals: 0, served: 0, firstDay: econ.day, reviewed: true, journeyAsked: true };
     this.customWorldResult = null; this.customWorldDraft = null; this.customWorldActiveTab = 'concept';
-    sim.toast(`已锚定原创世界 ${world.icon} ${world.name}（-${cost} 界币）`); this.g.save(); this.openWorldCard(world.id);
+    sim.toast(`已锚定${world.source?.mode === 'existing_work' ? '作品' : '原创'}世界 ${world.icon} ${world.name}（-${cost} 界币）`); this.g.save(); this.openWorldCard(world.id);
   }
 
   openWorldArchiveConfirm(id) {
@@ -1389,7 +1392,7 @@ export class UI {
   archiveCustomWorld(id) {
     const sim = this.g.sim; const econ = sim.econ; const world = econ.customWorlds.find((row) => row.id === id);
     if (!world || sim.dayActive || id === econ.currentWorldId || id === econ.pendingWorldSwitch?.worldId) return;
-    econ.archivedWorlds.push({ id: world.id, name: world.name, icon: world.icon, genre: world.genre, summary: world.identity?.summary || '', archivedAt: Date.now(), generationBrief: world.generationBrief || '' });
+    econ.archivedWorlds.push({ id: world.id, name: world.name, icon: world.icon, genre: world.genre, source: world.source, summary: world.identity?.summary || '', archivedAt: Date.now(), generationBrief: world.generationBrief || '' });
     econ.archivedWorlds = econ.archivedWorlds.slice(-40); econ.customWorlds = econ.customWorlds.filter((row) => row.id !== id);
     delete econ.worldKnowledge[id]; sim.toast(`已归档 ${world.name}，释放一个自定义世界槽`); this.g.save(); this.openWorldCard(econ.currentWorldId);
   }
@@ -1400,10 +1403,10 @@ export class UI {
     this.customWorldResult = null;
     this.customWorldActiveTab = 'concept';
     this.customWorldDraft = {
-      name: archived.name, genre: archived.genre || '',
+      name: archived.name, sourceMode: archived.source?.mode || 'auto', genre: archived.genre || '',
       concept: `重新生成已归档世界“${archived.name}”。保留以下核心记忆并补齐完整规则：${archived.summary || ''}\n旧创作简报：${archived.generationBrief || '无'}`,
       mustInclude: archived.summary || '', compileNotes: '保留旧世界的核心身份，同时补齐全部地区、历史、势力、经济、人物与经营字段。', tone: '',
-      mustAvoid: '不要复制现有作品的专有角色、势力、地点与历史', reviewNotes: '核对新版本与旧世界核心记忆的一致性。',
+      mustAvoid: archived.source?.mode === 'existing_work' ? '不要改写著名原作角色姓名；不要复制长段原作台词、歌词或完整场景。' : '不要复制现有作品的专有角色、势力、地点与历史', reviewNotes: '核对新版本与旧世界核心记忆的一致性。',
     };
     this.openCustomWorldBuilder('已载入归档摘要；重新生成并确认保存后才会重新占用槽位。');
   }
