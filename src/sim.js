@@ -671,6 +671,26 @@ export function makeStaff(rng     , id        , isOwner         , app           
   };
 }
 
+/** 把机械生成的应聘者锚定到一个正式世界，并补齐可直接用于互动的本地出身。 */
+export function applyRecruitmentWorld(person, world, rng) {
+  if (!person || !world) return person;
+  const regions = Array.isArray(world.regions) && world.regions.length ? world.regions : [{ name: world.name, commonOccupations: [] }];
+  const region = regions[rng.int(regions.length)] || regions[0];
+  const occupations = [...(region.commonOccupations || []), ...(world.travel?.occupations || [])].filter(Boolean);
+  const occupation = occupations.length ? occupations[rng.int(occupations.length)] : '旅店求职者';
+  const values = (world.culture?.values || []).slice(0, 2).join('与') || '勤勉与互助';
+  person.originWorldId = world.id;
+  person.originWorldName = world.name;
+  person.homeRegion = region.name || world.name;
+  person.background = {
+    role: `${world.name}${person.homeRegion ? `·${person.homeRegion}` : ''}出身的${occupation}`,
+    background: `${person.name}出生并成长于${world.name}的${person.homeRegion || '当地聚落'}，过去以${occupation}为生。当地${world.identity?.civilization || world.genre || '文明'}重视${values}，这也塑造了其待人和做事方式。为了见识跨位面旅客、获得一份稳定工资并把故乡经验带进新的工作环境，${person.name}循着招募广告来到多元便携旅店应聘。`,
+    aspiration: `在旅店站稳脚跟，并让来自${world.name}的经验成为自己的长处。`,
+    quirk: `谈到故乡时会自然提起${person.homeRegion || world.name}的生活习惯。`,
+  };
+  return person;
+}
+
 ;                                                                              
 ;                                                                     
 
@@ -843,11 +863,13 @@ export class Sim {
     const n = this.econ.day <= 1 ? 1 : this.rng.chance(0.5) ? 1 : 0;
     for (let i = 0; i < n; i++) {
       const local = this.rng.chance(.6) ? weightedPick(this.rng, this.currentWorld().population || [], (row) => row.weight || 1) : null;
-      this.pool.push(makeStaff(this.rng, this.id(), false, undefined, undefined, { lo: 8, hi: 52, race: local?.raceId }));
+      const person = makeStaff(this.rng, this.id(), false, undefined, undefined, { lo: 8, hi: 52, race: local?.raceId });
+      this.pool.push(applyRecruitmentWorld(person, this.currentWorld(), this.rng));
     }
     // 开局赠送一张已生效的传单广告，让玩家看到招募系统长什么样
     if (this.econ.day <= 1 && !this.ads.some((a) => a.spec)) {
-      this.ads[0] = { spec: { tier: 'flyer', race: -1, sex: '', bias: '' }, cands: [], day: 1 };
+      const initialWorld = WORLD_PROFILES.some((world) => world.id === this.econ.currentWorldId) ? this.econ.currentWorldId : WORLD_PROFILES[0].id;
+      this.ads[0] = { spec: { tier: 'flyer', race: -1, sex: '', bias: '', birthWorldId: initialWorld, customWorldName: '' }, cands: [], day: 1 };
       this.ads[0].cands = this.rollCands(this.ads[0].spec          );
     }
   }
@@ -869,23 +891,34 @@ export class Sim {
     const t = this.adTier(spec.tier);
     const n = 3 + this.rng.int(3);                     // 3–5 位符合要求的候选者
     const out          = [];
+    const customWorldName = String(spec.customWorldName || '').trim().slice(0, 80);
+    const birthWorld = customWorldName ? null : WORLD_PROFILES.find((world) => world.id === spec.birthWorldId) || this.currentWorld();
     for (let i = 0; i < n; i++) {
-      const local = spec.race < 0 && this.rng.chance(.6) ? weightedPick(this.rng, this.currentWorld().population || [], (row) => row.weight || 1) : null;
-      out.push(makeStaff(this.rng, this.id(), false, undefined, undefined, {
+      const local = spec.race < 0 ? weightedPick(this.rng, (birthWorld || this.currentWorld()).population || [], (row) => row.weight || 1) : null;
+      const person = makeStaff(this.rng, this.id(), false, undefined, undefined, {
         lo: t.lo, hi: t.hi, race: spec.race >= 0 ? spec.race : local?.raceId, sex: spec.sex || undefined, bias: spec.bias || undefined,
-      }));
+      });
+      if (birthWorld) applyRecruitmentWorld(person, birthWorld, this.rng);
+      else { person.originWorldId = ''; person.originWorldName = customWorldName; person.homeRegion = ''; }
+      out.push(person);
     }
     return out;
   }
 
   /** 发布广告：扣钱并立刻收到 3–5 位候选者（旧候选人被换掉） */
-  postAd(slot        , spec        )          {
+  postAd(slot        , spec        , preparedCandidates = null)          {
     if (slot < 0 || slot > 2) return false;
+    const customWorldName = String(spec.customWorldName || '').trim().slice(0, 80);
+    const fixedWorld = WORLD_PROFILES.find((world) => world.id === spec.birthWorldId);
+    if (!customWorldName && !fixedWorld) { this.toast('请选择应聘者的出生世界'); return false; }
+    if (customWorldName && (!Array.isArray(preparedCandidates) || !preparedCandidates.length)) { this.toast('自定义出生世界需要先由 AI 生成人物设定'); return false; }
+    spec = { ...spec, birthWorldId: customWorldName ? 'ai_custom' : fixedWorld.id, customWorldName };
     const cost = this.adCost(spec);
     if (this.econ.coins < cost) { this.toast(`界币不足：这条广告要 ${cost}`); return false; }
     this.econ.coins -= cost;
-    this.ads[slot] = { spec, cands: this.rollCands(spec), day: this.econ.day };
+    this.ads[slot] = { spec, cands: Array.isArray(preparedCandidates) ? preparedCandidates : this.rollCands(spec), day: this.econ.day };
     const req           = [];
+    req.push(`出生世界：${customWorldName || fixedWorld.name}`);
     if (spec.race >= 0) req.push(RACE_NAMES[spec.race]);
     if (spec.sex) req.push(spec.sex);
     if (spec.bias) req.push(SKILL_LABEL[spec.bias            ] + '偏向');
@@ -4004,15 +4037,29 @@ export class Sim {
       equipment: Array.isArray(s.equipment) ? [...new Set(s.equipment)] : [],
       perks: Array.isArray(s.perks) ? [...new Set(s.perks)] : [], trainingCount: Math.max(0, Number(s.trainingCount) || 0),
       affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], aiChatLog: s.aiChatLog || [], relationshipSummary: String(s.relationshipSummary || '').slice(0, 600), background: s.background || null, hireDay: s.hireDay || 1,
+      originWorldId: String(s.originWorldId || ''),
+      originWorldName: String(s.originWorldName || (s.originWorldId ? this.worldById(s.originWorldId).name : '')).slice(0, 80),
+      homeRegion: String(s.homeRegion || '').slice(0, 80),
     });
     this.staff = data.staff.map((s) => fix(s, false));
-    this.pool = data.pool.map((s) => fix(s, true));
+    this.pool = data.pool.map((s) => fix(s, true)).map((person) => person.originWorldName ? person : applyRecruitmentWorld(person, this.currentWorld(), this.rng));
     this.ads = (data.ads && data.ads.length === 3 ? data.ads : [{ spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }])
-      .map((a) => ({
-        spec: a.spec ? { ...a.spec, sex: a.spec.sex === '男' || a.spec.sex === '女' ? a.spec.sex : '' } : null,
-        day: a.day || 0,
-        cands: (a.cands || []).map((s) => fix(s, true)),
-      }));
+      .map((a) => {
+        const spec = a.spec ? {
+          ...a.spec,
+          sex: a.spec.sex === '男' || a.spec.sex === '女' ? a.spec.sex : '',
+          birthWorldId: WORLD_PROFILES.some((world) => world.id === a.spec.birthWorldId) || a.spec.birthWorldId === 'ai_custom' ? a.spec.birthWorldId : WORLD_PROFILES[0].id,
+          customWorldName: String(a.spec.customWorldName || '').trim().slice(0, 80),
+        } : null;
+        const fixedWorld = spec ? WORLD_PROFILES.find((world) => world.id === spec.birthWorldId) : null;
+        const cands = (a.cands || []).map((s) => fix(s, true)).map((person) => {
+          if (person.originWorldName) return person;
+          if (fixedWorld) return applyRecruitmentWorld(person, fixedWorld, this.rng);
+          if (spec?.customWorldName) { person.originWorldId = ''; person.originWorldName = spec.customWorldName; }
+          return person;
+        });
+        return { spec, day: a.day || 0, cands };
+      });
     // 恢复过夜住宿客：保持睡着的状态，下次开门统一结账
     this.groups = (data.lodgers || []).map((g) => ({ ...g, overnight: true, useT: Infinity, state: 'using' }));
     this.guests = [];

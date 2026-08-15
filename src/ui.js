@@ -287,6 +287,7 @@ export class UI {
   pendingAIChat = null;
   settlementAIController = null;
   creatorAIController = null;
+  adAIController = null;
   dynamicAIStatus = null;
   dynamicAIController = null;
   collapsed = { left: false, right: false };
@@ -365,6 +366,10 @@ export class UI {
     window.addEventListener('pointercancel', releaseInteraction, true);
     this.root.addEventListener('click', (e) => this.onClick(e));
     this.root.addEventListener('change', (e) => this.onChange(e));
+    this.root.addEventListener('input', (e) => {
+      const target = e.target;
+      if (target?.dataset?.act === 'adworldname') this.adSpec.customWorldName = target.value;
+    });
   }
 
   setPanelHTML(node        , html        )       {
@@ -650,7 +655,8 @@ export class UI {
     else if (act === 'adtier') { this.adSpec.tier = v; this.openAdPanel(this.adSlot); }
     else if (act === 'adsex') { this.adSpec.sex = v; this.openAdPanel(this.adSlot); }
     else if (act === 'adbias') { this.adSpec.bias = v; this.openAdPanel(this.adSlot); }
-    else if (act === 'adpost') { if (g.sim.postAd(parseInt(v, 10), { ...this.adSpec })) { this.closeModal(); g.save(); } else this.openAdPanel(this.adSlot); }
+    else if (act === 'adpost') this.postRecruitmentAd(parseInt(v, 10));
+    else if (act === 'adcancelai') this.adAIController?.abort();
     else if (act === 'adclear') { g.sim.withdrawAd(parseInt(v, 10)); g.save(); }
     else if (act === 'firec') this.openFireConfirm(parseInt(v, 10));
     else if (act === 'firego') { if (g.fire(parseInt(v, 10))) this.closeModal(); }
@@ -664,6 +670,11 @@ export class UI {
     const t = e.target                    ;
     if (t.dataset.act === 'markup') { this.g.setMarkup(parseFloat(t.value)); this.render(true); }
     if (t.dataset.act === 'adrace') { this.adSpec.race = parseInt(t.value, 10); this.openAdPanel(this.adSlot); }
+    if (t.dataset.act === 'adworld') {
+      this.adSpec.birthWorldId = t.value;
+      if (t.value !== 'ai_custom') this.adSpec.customWorldName = '';
+      this.openAdPanel(this.adSlot);
+    }
     if (t.dataset.act === 'restock') { this.g.sim.econ.autoRestock = t.checked; this.g.save(); }
     if (t.dataset.act === 'restockbudget') {
       this.g.sim.econ.restockBudget = Math.max(0, Math.min(999999, Math.round(Number(t.value) || 0)));
@@ -984,11 +995,13 @@ export class UI {
       body += '<h3>招募广告（3 个广告位）</h3>' + s.ads.map((ad, i) => {
         if (!ad.spec) {
           return `<div class="card"><div class="row"><b>广告位 ${i + 1}</b><span class="dim">空置</span></div>
-            <div class="dim">发布广告才会有人来应聘：价位决定应聘者品质，附加要求可以指定种族/性别/数值偏向。</div>
+            <div class="dim">发布广告才会有人来应聘：先选择出生世界，再指定价位、种族、性别和数值偏向。</div>
             <div class="row"><button data-act="adopen" data-v="${i}">发布广告</button></div></div>`;
         }
         const t = s.adTier(ad.spec.tier);
         const req           = [];
+        const birthWorld = ad.spec.customWorldName || s.worldById(ad.spec.birthWorldId || WORLD_PROFILES[0].id).name;
+        req.push(`出生世界：${birthWorld}`);
         if (ad.spec.race >= 0) req.push(RACE_NAMES[ad.spec.race]);
         if (ad.spec.sex) req.push(ad.spec.sex);
         if (ad.spec.bias) req.push(SKILL_LABEL[ad.spec.bias           ] + '偏向');
@@ -1059,7 +1072,7 @@ export class UI {
     const bg = p.background;
     const analysis = staffAnalysis(p);
     return `<div class="card"><div class="row"><img class="portrait list" src="${portraitURL(p.app)}" width="42" height="56">
-        <span style="flex:1"><b>${p.name}</b><div class="dim">${p.race}·${p.sex}·${p.age}岁</div></span>
+        <span style="flex:1"><b>${p.name}</b><div class="dim">${p.race}·${p.sex}·${p.age}岁</div><div class="hi">出生世界：${htmlText(p.originWorldName || '未知')}</div></span>
         <span class="hi">日薪${p.wage}</span></div>
       <div class="dim">${SKILL_KEYS.map((k) => `${SKILL_LABEL[k]}${p.skills[k]}`).join(' ')}</div>
       <div class="row" style="align-items:flex-start"><b class="hi">综合 ${analysis.score}</b><span>推荐：${JOB_LABEL[analysis.recommendedJob]}</span></div>
@@ -1891,7 +1904,7 @@ export class UI {
     const person = this.personById(id);
     if (!person) return;
     const bg = person.background;
-    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(person.app)}" width="112" height="144"><div style="flex:1"><h3 style="margin:0">${htmlText(person.name)}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div></div></div>
+    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(person.app)}" width="112" height="144"><div style="flex:1"><h3 style="margin:0">${htmlText(person.name)}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div><div class="hi">出生世界：${htmlText(person.originWorldName || '未记录')}</div></div></div>
       ${bg ? `<div class="card" style="margin-top:9px"><b>来店之前</b><div style="white-space:pre-wrap;line-height:1.65">${htmlText(bg.background)}</div></div>
         <div class="row"><span class="dim">个人目标</span><span>${htmlText(bg.aspiration)}</span></div>
         <div class="row"><span class="dim">日常习惯</span><span>${htmlText(bg.quirk)}</span></div>` : '<div class="dim" style="margin-top:9px">尚未生成人物背景。</div>'}
@@ -1908,7 +1921,9 @@ export class UI {
       traits: person.traits.map((id2) => { const trait = TRAITS.find((item) => item.id === id2); return trait ? { name: trait.name, note: trait.note } : { name: id2 }; }),
       skills: Object.fromEntries(SKILL_KEYS.map((key) => [SKILL_LABEL[key], person.skills[key]])),
       jobInclination: JOB_LABEL[person.job], wage: person.wage,
-      world: '角色来自万界之一，正在应聘或供职于跨位面酒馆《多元便携旅店》。',
+      world: person.originWorldName
+        ? `角色出生并成长于“${person.originWorldName}”世界${person.homeRegion ? `的${person.homeRegion}` : ''}，当前正在应聘或供职于跨位面酒馆《多元便携旅店》。背景必须保留这个出生世界。`
+        : '角色来自万界之一，正在应聘或供职于跨位面酒馆《多元便携旅店》。',
     };
     try {
       const result = await requestGameAI('staff_background', facts);
@@ -2033,6 +2048,7 @@ export class UI {
           <span class="dim">性别</span><span>${st.sex}</span>
           <span class="dim">年龄</span><span>${st.age}</span>
           <span class="dim">身高/体重</span><span>${st.ht}cm / ${st.wt}kg</span></div>
+        ${st.isOwner ? '' : `<div class="row"><span class="dim">出生世界</span><span class="hi">${htmlText(st.originWorldName || '未记录')}</span>${st.homeRegion ? `<span class="dim">故乡</span><span>${htmlText(st.homeRegion)}</span>` : ''}</div>`}
         <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><span class="dim">性格</span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</div>
         <div class="row"><span class="dim">岗位</span><span>${JOB_LABEL[st.job]}</span><span class="dim">负责</span><span>${room ? ROOM_LABEL[room.kind] : '全店'}</span><span class="dim">薪资</span><span class="${st.isOwner ? 'dim' : 'hi'}">${st.isOwner ? '店主不领取工资' : `日薪 ${st.wage}`}</span></div>
         <div class="row"><span class="dim">卧室</span><span>${st.isOwner ? '<span class="dim">店主守店</span>' : (() => { const br = sim.bedroomOf(st.id); return br ? `休息室 #${br.id}` : '<span class="bad">无（打地铺）</span>'; })()}</span></div>
@@ -2289,7 +2305,7 @@ export class UI {
   }
 
           adSlot = 0;
-          adSpec                                                            = { tier: 'flyer', race: -1, sex: '', bias: '' };
+          adSpec                                                            = { tier: 'flyer', race: -1, sex: '', bias: '', birthWorldId: WORLD_PROFILES[0].id, customWorldName: '' };
 
   // ---------- 新菜研发 ----------
           rd = {
@@ -2427,19 +2443,27 @@ export class UI {
     }, false, '女', { employeeRecruit: true, age: 24, traits: ['diligent', 'cheerful'], skillPreset: 'balanced' });
   }
 
-  openAdPanel(slot        , reset = false)       {
+  openAdPanel(slot        , reset = false, status = '', isError = false)       {
     const s = this.g.sim;
     this.adSlot = slot;
     if (reset) {
       const cur = s.ads[slot] && s.ads[slot].spec;
-      this.adSpec = cur ? { ...cur } : { tier: 'flyer', race: -1, sex: '', bias: '' };
+      const currentFixedWorld = WORLD_PROFILES.some((world) => world.id === s.econ.currentWorldId) ? s.econ.currentWorldId : WORLD_PROFILES[0].id;
+      this.adSpec = cur ? { ...cur } : { tier: 'flyer', race: -1, sex: '', bias: '', birthWorldId: currentFixedWorld, customWorldName: '' };
     }
     const spec = this.adSpec;
+    if (!WORLD_PROFILES.some((world) => world.id === spec.birthWorldId) && spec.birthWorldId !== 'ai_custom') spec.birthWorldId = WORLD_PROFILES[0].id;
     const cost = s.adCost(spec);
     const t = s.adTier(spec.tier);
     const afford = s.econ.coins >= cost;
+    const customBirth = spec.birthWorldId === 'ai_custom';
+    const worldOptions = WORLD_PROFILES.map((world) => `<option value="${world.id}" ${spec.birthWorldId === world.id ? 'selected' : ''}>${htmlText(world.icon)} ${htmlText(world.name)}</option>`).join('');
     this.showModal(`<h3>发布招募广告 · 广告位 ${slot + 1}</h3>
-      <div class="dim">价位决定应聘者的数值区间与日薪；附加要求越多，广告费越贵。发布后立刻收到 3–5 位符合要求的候选者。</div>
+      <div class="dim">先指定出生世界：所有应聘者都会来自该世界。价位决定数值区间与日薪；发布后收到 3–5 位符合要求的候选者。</div>
+      ${status ? `<div class="${isError ? 'bad' : 'hi'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
+      <div class="row" style="margin-top:8px"><span class="dim" style="width:56px">出生世界</span>
+        <select data-act="adworld" style="flex:1">${worldOptions}${aiConfigured() ? `<option value="ai_custom" ${customBirth ? 'selected' : ''}>✦ AI 自定义世界名称</option>` : ''}</select></div>
+      ${customBirth && aiConfigured() ? `<label style="display:block;margin-top:6px"><span class="dim">任意世界名称</span><input data-act="adworldname" maxlength="80" value="${htmlText(spec.customWorldName || '')}" placeholder="如：《海贼王》、中土世界、原创世界名" style="width:100%"></label><div class="dim">发布前 AI 会根据该世界一次生成整批应聘者的身份、经历与求职动机；生成失败不会扣费。</div>` : ''}
       <div class="row" style="margin-top:8px"><span class="dim" style="width:56px">价位</span>
         ${AD_TIERS.map((x) => `<button data-act="adtier" data-v="${x.id}" class="${spec.tier === x.id ? 'on' : ''}">${x.name} ${x.cost}</button>`).join('')}</div>
       <div class="dim">${t.note}｜数值区间 ${t.lo}–${t.hi}</div>
@@ -2458,9 +2482,54 @@ export class UI {
       <div class="row" style="margin-top:10px"><b>广告费</b><span class="${afford ? 'hi' : 'bad'}">${cost}</span>
         <span class="dim">现有 ${Math.floor(s.econ.coins)}</span></div>
       <div class="row" style="margin-top:8px">
-        <button data-act="adpost" data-v="${slot}" ${afford ? '' : 'disabled'}>发布（-${cost}）</button>
+        <button data-act="adpost" data-v="${slot}" ${afford ? '' : 'disabled'}>${customBirth ? 'AI 生成并发布' : '发布'}（-${cost}）</button>
         <button data-act="closemodal">算了</button>
       </div>`);
+  }
+
+  async postRecruitmentAd(slot) {
+    const sim = this.g.sim;
+    const customInput = this.modal?.querySelector('[data-act="adworldname"]');
+    if (customInput) this.adSpec.customWorldName = customInput.value;
+    const spec = { ...this.adSpec, customWorldName: String(this.adSpec.customWorldName || '').trim().slice(0, 80) };
+    if (spec.birthWorldId !== 'ai_custom') {
+      if (sim.postAd(slot, spec)) { this.closeModal(); this.g.save(); this.render(true); }
+      else this.openAdPanel(slot);
+      return;
+    }
+    if (!aiConfigured()) { this.openAdPanel(slot, false, '请先在设置中接入 AI 并选择模型。', true); return; }
+    if (!spec.customWorldName) { this.openAdPanel(slot, false, '请输入应聘者的出生世界名称。', true); return; }
+    if (sim.econ.coins < sim.adCost(spec)) { this.openAdPanel(slot, false, `界币不足：这条广告要 ${sim.adCost(spec)}`, true); return; }
+    const candidates = sim.rollCands(spec);
+    const controller = new AbortController();
+    this.adAIController?.abort(); this.adAIController = controller;
+    const waitingModal = this.showModal(`<h3>✦ 正在从 ${htmlText(spec.customWorldName)} 招募</h3><div class="hi">AI 正在为 ${candidates.length} 位应聘者生成符合出生世界的人物设定……</div><div class="dim" style="margin-top:7px">广告费会在生成成功后扣除。</div><div class="row" style="margin-top:10px"><button data-act="adcancelai">取消生成</button></div>`);
+    try {
+      const result = await requestGameAI('recruitment_candidates', {
+        birthWorldName: spec.customWorldName,
+        advertisement: { tier: sim.adTier(spec.tier).name, sex: spec.sex || '不限', race: spec.race >= 0 ? RACE_NAMES[spec.race] : '不限', skillBias: spec.bias ? SKILL_LABEL[spec.bias] : '不限' },
+        candidates: candidates.map((person, index) => ({
+          index, sex: person.sex, age: person.age, race: person.race,
+          traits: person.traits.map((id) => TRAITS.find((trait) => trait.id === id)?.name || id),
+          skills: Object.fromEntries(SKILL_KEYS.map((key) => [SKILL_LABEL[key], person.skills[key]])), wage: person.wage,
+        })),
+      }, { signal: controller.signal });
+      for (const profile of result.candidates) {
+        const person = candidates[profile.index];
+        if (!person) continue;
+        person.name = profile.name;
+        person.originWorldId = '';
+        person.originWorldName = spec.customWorldName;
+        person.background = { role: profile.role, background: profile.background, aspiration: profile.aspiration, quirk: profile.quirk, designNote: profile.designNote };
+      }
+      if (this.modal !== waitingModal) return;
+      if (sim.postAd(slot, spec, candidates)) { this.closeModal(); this.g.save(); this.render(true); }
+      else this.openAdPanel(slot);
+    } catch (error) {
+      if (this.modal === waitingModal) this.openAdPanel(slot, false, controller.signal.aborted ? '已取消 AI 招募，尚未扣费。' : `AI 生成人物设定失败：${error?.message || '未知错误'}。尚未扣费。`, true);
+    } finally {
+      if (this.adAIController === controller) this.adAIController = null;
+    }
   }
 
   openFireConfirm(id        )       {

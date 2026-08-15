@@ -226,10 +226,33 @@ const DEFINITIONS = Object.freeze({
     },
     rules: [
       '背景必须符合既定姓名、性别、年龄、种族、性格、技能与岗位倾向。',
+      'facts.world 指定出生世界时，身份、经历、生活细节和求职动机必须明确符合并保留该世界，不得改成模糊的未知异界。',
       '不得改变角色数值、性别、种族、性格标签或添加超越经营玩法的特殊能力。',
       '给后续日常对话留下可用钩子，但不预设玩家与角色的感情关系。',
     ],
     temperature: 0.9, maxTokens: 700,
+  },
+  recruitment_candidates: {
+    schema: {
+      candidates: [{
+        index: '整数，与 facts.candidates[index] 一一对应',
+        name: '姓名，1-20 个字符',
+        role: '在出生世界和旅店中的身份定位，10-100 个汉字',
+        background: '来到旅店应聘前的经历，120-500 个汉字',
+        aspiration: '当前个人目标，15-100 个汉字',
+        quirk: '可在日常互动中体现的小习惯，10-80 个汉字',
+        designNote: '如何把出生世界与既定属性结合，20-180 个汉字',
+      }],
+    },
+    rules: [
+      '必须为 facts.candidates 中每一位候选人返回一项，index 不得缺失、重复或改变；不得增减人数。',
+      '所有人都出生并成长于 facts.birthWorldName 对应的世界观；姓名、身份、经历、求职动机和说话习惯必须体现该世界。',
+      '不得改变 facts.candidates 已确定的性别、年龄、种族、性格、能力与工资，只负责生成与这些属性相容的人物设定。',
+      '若出生世界来自既有 ACG、文学、影视或其他作品，生成该世界中合理存在的原创普通居民，不冒充或改写著名原作角色。',
+      '候选人来到多元便携旅店是为了正常求职并领取工资；不得给予无限财富、无敌、强制控制他人或跳过经营规则的权限。',
+      '每位候选人的经历和动机必须明显不同，不能只替换姓名。',
+    ],
+    temperature: 0.86, maxTokens: 3600,
   },
   world_concept: {
     schema: {
@@ -543,6 +566,27 @@ export function validateGameAIResult(kind, raw, facts = {}) {
     aspiration: requiredText(raw.aspiration, 'aspiration', 4, 120),
     quirk: requiredText(raw.quirk, 'quirk', 3, 90),
   };
+  if (kind === 'recruitment_candidates') {
+    const expected = Array.isArray(facts?.candidates) ? facts.candidates.slice(0, 5) : [];
+    if (!expected.length || !Array.isArray(raw.candidates) || raw.candidates.length !== expected.length) throw new Error('AI 返回的应聘者人数与广告不一致');
+    const seen = new Set();
+    const candidates = raw.candidates.map((item, row) => {
+      const index = boundedInteger(item?.index, 0, expected.length - 1);
+      if (seen.has(index) || !expected[index]) throw new Error(`AI 返回的应聘者索引无效：${row}`);
+      seen.add(index);
+      return {
+        index,
+        name: requiredText(item.name, `candidates[${row}].name`, 1, 20),
+        role: requiredText(item.role, `candidates[${row}].role`, 4, 120),
+        background: requiredText(item.background, `candidates[${row}].background`, 30, 700),
+        aspiration: requiredText(item.aspiration, `candidates[${row}].aspiration`, 4, 140),
+        quirk: requiredText(item.quirk, `candidates[${row}].quirk`, 3, 100),
+        designNote: requiredText(item.designNote, `candidates[${row}].designNote`, 8, 240),
+      };
+    }).sort((a, b) => a.index - b.index);
+    if (seen.size !== expected.length) throw new Error('AI 返回的应聘者索引不完整');
+    return { candidates };
+  }
   if (kind === 'night_story') {
     if (!Array.isArray(raw.choices) || raw.choices.length < 2) throw new Error('AI 返回的剧情选项不足');
     return {
@@ -566,6 +610,7 @@ export async function requestGameAI(kind, facts, options = {}) {
     temperature: spec.temperature,
     maxTokens: spec.maxTokens,
     signal: options.signal,
+    fetchImpl: options.fetchImpl,
   });
   return validateGameAIResult(kind, parseGameAIJSON(content), facts);
 }
