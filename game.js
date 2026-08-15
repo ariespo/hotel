@@ -31,7 +31,13 @@ const WORLD_BACKGROUND_IDS = new Set([
   'hearth_coast', 'verdant_court', 'magma_ridge', 'neon_ring', 'moonsea', 'evernight',
   'honey_sky', 'iron_hive', 'mask_realm', 'inverted_dreamsea', 'ash_dragoncourt', 'timeless_bazaar',
 ]);
-const WORLD_LAYERED_BACKGROUND_IDS = new Set(['hearth_coast']);
+const WORLD_LAYERED_BACKGROUND_IDS = new Set(['hearth_coast', 'verdant_court', 'magma_ridge', 'neon_ring']);
+const WORLD_BACKGROUND_MOTION = {
+  hearth_coast: { x: 10, y: 6, xSpeed: 0.11, ySpeed: 0.085, alpha: 0.39, farAlpha: 0.94 },
+  verdant_court: { x: 8, y: 7, xSpeed: 0.075, ySpeed: 0.06, alpha: 0.28, farAlpha: 0.84 },
+  magma_ridge: { x: 12, y: 5, xSpeed: 0.13, ySpeed: 0.07, alpha: 0.26, farAlpha: 0.82 },
+  neon_ring: { x: 18, y: 4, xSpeed: 0.2, ySpeed: 0.11, alpha: 0.3, farAlpha: 0.88 },
+};
 const cloneData = (value) => JSON.parse(JSON.stringify(value));
 // 只列出 assets/ 里确实存在的音轨：抓不到的文件会在控制台刷 CORS/404 噪音。
 // 补上 bgm-tavern / bgm-plan / bgm-night 后，把对应行加回来即可分阶段切换。
@@ -1633,18 +1639,20 @@ class Game                    {
     const w = this.app.renderer.width, h = this.app.renderer.height;
     const driftX = Math.sin((this.cam.x || 0) * 0.045), driftY = Math.sin((this.cam.y || 0) * 0.04);
     const layered = WORLD_LAYERED_BACKGROUND_IDS.has(this.worldBackgroundId);
+    const motion = WORLD_BACKGROUND_MOTION[this.worldBackgroundId] || WORLD_BACKGROUND_MOTION.hearth_coast;
     if (this.worldBackgroundFarSprite) {
       const farX = layered ? Math.sin(time * 0.07) * 1.5 : 0;
       const farY = layered ? Math.cos(time * 0.055) * 1.2 : 0;
       this.worldBackgroundFarSprite.position.set(w / 2 - driftX * 1.5 + farX, h / 2 - driftY + farY);
       this.worldBackgroundFarSprite.scale.set(this.worldBackgroundFarScale * (layered ? 1 + Math.sin(time * 0.045) * 0.0025 : 1));
+      if (layered) this.worldBackgroundFarSprite.alpha = motion.farAlpha;
     }
     if (this.worldBackgroundMidSprite) {
-      const midX = layered ? Math.sin(time * 0.11 + 0.8) * 10 : 0;
-      const midY = layered ? Math.cos(time * 0.085) * 6 : 0;
+      const midX = layered ? Math.sin(time * motion.xSpeed + 0.8) * motion.x : 0;
+      const midY = layered ? Math.cos(time * motion.ySpeed) * motion.y : 0;
       this.worldBackgroundMidSprite.position.set(w / 2 - driftX * 9 + midX, h / 2 - driftY * 4 + midY);
       this.worldBackgroundMidSprite.scale.set(this.worldBackgroundMidScale * (layered ? 1 + Math.sin(time * 0.08) * 0.006 : 1));
-      if (layered) this.worldBackgroundMidSprite.alpha = 0.39 + Math.sin(time * 0.17) * 0.03;
+      if (layered) this.worldBackgroundMidSprite.alpha = motion.alpha + Math.sin(time * 0.17) * 0.03;
     }
     const g = this.worldBackgroundWeather;
     g.clear();
