@@ -33,10 +33,10 @@ const WORLD_BACKGROUND_IDS = new Set([
 ]);
 const WORLD_LAYERED_BACKGROUND_IDS = new Set(['hearth_coast', 'verdant_court', 'magma_ridge', 'neon_ring']);
 const WORLD_BACKGROUND_MOTION = {
-  hearth_coast: { x: 10, y: 6, xSpeed: 0.11, ySpeed: 0.085, alpha: 0.39, farAlpha: 0.94 },
-  verdant_court: { x: 8, y: 7, xSpeed: 0.075, ySpeed: 0.06, alpha: 0.28, farAlpha: 0.84 },
-  magma_ridge: { x: 12, y: 5, xSpeed: 0.13, ySpeed: 0.07, alpha: 0.26, farAlpha: 0.82 },
-  neon_ring: { x: 18, y: 4, xSpeed: 0.2, ySpeed: 0.11, alpha: 0.3, farAlpha: 0.88 },
+  hearth_coast: { x: 10, y: 6, xSpeed: 0.11, ySpeed: 0.085, alpha: 0.39, farAlpha: 1 },
+  verdant_court: { x: 8, y: 7, xSpeed: 0.075, ySpeed: 0.06, alpha: 0.28, farAlpha: 1 },
+  magma_ridge: { x: 18, y: 8, xSpeed: 0.28, ySpeed: 0.16, alpha: 0.45, farAlpha: 1 },
+  neon_ring: { x: 18, y: 4, xSpeed: 0.2, ySpeed: 0.11, alpha: 0.3, farAlpha: 1 },
 };
 const cloneData = (value) => JSON.parse(JSON.stringify(value));
 // 只列出 assets/ 里确实存在的音轨：抓不到的文件会在控制台刷 CORS/404 噪音。
@@ -1677,7 +1677,7 @@ class Game                    {
         g.circle(x + Math.sin(time + p.phase * 20) * 8, y, p.size).fill({ color: tint, alpha: pulse * 0.36 });
       } else if (id === 'magma_ridge') {
         y = (p.y - time * p.speed * 0.55 + 5) % 1 * h;
-        g.moveTo(x - p.size * 2, y).lineTo(x + p.size * 2, y).stroke({ width: 1, color: tint, alpha: pulse * 0.3 });
+        g.moveTo(x - p.size * 3, y).lineTo(x + p.size * 3, y).stroke({ width: 1, color: tint, alpha: pulse * 0.48 });
       } else if (id === 'evernight') {
         g.circle(x + Math.sin(time * 0.6 + p.phase * 9) * 12, y, 1 + p.size).fill({ color: tint, alpha: pulse * 0.22 });
       } else g.rect(x, y, p.size, p.size).fill({ color: tint, alpha: pulse * 0.22 });
