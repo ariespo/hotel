@@ -1,8 +1,9 @@
 import { DEFAULT_RESTOCK_TARGETS } from './sim.js';
 import { starsOf, WORLD_PROFILES, worldsForStars } from './data.js';
 import { RACE_NAMES } from './chargen.js';
+import { normalizeCustomWorld } from './world-system.js';
 
-export const SAVE_SCHEMA_VERSION = 5;
+export const SAVE_SCHEMA_VERSION = 6;
 
 function stableHash(text) {
   let hash = 2166136261;
@@ -85,6 +86,18 @@ export function migrateGameSaveData(source) {
     data.sim.econ.worldForecast = Array.isArray(data.sim.econ.worldForecast) ? data.sim.econ.worldForecast : [];
     data.meta.version = 5;
     version = 5;
+  }
+  if (version < 6) {
+    const econ = data.sim.econ;
+    econ.customWorlds = Array.isArray(econ.customWorlds) ? econ.customWorlds.slice(0, 8).map((world) => normalizeCustomWorld(world, world.id)) : [];
+    econ.archivedWorlds = Array.isArray(econ.archivedWorlds) ? econ.archivedWorlds.slice(0, 40) : [];
+    const knownIds = new Set([...WORLD_PROFILES.map((world) => world.id), ...econ.customWorlds.map((world) => world.id)]);
+    econ.currentWorldId = knownIds.has(econ.currentWorldId) ? econ.currentWorldId : 'hearth_coast';
+    econ.pendingWorldSwitch = econ.pendingWorldSwitch && knownIds.has(econ.pendingWorldSwitch.worldId) ? econ.pendingWorldSwitch : null;
+    econ.worldVisits = econ.worldVisits && typeof econ.worldVisits === 'object' ? econ.worldVisits : { [econ.currentWorldId]: 1 };
+    for (const world of econ.customWorlds) econ.worldKnowledge[world.id] ||= { level: 4, arrivals: 0, served: 0, firstDay: econ.day || 1, reviewed: true, journeyAsked: true };
+    data.meta.version = 6;
+    version = 6;
   }
   if (version > SAVE_SCHEMA_VERSION) throw new Error(`存档版本 ${version} 高于当前支持的 ${SAVE_SCHEMA_VERSION}`);
   data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, migratedAt: originalVersion < SAVE_SCHEMA_VERSION ? Date.now() : data.meta.migratedAt || 0 };

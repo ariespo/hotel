@@ -6,6 +6,26 @@ import {
 import { SKILL_KEYS, SKILL_LABEL, TRAITS } from './data.js';
 import { promptTaskFor } from './prompt-settings.js';
 
+const WORLD_CONTENT_SCHEMA = {
+  name: '世界名称，2-24 个汉字', icon: '一个符号或汉字徽记', genre: '类型标签', tagline: '世界宣传语，15-100 个汉字', summary: '世界总览，120-500 个汉字',
+  identity: { environment: '主要环境', civilization: '文明形态', technology: '科技或超自然技术' },
+  cosmology: { cosmology: '宇宙结构', naturalLaws: '自然与超自然规律及代价', powerSystem: '力量体系、层级和上限', deathRule: '死亡、灵魂与复生规则' },
+  society: { government: '政治制度', languages: ['3-5 种语言或交流体系'], classes: ['4-6 个社会阶层'], faith: '信仰', family: '家庭与共同体', education: '教育', clothing: '服饰', cuisine: '饮食' },
+  population: [{ raceId: '整数 0-18', weight: '整数 1-10', role: '人口角色' }],
+  regions: [{ name: '地区名称', type: '地理类型', traits: ['2-4 个特征'], commonOccupations: ['2-4 个职业'] }],
+  culture: { values: ['3-6 个价值观'], taboos: ['3-6 个禁忌'], etiquette: '待客礼仪', hospitalityIdeal: '理想服务', speechStyle: '说话风格' },
+  history: [{ name: '时代或事件名', detail: '事件及其当代影响' }], factions: [{ name: '势力名', detail: '制度、利益、目标与盟敌' }],
+  economy: { currency: '货币', industries: ['产业'], exports: ['出口'], imports: ['进口'], labor: '劳动制度', prices: { grain: '0.85-1.20', veg: '0.85-1.20', meat: '0.85-1.20', spice: '0.85-1.20', ether: '0.85-1.20' } },
+  hospitality: { wantWeights: '对象，键只使用 meal、drink、sleep、bath、play、show、stroll、stargaze、game、brew，值 0.85-1.20', flavorLikes: ['sweet、spicy、sour、umami、mellow、weird 中 1-3 项'], flavorDislikes: ['同枚举 0-2 项'], roomStyleLikes: ['rustic、neon、astral、forge、frost 中 1-3 项'], servicePriorities: { hygiene: '0.85-1.20', etiquette: '0.85-1.20' } },
+  travel: { occupations: ['4-8 个旅行职业'], purposes: ['4-8 个来店目的'], groupPatterns: [{ type: '团体名', min: '1-4', max: '1-4', weight: '1-10' }], budgetMultiplier: '0.85-1.20', patienceMultiplier: '0.85-1.20' },
+  environmentRule: { name: '规则名', detail: '公开、温和且可观察的经营影响', effects: '只使用 budget、patience、hygiene、etiquette、comfort、spectacle，值 0.85-1.20' },
+  localRules: [{ name: '规则名', detail: '每日轮换的当地法令或习惯' }], festivals: [{ name: '节庆名', detail: '经营影响' }],
+  recommendedFacilities: ['dining、bar、parlor、guestroom、onsen、billiard、theater、garden、observatory、arcade、alchemy 中 2-4 项'],
+  conflicts: ['3-6 个当代矛盾'], storyHooks: ['4-8 个经营或旅行故事钩子'],
+  notableCharacters: [{ name: '原创人物名', detail: '身份、阵营、公开目标与个人矛盾' }],
+  visuals: { appearanceThemes: ['cyber、ancient、magic 中 1-3 项'] }, atmosphere: { sky: ['两个十六进制颜色'], tint: '十六进制强调色', particle: '粒子', weather: '天气与动态天象', horizon: '远景', sound: '环境声' },
+};
+
 const DEFINITIONS = Object.freeze({
   staff_chat: {
     schema: {
@@ -209,6 +229,44 @@ const DEFINITIONS = Object.freeze({
     ],
     temperature: 0.9, maxTokens: 700,
   },
+  world_concept: {
+    schema: {
+      workingName: '原创工作名，2-24 个汉字', genre: '类型与文明尺度，10-80 个汉字',
+      corePromise: '玩家最想体验到的核心感觉，30-180 个汉字',
+      hardConstraints: ['必须保留的 3-8 项要素'], exclusions: ['禁止出现的 0-8 项要素'],
+      coreLaws: ['3-6 条贯穿自然、力量和社会的规律，每条包含代价或限制'],
+      centralConflicts: ['2-5 个能影响普通生活和经营的矛盾'],
+      differentiation: '相对现有世界的差异化说明，50-300 个汉字',
+      originalityPlan: '若输入涉及现有作品，说明如何抽象类型体验并全面原创化，30-220 个汉字',
+    },
+    rules: [
+      '只整理创作简报，不直接生成完整世界；不得遗漏玩家的 mustInclude、mustAvoid 和 tone。',
+      '玩家输入提及现有作品、角色或专有名词时，不沿用其专有名称、人物、组织、地点或具体历史，只提炼类型体验。',
+      '核心规律必须同时影响宏观世界与普通人的日常生活，并具有明确代价、资源或边界。',
+      '世界必须能容纳多种种族，种族不等同于世界。',
+    ], temperature: .8, maxTokens: 1300,
+  },
+  world_compile: {
+    schema: { world: WORLD_CONTENT_SCHEMA },
+    rules: [
+      '严格依据 facts.brief 与玩家原始输入生成完整原创世界；不得直接复刻现有作品的专有名词、角色、势力和历史。',
+      'regions 必须 6-10 项，history 6-8 项，factions 4-6 项，notableCharacters 6-8 项，localRules 至少 3 项，festivals 至少 2 项。',
+      '前三名 notableCharacters 将作为稀有访客，因此必须有明确动机并能在旅店场景中交流，其余人物仍需可用于传闻与图鉴。',
+      '所有经营倍率必须在 0.85-1.20；当地规则不得禁用餐饮、饮酒、住宿或任何基础设施。',
+      'population.raceId 只能使用 facts.races 中的整数 ID；经营枚举只能使用输出规范给出的英文 ID。',
+      '历史、政治、经济、日常生活和标志人物必须互相引用并形成因果，而不是互不相关的设定清单。',
+    ], temperature: .88, maxTokens: 6200,
+  },
+  world_review: {
+    schema: { world: WORLD_CONTENT_SCHEMA, repairs: ['本轮实际完成的 1-12 条修复摘要'] },
+    rules: [
+      '逐项审核 facts.candidate，并在 world 中返回完整修复稿；不得只返回意见或省略未修改字段。',
+      '删除或原创化任何直接复制现有作品的专有名称、角色、组织、地点和具体情节，同时保留玩家要求的抽象类型体验。',
+      '修复世界规律、历史、势力、经济、人物之间的矛盾，并补齐所有数量要求。',
+      '所有倍率夹在 0.85-1.20；优势和限制成对出现，不得让世界成为纯收益最优选择。',
+      '不得增加输出规范之外的玩法资源、永久能力或新基础设施 ID。',
+    ], temperature: .45, maxTokens: 6800,
+  },
   night_story: {
     schema: {
       title: '字符串，本段剧情标题，4-24 个汉字',
@@ -330,6 +388,25 @@ export function ownerCreatorCatalogs(ageMax = []) {
 
 export function validateGameAIResult(kind, raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('AI 返回的根节点不是对象');
+  if (kind === 'world_concept') {
+    for (const key of ['hardConstraints', 'exclusions', 'coreLaws', 'centralConflicts']) if (!Array.isArray(raw[key])) throw new Error(`AI 返回缺少字段：${key}`);
+    return {
+      workingName: requiredText(raw.workingName, 'workingName', 2, 24), genre: requiredText(raw.genre, 'genre', 4, 100),
+      corePromise: requiredText(raw.corePromise, 'corePromise', 12, 240), hardConstraints: raw.hardConstraints.slice(0, 8).map(String), exclusions: raw.exclusions.slice(0, 8).map(String),
+      coreLaws: raw.coreLaws.slice(0, 6).map(String), centralConflicts: raw.centralConflicts.slice(0, 5).map(String),
+      differentiation: requiredText(raw.differentiation, 'differentiation', 20, 400), originalityPlan: requiredText(raw.originalityPlan, 'originalityPlan', 10, 300),
+    };
+  }
+  if (kind === 'world_compile' || kind === 'world_review') {
+    const world = raw.world;
+    if (!world || typeof world !== 'object' || Array.isArray(world)) throw new Error('AI 返回缺少字段：world');
+    for (const [key, min, max] of [['regions', 6, 10], ['history', 6, 8], ['factions', 4, 6], ['notableCharacters', 6, 8], ['localRules', 3, 5], ['festivals', 2, 4]]) {
+      if (!Array.isArray(world[key]) || world[key].length < min) throw new Error(`AI 世界字段 ${key} 至少需要 ${min} 项`);
+      world[key] = world[key].slice(0, max);
+    }
+    requiredText(world.name, 'world.name', 2, 24); requiredText(world.summary, 'world.summary', 30, 700);
+    return kind === 'world_review' ? { world, repairs: Array.isArray(raw.repairs) ? raw.repairs.slice(0, 12).map(String) : [] } : { world };
+  }
   if (kind === 'staff_chat' || kind === 'guest_chat') {
     const allowed = ['neutral', 'happy', 'shy', 'tired', 'serious'];
     return { reply: requiredText(raw.reply, 'reply', 2, 180), emotion: allowed.includes(raw.emotion) ? raw.emotion : 'neutral' };

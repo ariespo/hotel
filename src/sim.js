@@ -7,9 +7,10 @@ import {
   FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef,
   DUTIES, GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName, SEASON_NAMES,                              SKILL_KEYS, SKILL_LABEL,
   ROOM_CHARM, ROOM_LABEL, STAR_CERTIFICATIONS, STAR_THRESHOLDS, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
-  WORLD_PROFILES, worldById, worldsForStars,
+  WORLD_PROFILES, allWorlds, worldById, worldsForStars,
 } from './data.js';
 import {            Tavern, dirDelta, furnFootprint } from './world.js';
+import { normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 
 export const LONG_EVENT_CHAINS = [
   { id: 'starwhale', name: '星鲸迁徙季', steps: [
@@ -447,6 +448,12 @@ export function normalizedSkills(input = {}, fallback = 38) {
 
 export const DEFAULT_RESTOCK_TARGETS = { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 };
 
+export function worldIngredientPrice(econ, key) {
+  const world = worldById(econ?.currentWorldId, econ?.customWorlds);
+  const multiplier = clamp(Number(world?.economy?.prices?.[key]) || 1, .85, 1.2);
+  return Math.max(1, Math.round((ING_PRICE[key] || 1) * multiplier));
+}
+
 /** 按目标库存与补货预算生成可直接执行的采购计划。budget=0 表示不设上限。 */
 export function restockPlan(econ) {
   const targets = { ...DEFAULT_RESTOCK_TARGETS, ...(econ?.restockTargets || {}) };
@@ -457,9 +464,10 @@ export function restockPlan(econ) {
   for (const key of ING_KEYS) {
     const target = Math.max(0, Math.min(999, Math.round(Number(targets[key]) || 0)));
     const need = Math.max(0, target - Math.max(0, Number(econ?.stock?.[key]) || 0));
-    const amount = Math.min(need, Math.floor(remaining / ING_PRICE[key]));
-    const cost = amount * ING_PRICE[key];
-    items[key] = { target, amount, cost, shortfall: need - amount };
+    const unitPrice = worldIngredientPrice(econ, key);
+    const amount = Math.min(need, Math.floor(remaining / unitPrice));
+    const cost = amount * unitPrice;
+    items[key] = { target, amount, cost, shortfall: need - amount, unitPrice, multiplier: unitPrice / ING_PRICE[key] };
     total += cost;
     remaining -= cost;
   }
@@ -702,9 +710,50 @@ export class Sim {
     const certified = Number(this.econ.certifiedStars);
     this.econ.certifiedStars = Math.max(0, Math.min(5, Number.isFinite(certified) ? Math.round(certified) : starsOf(this.econ.rep)));
     this.econ.certificationHistory = Array.isArray(this.econ.certificationHistory) ? this.econ.certificationHistory : [];
-    this.econ.worldKnowledge = { ...blankWorldKnowledge(), ...(this.econ.worldKnowledge || {}) };
+    this.econ.customWorlds = Array.isArray(this.econ.customWorlds) ? this.econ.customWorlds.slice(0, 8).map((world) => normalizeCustomWorld(world, world.id)) : [];
+    this.econ.archivedWorlds = Array.isArray(this.econ.archivedWorlds) ? this.econ.archivedWorlds.slice(0, 40) : [];
+    this.econ.currentWorldId = this.worldById(this.econ.currentWorldId).id;
+    this.econ.pendingWorldSwitch = this.econ.pendingWorldSwitch && typeof this.econ.pendingWorldSwitch === 'object' ? this.econ.pendingWorldSwitch : null;
+    this.econ.worldVisits = this.econ.worldVisits && typeof this.econ.worldVisits === 'object' ? this.econ.worldVisits : { [this.econ.currentWorldId]: 1 };
+    this.econ.worldKnowledge = { ...blankWorldKnowledge(), ...Object.fromEntries(this.econ.customWorlds.map((world) => [world.id, { level: 4, arrivals: 0, served: 0, firstDay: this.econ.day, reviewed: true, journeyAsked: true }])), ...(this.econ.worldKnowledge || {}) };
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.econ.certifiedStars);
     this.rng = new Rng(econ.seed || 12345);
+  }
+
+  worlds() { return allWorlds(this.econ.customWorlds); }
+  worldById(id) { return worldById(id, this.econ.customWorlds); }
+  currentWorld() { return this.worldById(this.econ.currentWorldId); }
+  currentWorldRule() { return worldRuleForDay(this.currentWorld(), this.econ.day); }
+  currentWorldFestival() { return worldFestivalForDay(this.currentWorld(), this.econ.day); }
+
+  unlockedWorlds() {
+    return this.worlds().filter((world) => world.custom || world.unlockStars <= this.stars());
+  }
+
+  requestWorldSwitch(id) {
+    if (this.dayActive) { this.toast('营业中无法迁移旅店，请在打烊规划期操作'); return false; }
+    if (this.econ.pendingWorldSwitch) { this.toast('本次打烊期已经确认航行目的地'); return false; }
+    const world = this.unlockedWorlds().find((row) => row.id === id);
+    if (!world) { this.toast('这个世界尚未与旅店建立稳定航路'); return false; }
+    if (world.id === this.econ.currentWorldId) { this.toast('旅店已经位于这个世界'); return false; }
+    const cost = worldSwitchCost(world);
+    if (this.econ.coins < cost) { this.toast(`界币不足：迁移至${world.name}需要 ${cost} 界币`); return false; }
+    this.econ.coins -= cost;
+    this.econ.pendingWorldSwitch = { worldId: world.id, cost, confirmedDay: this.econ.day };
+    this.toast(`已锁定下一站：${world.icon} ${world.name}（-${cost} 界币），次日开门时抵达`);
+    return true;
+  }
+
+  activatePendingWorldSwitch() {
+    const pending = this.econ.pendingWorldSwitch;
+    if (!pending) return null;
+    const world = this.unlockedWorlds().find((row) => row.id === pending.worldId);
+    this.econ.pendingWorldSwitch = null;
+    if (!world) { this.toast('航路失效，旅店保持在当前世界'); return null; }
+    this.econ.currentWorldId = world.id;
+    this.econ.worldVisits[world.id] = (this.econ.worldVisits[world.id] || 0) + 1;
+    this.toast(`${world.icon} 旅店已抵达${world.name}：${world.tagline || world.identity.summary}`);
+    return world;
   }
 
   worldKnowledge(id) {
@@ -732,7 +781,7 @@ export class Sim {
       this.discoverWorld(id, 'served');
       if (reviewed) this.discoverWorld(id, 'review');
       if (!this.dayReport) continue;
-      const world = worldById(id);
+      const world = this.worldById(id);
       const row = this.dayReport.worldGuests[id] || { name: world.name, arrivals: 0, served: 0, lost: 0, revenue: 0, scoreTotal: 0, scoreSamples: 0, complaints: {} };
       row.served += count; row.revenue += Math.round(revenue * count / Math.max(1, g.size)); row.scoreTotal += score * count; row.scoreSamples += count;
       if (score < 2.75) {
@@ -756,7 +805,10 @@ export class Sim {
     // 自来应聘：只有零星一两个人，主力靠玩家发招募广告
     this.pool = [];
     const n = this.econ.day <= 1 ? 1 : this.rng.chance(0.5) ? 1 : 0;
-    for (let i = 0; i < n; i++) this.pool.push(makeStaff(this.rng, this.id(), false, undefined, undefined, { lo: 8, hi: 52 }));
+    for (let i = 0; i < n; i++) {
+      const local = this.rng.chance(.6) ? weightedPick(this.rng, this.currentWorld().population || [], (row) => row.weight || 1) : null;
+      this.pool.push(makeStaff(this.rng, this.id(), false, undefined, undefined, { lo: 8, hi: 52, race: local?.raceId }));
+    }
     // 开局赠送一张已生效的传单广告，让玩家看到招募系统长什么样
     if (this.econ.day <= 1 && !this.ads.some((a) => a.spec)) {
       this.ads[0] = { spec: { tier: 'flyer', race: -1, sex: '', bias: '' }, cands: [], day: 1 };
@@ -777,13 +829,14 @@ export class Sim {
     return Math.round(c / 10) * 10;
   }
 
-          rollCands(spec        )          {
+  rollCands(spec        )          {
     const t = this.adTier(spec.tier);
     const n = 3 + this.rng.int(3);                     // 3–5 位符合要求的候选者
     const out          = [];
     for (let i = 0; i < n; i++) {
+      const local = spec.race < 0 && this.rng.chance(.6) ? weightedPick(this.rng, this.currentWorld().population || [], (row) => row.weight || 1) : null;
       out.push(makeStaff(this.rng, this.id(), false, undefined, undefined, {
-        lo: t.lo, hi: t.hi, race: spec.race, sex: spec.sex || undefined, bias: spec.bias || undefined,
+        lo: t.lo, hi: t.hi, race: spec.race >= 0 ? spec.race : local?.raceId, sex: spec.sex || undefined, bias: spec.bias || undefined,
       }));
     }
     return out;
@@ -1241,6 +1294,7 @@ export class Sim {
 
   // ---------- 营业日 ----------
   openDay()       {
+    this.activatePendingWorldSwitch();
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.stars());
     this.dayT = 0;
     this.aiEventRequested = false;
@@ -1546,9 +1600,21 @@ export class Sim {
     const returningPool = this.regulars.filter((profile) => !activeRegulars.has(profile.id) && profile.lastVisitDay < this.econ.day);
     const returning = returningPool.length && this.rng.chance(Math.min(.55, .22 + returningPool.length * .025))
       ? returningPool[this.rng.int(returningPool.length)] : null;
-    const availableWorlds = worldsForStars(this.stars());
+    const availableWorlds = this.unlockedWorlds();
     const forecast = new Set(this.econ.worldForecast || []);
-    const origin = returning?.originWorldId ? worldById(returning.originWorldId) : weightedPick(this.rng, availableWorlds, (world) => forecast.has(world.id) ? 1.85 : 1);
+    let origin;
+    if (returning?.originWorldId) origin = this.worldById(returning.originWorldId);
+    else {
+      const host = this.currentWorld();
+      const others = availableWorlds.filter((world) => world.id !== host.id);
+      const roll = this.rng.next();
+      if (roll < .6 || !others.length) origin = host;
+      else if (roll < .9) origin = weightedPick(this.rng, others, (world) => forecast.has(world.id) ? 1.85 : 1);
+      else {
+        const tide = others.filter((world) => forecast.has(world.id));
+        origin = weightedPick(this.rng, tide.length ? tide : others, () => 1) || host;
+      }
+    }
     const crossWorld = !returning && this.stars() >= 5 && availableWorlds.length > 1 && this.rng.chance(.24);
     let secondary = crossWorld ? weightedPick(this.rng, availableWorlds.filter((world) => world.id !== origin.id), (world) => forecast.has(world.id) ? 1.5 : 1) : null;
     const want = returning?.want && wants.some((item) => item.id === returning.want) && this.rng.chance(.7)
@@ -1594,6 +1660,15 @@ export class Sim {
         path: [], seatId: 0, mood: 1, aff: 0, aiChatLog: [],
       });
     }
+    const visitorPool = !returning && origin.id === this.econ.currentWorldId
+      ? (origin.notableCharacters || []).filter((character) => character.visitor && !(this.econ.notableVisits || {})[`${origin.id}:${character.name}`]) : [];
+    if (visitorPool.length && this.rng.chance(.08)) {
+      const visitor = visitorPool[this.rng.int(visitorPool.length)]; const lead = members[0];
+      lead.name = visitor.name; lead.travelOccupation = '世界标志人物'; lead.travelPurpose = visitor.detail;
+      lead.background = { role: `${origin.name}的标志人物`, background: visitor.detail, aspiration: '亲自观察多元旅店如何接待自己的世界。', quirk: '言谈中会自然提及故乡的局势。' };
+      this.econ.notableVisits ||= {}; this.econ.notableVisits[`${origin.id}:${visitor.name}`] = this.econ.day;
+      this.toast(`✦ 稀有访客抵达：${origin.name}的${visitor.name}`);
+    }
     const pool = want.facility ? this.allDishes() : this.makeableDishes(want.drink);
     const taste = returning?.taste?.length ? [...returning.taste] : [pool[this.rng.int(pool.length)].id, pool[this.rng.int(pool.length)].id];
     const preferredFlavors = [...new Set([...(origin.hospitality.flavorLikes || []), ...(secondary?.hospitality.flavorLikes || [])])];
@@ -1601,13 +1676,17 @@ export class Sim {
     const rememberedF2 = returning?.flavors?.[1];
     const alternatives = FLAVORS.map((item) => item.id).filter((id) => id !== f1);
     const f2 = rememberedF2 && rememberedF2 !== f1 ? rememberedF2 : alternatives[this.rng.int(alternatives.length)] || f1;
+    const hostEnvironment = this.currentWorld().environmentRule?.effects || {};
+    const hostDailyRule = this.currentWorldRule()?.effects || {};
+    const hostFestival = this.currentWorldFestival()?.effects || {};
+    const hostFactor = (key) => clamp(Number(hostEnvironment[key]) || 1, .85, 1.2) * clamp(Number(hostDailyRule[key]) || 1, .85, 1.2) * clamp(Number(hostFestival[key]) || 1, .85, 1.2);
     const g        = {
       id: gid, members, size, tableId: 0, state: 'wait', want: want.id, greeted: false, seatCd: 0, facId: 0, useT: 0, facT: 0,
       originWorldId: origin.id, worldIds: secondary ? [origin.id, secondary.id] : [origin.id], crossWorld: !!secondary,
       homeRegion: members[0].homeRegion, travelOccupation: members[0].travelOccupation, travelPurpose: members[0].travelPurpose,
-      maxPatience: Math.round(this.rng.range(78, 135) * worldModifier(origin, 'patience')), patience: 0,
-      budget: Math.round(this.rng.range(30, 120) * worldModifier(origin, 'budget')),
-      hygieneSens: this.rng.range(0.4, 1.5) * worldModifier(origin, 'hygiene'), taste, flavors: [f1, f2], orderId: 0,
+      maxPatience: Math.round(this.rng.range(78, 135) * worldModifier(origin, 'patience') * hostFactor('patience')), patience: 0,
+      budget: Math.round(this.rng.range(30, 120) * worldModifier(origin, 'budget') * hostFactor('budget')),
+      hygieneSens: this.rng.range(0.4, 1.5) * worldModifier(origin, 'hygiene') * hostFactor('hygiene'), taste, flavors: [f1, f2], orderId: 0,
       enterT: this.dayT, orderedT: 0, servedT: 0, eatT: 0, leaveReason: '',
       praised: 0, mocked: 0, intCd: 0, regularId: returning?.id || null,
     };
@@ -1623,14 +1702,14 @@ export class Sim {
     for (const id of g.worldIds) this.discoverWorld(id, 'arrival');
     if (this.dayReport) {
       for (const member of members) {
-        const id = member.originWorldId; const world = worldById(id);
+        const id = member.originWorldId; const world = this.worldById(id);
         const row = this.dayReport.worldGuests[id] || { name: world.name, arrivals: 0, served: 0, lost: 0, revenue: 0, scoreTotal: 0, scoreSamples: 0, complaints: {} };
         row.arrivals++; this.dayReport.worldGuests[id] = row;
       }
     }
     this.fx.push({ x: e.x, y: e.y, t: 0.6, kind: 'portal' });
     this.sounds.push('chime');
-    const arrival = secondary
+    const arrival = members[0].travelOccupation === '世界标志人物' ? `稀有访客 ${members[0].name} 来自${origin.name}` : secondary
       ? `跨界使团抵达：${origin.name} × ${secondary.name}`
       : `来自${origin.name}的${g.travelOccupation}旅行团抵达`;
     members[0].bubble = { text: origin.dialogue.arrival[this.rng.int(origin.dialogue.arrival.length)], t: 6.5, tone: 'neutral' };
@@ -2071,7 +2150,7 @@ export class Sim {
       if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered' || g.state === 'facility_prepare' || g.state === 'facility_waiting_attend') {
         g.patience -= dt * (1 + (g.state === 'ordered' ? 0.15 : 0));
         if (!g.worldWaitSpoken && g.patience < g.maxPatience * .55) {
-          const guest = g.members[0]; const world = worldById(guest?.originWorldId || g.originWorldId);
+          const guest = g.members[0]; const world = this.worldById(guest?.originWorldId || g.originWorldId);
           if (guest) { const text = world.dialogue.wait[this.rng.int(world.dialogue.wait.length)]; guest.bubble = { text, t: 6, tone: 'neutral' }; this.say(`${guest.name}：${text}`); }
           g.worldWaitSpoken = true;
         }
@@ -2170,10 +2249,10 @@ export class Sim {
       this.recordScoreParts({ wait: 1.2, service: 1.2 });
       this.toast(`一组客人离店：${reason}`);
       this.sounds.push('angry');
-      const guest = g.members[0]; const world = worldById(guest?.originWorldId || g.originWorldId);
+      const guest = g.members[0]; const world = this.worldById(guest?.originWorldId || g.originWorldId);
       if (guest) guest.bubble = { text: world.dialogue.bad[this.rng.int(world.dialogue.bad.length)], t: 6, tone: 'bad' };
       if (this.dayReport) for (const member of g.members || []) {
-        const id = member.originWorldId || g.originWorldId; const w = worldById(id);
+        const id = member.originWorldId || g.originWorldId; const w = this.worldById(id);
         const row = this.dayReport.worldGuests[id] || { name: w.name, arrivals: 0, served: 0, lost: 0, revenue: 0, scoreTotal: 0, scoreSamples: 0, complaints: {} };
         row.lost++; row.complaints.wait = (row.complaints.wait || 0) + 1; this.dayReport.worldGuests[id] = row;
       }
@@ -2194,12 +2273,12 @@ export class Sim {
   }
 
   worldServiceMultipliers(g, room = null, dish = null) {
-    const worlds = (g.worldIds || [g.originWorldId]).filter(Boolean).map(worldById);
+    const worlds = (g.worldIds || [g.originWorldId]).filter(Boolean).map((id) => this.worldById(id));
     const average = (fn) => worlds.reduce((sum, world) => sum + fn(world), 0) / Math.max(1, worlds.length);
     const flavorHit = dish ? average((world) => (dish.flavors || []).some((flavor) => world.hospitality.flavorLikes.includes(flavor)) ? 1.08 : .96) : 1;
     const styleId = room ? this.tavern.roomStyle(room) : '';
     const styleFit = room ? average((world) => world.hospitality.roomStyleLikes.includes(styleId) ? 1.08 : .98) : 1;
-    const etiquette = average((world) => worldModifier(world, 'etiquette'));
+    const etiquette = average((world) => worldModifier(world, 'etiquette')) * clamp(Number(this.currentWorld().environmentRule?.effects?.etiquette) || Number(this.currentWorldRule()?.effects?.etiquette) || 1, .85, 1.2);
     return {
       quality: clamp(flavorHit, .8, 1.25),
       comfort: clamp(styleFit, .8, 1.25),
@@ -2227,7 +2306,7 @@ export class Sim {
       profile.aiChatLog = [...(guest.aiChatLog || [])].slice(0, 20);
       profile.relationshipSummary = guest.relationshipSummary || profile.relationshipSummary || '';
       profile.want = g.want; profile.taste = [...(g.taste || [])]; profile.flavors = [...(g.flavors || [])];
-      if (profile.aff >= 20 && !profile.background) profile.background = `${profile.name}是来自${worldById(profile.originWorldId).name}${profile.homeRegion || ''}的${profile.travelOccupation || '旅人'}，因${profile.travelPurpose || '跨界旅行'}来到多元旅店。`;
+      if (profile.aff >= 20 && !profile.background) profile.background = `${profile.name}是来自${this.worldById(profile.originWorldId).name}${profile.homeRegion || ''}的${profile.travelOccupation || '旅人'}，因${profile.travelPurpose || '跨界旅行'}来到多元旅店。`;
       if (profile.aff >= 35 && !profile.offer) profile.offer = { kind: 'commission', text: `希望旅店为其准备带有${FLAVOR_LABEL[profile.flavors[0]] || '独特'}风味的特别招待`, reward: 90 };
       if (profile.aff >= 60) profile.offer = { kind: 'vip', text: '愿意为招牌体验支付更高费用，但希望店主亲自照应', reward: 160 };
     }
@@ -2264,7 +2343,7 @@ export class Sim {
     if (!guest || !pool?.length) return null;
     const item = itemName || wantById(g.want).name;
     const serviceText = pool[this.rng.int(pool.length)].replaceAll('{item}', item);
-    const world = worldById(guest.originWorldId || g.originWorldId);
+    const world = this.worldById(guest.originWorldId || g.originWorldId);
     const worldPool = world.dialogue[tier] || world.dialogue.neutral;
     const text = `${serviceText} ${worldPool[this.rng.int(worldPool.length)]}`;
     guest.bubble = { text, t: 6.5, tone: tier };
@@ -2546,7 +2625,7 @@ export class Sim {
     if (g.intCd > 0) return '客人正在消化刚才的话题。';
     let line = '';
     if (kind === 'journey') {
-      const world = worldById(guest.originWorldId || g.originWorldId);
+      const world = this.worldById(guest.originWorldId || g.originWorldId);
       const story = world.dialogue.journey[this.rng.int(world.dialogue.journey.length)];
       line = `${guest.name}来自${world.name}的${guest.homeRegion || g.homeRegion}，是一名${guest.travelOccupation || g.travelOccupation}。${story} 此行是为了${guest.travelPurpose || g.travelPurpose}。`;
       this.discoverWorld(world.id, 'journey');
@@ -3589,8 +3668,10 @@ export class Sim {
   }
 
   dynamicEventFacts() {
+    const host = this.currentWorld();
     return {
       day: this.econ.day, timeRemainingSeconds: Math.max(0, Math.round(DAY_LEN - this.dayT)),
+      world: { currentHost: host.name, genre: host.genre, summary: host.identity.summary, environmentRule: host.environmentRule, todayRule: this.currentWorldRule(), festival: this.currentWorldFestival(), conflicts: host.conflicts, storyHooks: host.storyHooks },
       tavern: { stars: this.stars(), coins: Math.round(this.econ.coins), reputation: Math.round(this.econ.rep), rooms: this.tavern.rooms.map((room) => ROOM_LABEL[room.kind] || room.kind), furnitureCount: this.tavern.furns.length },
       today: { served: this.econ.served, lost: this.econ.lost, revenue: this.econ.revenue, completedWork: Object.values(this.dayReport?.work || {}).map((row) => ({ name: row.name, tasks: row.tasks })) },
       staff: this.staff.map((person) => ({ name: person.name, job: person.job, skills: normalizedSkills(person.skills), morale: Math.round(person.needs.morale), stress: Math.round(person.needs.stress) })),
@@ -3842,12 +3923,18 @@ export class Sim {
     this.econ = data.econ;
     this.econ.certifiedStars = clamp(Math.round(Number(this.econ.certifiedStars) || 0), 0, 5);
     this.econ.certificationHistory = Array.isArray(this.econ.certificationHistory) ? this.econ.certificationHistory : [];
-    this.econ.worldKnowledge = { ...blankWorldKnowledge(), ...(this.econ.worldKnowledge || {}) };
+    this.econ.customWorlds = Array.isArray(this.econ.customWorlds) ? this.econ.customWorlds.slice(0, 8).map((world) => normalizeCustomWorld(world, world.id)) : [];
+    this.econ.archivedWorlds = Array.isArray(this.econ.archivedWorlds) ? this.econ.archivedWorlds.slice(0, 40) : [];
+    this.econ.currentWorldId = this.worldById(this.econ.currentWorldId).id;
+    this.econ.pendingWorldSwitch = this.econ.pendingWorldSwitch && typeof this.econ.pendingWorldSwitch === 'object' ? this.econ.pendingWorldSwitch : null;
+    this.econ.worldVisits = this.econ.worldVisits && typeof this.econ.worldVisits === 'object' ? this.econ.worldVisits : { [this.econ.currentWorldId]: 1 };
+    this.econ.worldKnowledge = { ...blankWorldKnowledge(), ...Object.fromEntries(this.econ.customWorlds.map((world) => [world.id, { level: 4, arrivals: 0, served: 0, firstDay: this.econ.day, reviewed: true, journeyAsked: true }])), ...(this.econ.worldKnowledge || {}) };
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.econ.certifiedStars);
     if (!this.econ.menu) this.econ.menu = {};   // 老存档：全部上架
     if (!this.econ.customDishes) this.econ.customDishes = [];   // 老存档：无自创菜
     if (!this.econ.aiChronicles) this.econ.aiChronicles = [];
     if (!this.econ.aiNightStories) this.econ.aiNightStories = [];
+    if (!this.econ.notableVisits || typeof this.econ.notableVisits !== 'object') this.econ.notableVisits = {};
     if (!this.econ.dishMastery || typeof this.econ.dishMastery !== 'object') this.econ.dishMastery = {};
     this.econ.restockTargets = { ...DEFAULT_RESTOCK_TARGETS, ...(this.econ.restockTargets || {}) };
     this.econ.restockBudget = Math.max(0, Math.round(Number(this.econ.restockBudget) || 0));
@@ -3903,6 +3990,7 @@ export function newEcon(seed        )       {
     stock: { grain: 70, veg: 70, meat: 45, spice: 30, ether: 20 },
     menu: {},
     customDishes: [], dishMastery: {}, aiChronicles: [], aiNightStories: [],
+    currentWorldId: 'hearth_coast', pendingWorldSwitch: null, customWorlds: [], archivedWorlds: [], worldVisits: { hearth_coast: 1 }, notableVisits: {},
     worldKnowledge: blankWorldKnowledge(), worldForecast: worldForecastForDay(seed, 1, 0),
     revenue: 0, served: 0, lost: 0, seed,
   };

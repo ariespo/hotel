@@ -8,7 +8,7 @@ import { hexToNum, mix, PAL, Rng } from './src/pix.js';
 import {
   BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById, worldById,
 } from './src/data.js';
-import { DAY_LEN,            makeStaff, newEcon, Sim,            } from './src/sim.js';
+import { DAY_LEN,            makeStaff, newEcon, Sim, worldIngredientPrice,            } from './src/sim.js';
 import { canPersistSim } from './src/save-policy.js';
 import { bedDisplayPlacement, bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern } from './src/world.js';
 import {               UI } from './src/ui.js';
@@ -1229,6 +1229,7 @@ class Game                    {
     this.save();
     this.saveMorning();
     this.sim.openDay();
+    this.drawStars();
     this.paused = false;
     this.audio.play('portal');
     this.audio.playTrack('bgm');
@@ -1485,7 +1486,7 @@ class Game                    {
     else if (s.kind === 'room') this.demolishRoom(s.id);
   }
   buyStock(k        , n        )       {
-    const cost = ING_PRICE[k] * n;
+    const cost = worldIngredientPrice(this.sim.econ, k) * n;
     if (this.sim.econ.coins < cost) { this.sim.toast('界币不足'); this.audio.play('error'); return; }
     this.sim.econ.coins -= cost;
     this.sim.econ.stock[k] += n;
@@ -1564,7 +1565,13 @@ class Game                    {
     this.starGlintsB.clear();
     const w = this.app.renderer.width, h = this.app.renderer.height;
     const sky = createSkyPlan(w, h);
-    for (const band of sky.bands) g.rect(0, band.y, w, band.height).fill(hexToNum(band.color));
+    const atmosphere = this.sim?.currentWorld?.()?.visuals?.atmosphere || this.sim?.currentWorld?.()?.atmosphere;
+    const skyColors = atmosphere?.sky || [];
+    for (let i = 0; i < sky.bands.length; i++) {
+      const band = sky.bands[i];
+      const color = skyColors.length ? skyColors[Math.min(skyColors.length - 1, Math.floor(i * skyColors.length / sky.bands.length))] : band.color;
+      g.rect(0, band.y, w, band.height).fill(hexToNum(color));
+    }
     for (const cloud of sky.nebula) {
       g.ellipse(cloud.x, cloud.y, cloud.rx, cloud.ry).fill({ color: cloud.color, alpha: cloud.alpha });
     }
@@ -1588,6 +1595,47 @@ class Game                    {
       layer.rect(star.x, star.y - r, 1, r * 2 + 1).fill({ color: star.color, alpha: 0.9 });
       layer.rect(star.x, star.y, 1, 1).fill(0xffffff);
       if (r >= 5) layer.circle(star.x, star.y, 4).fill({ color: star.color, alpha: 0.08 });
+    }
+    const worldId = this.sim?.currentWorld?.()?.id || 'hearth_coast';
+    const tint = hexToNum(atmosphere?.tint || '#9BC7E8');
+    const horizonY = Math.round(h * 0.78);
+    const seed = [...worldId].reduce((sum, ch) => (sum * 33 + ch.charCodeAt(0)) >>> 0, 5381);
+    for (let i = 0; i < 18; i++) {
+      const x = (seed * (i + 17) * 2654435761 >>> 0) % Math.max(1, w);
+      const y = ((seed ^ (i * 2246822519)) >>> 0) % Math.max(1, horizonY);
+      if (worldId === 'neon_ring' || worldId === 'iron_hive') g.rect(x, y, 2, 8 + i % 9).fill({ color: tint, alpha: 0.08 + (i % 4) * 0.025 });
+      else if (worldId === 'moonsea') g.ellipse(x, y, 7 + i % 5, 2).stroke({ width: 1, color: tint, alpha: 0.14 });
+      else if (worldId === 'magma_ridge' || worldId === 'honey_sky') g.circle(x, y, 1 + i % 3).fill({ color: tint, alpha: 0.12 + (i % 3) * 0.05 });
+      else g.rect(x, y, 2 + i % 2, 2 + i % 2).fill({ color: tint, alpha: 0.12 });
+    }
+    const silhouette = { color: tint, alpha: 0.075 };
+    if (worldId === 'neon_ring' || worldId === 'iron_hive') {
+      for (let x = 0, i = 0; x < w; i++) {
+        const bw = 18 + (i * 17 % 42), bh = 24 + (i * 29 % Math.max(25, h * 0.2));
+        g.rect(x, horizonY - bh, bw, bh).fill(silhouette);
+        if (worldId === 'iron_hive' && i % 3 === 0) g.rect(x + bw / 2, horizonY - bh - 28, 3, 28).fill(silhouette);
+        x += bw + 5;
+      }
+    } else if (worldId === 'moonsea' || worldId === 'inverted_dreamsea') {
+      for (let y = horizonY; y < h; y += 12) g.moveTo(0, y).bezierCurveTo(w * 0.25, y - 8, w * 0.75, y + 8, w, y).stroke({ width: 2, color: tint, alpha: 0.08 });
+      if (worldId === 'inverted_dreamsea') for (let i = 0; i < 5; i++) g.ellipse(w * (i + 1) / 6, horizonY - 35 - (i % 2) * 28, 30 + i * 4, 9).fill(silhouette);
+    } else if (worldId === 'magma_ridge' || worldId === 'ash_dragoncourt' || worldId === 'verdant_court') {
+      for (let x = -40, i = 0; x < w; i++, x += 70) {
+        const peak = horizonY - 45 - (i * 31 % 110);
+        g.poly([x, horizonY, x + 55, peak, x + 115, horizonY]).fill(silhouette);
+      }
+    } else if (worldId === 'honey_sky') {
+      for (let i = 0; i < 7; i++) {
+        const x = w * (i + 1) / 8, y = horizonY - 30 - (i % 3) * 34;
+        g.ellipse(x, y, 36, 10).fill(silhouette);
+        g.poly([x - 25, y + 5, x + 25, y + 5, x, y + 34]).fill(silhouette);
+      }
+    } else {
+      for (let x = 0, i = 0; x < w; i++, x += 58) {
+        const bh = 22 + (i * 23 % 55);
+        g.rect(x, horizonY - bh, 42, bh).fill(silhouette);
+        if (i % 2 === 0) g.poly([x + 8, horizonY - bh, x + 21, horizonY - bh - 24, x + 34, horizonY - bh]).fill(silhouette);
+      }
     }
   }
 

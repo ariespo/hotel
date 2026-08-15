@@ -7,7 +7,7 @@ import {
 import { Rng } from './pix.js';
 import { AI_PRESETS, loadAIConfig, presetById, refreshAIModels, saveAIConfig } from './ai.js';
 import { aiConfigured, ownerCreatorCatalogs, requestGameAI } from './ai-game.js';
-import { composeNightPromptModules, loadPromptTasks, NIGHT_PROMPT_MODULES, parseNightPromptModules, PROMPT_TASKS, resetPromptTasks, savePromptTasks } from './prompt-settings.js';
+import { composeNightPromptModules, composeWorldPromptModules, loadPromptTasks, NIGHT_PROMPT_MODULES, parseNightPromptModules, parseWorldPromptModules, PROMPT_TASKS, resetPromptTasks, savePromptTasks, WORLD_PROMPT_STAGES } from './prompt-settings.js';
 import { loadPlayerProfile, savePlayerProfile } from './player-profile.js';
 import { canPersistSim } from './save-policy.js';
 import { advanceTutorialState, loadTutorialState, resetTutorialState, retreatTutorialState, saveTutorialState, TUTORIAL_STEPS, tutorialActionMatches } from './tutorial.js';
@@ -16,7 +16,8 @@ import {
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
   WORLD_PROFILES, worldById,
 } from './data.js';
-import { AGE_MAX, fairWageRange, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS } from './sim.js';
+import { AGE_MAX, fairWageRange, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
+import { CUSTOM_WORLD_LIMIT, customWorldCreationCost, normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
 
@@ -232,6 +233,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .prompt-editor{display:block;margin:5px 0 12px;width:100%;min-height:88px;box-sizing:border-box;resize:vertical;line-height:1.55}
 .prompt-card{padding:8px 10px;border:2px solid #E3C9A4;border-left:5px solid #8A74B8;border-radius:10px;background:#FFF8E9;margin-top:8px}
 .prompt-tabs{display:flex;gap:6px;position:sticky;top:-12px;z-index:2;padding:8px 0;background:#F5E6C8;flex-wrap:wrap}.prompt-tabs button{min-width:100px}.prompt-tabs button.on{background:#7A4BE0;color:#fff;border-color:#5E3EA0}.prompt-pane{display:none}.prompt-pane.on{display:block}.prompt-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.prompt-module{padding:8px 9px;border:2px solid #E3C9A4;border-radius:9px;background:#FFF8E9}.prompt-module textarea{width:100%;min-height:112px;box-sizing:border-box;margin-top:5px;resize:vertical;line-height:1.5}
+.world-title{font-weight:900;border-color:var(--world-tint,#C9922F);box-shadow:0 0 0 1px color-mix(in srgb,var(--world-tint,#C9922F) 35%,transparent);white-space:nowrap}.world-picker{display:flex;gap:5px;overflow-x:auto;padding:4px 0 8px}.world-picker button{flex:0 0 auto}.world-card-tabs{position:static;background:transparent}.world-card-tabs button{min-width:70px}.world-card-body{min-height:280px;max-height:55vh;overflow:auto;padding-right:4px}.world-hero{display:flex;align-items:center;gap:14px;padding:14px;border:2px solid var(--world-card-tint);border-radius:12px;background:linear-gradient(135deg,#FFF8E9,color-mix(in srgb,var(--world-card-tint) 16%,#FFF8E9))}.world-hero h2{margin:0 0 4px}.world-glyph{font-size:46px;min-width:56px;text-align:center;color:var(--world-card-tint);text-shadow:0 2px 0 #fff}.world-timeline .card{border-left-color:var(--world-tint,#7A4BE0)}
 #tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper2.png');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 120px}html.portrait-v2 .creator-preview img.big{width:120px;height:160px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
@@ -467,6 +469,17 @@ export class UI {
     else if (act === 'open') g.openDay();
     else if (act === 'readiness') this.openReadiness();
     else if (act === 'home') { const e = g.tavern.entrance(); g.focusOn(e.x, e.y + 2); }
+    else if (act === 'worldcard') this.openWorldCard(v || g.sim.econ.currentWorldId);
+    else if (act === 'worldcardtab') this.openWorldCard(t.dataset.id || g.sim.econ.currentWorldId, v);
+    else if (act === 'worldswitch') this.openWorldSwitchConfirm(v);
+    else if (act === 'worldswitchgo') { if (g.sim.requestWorldSwitch(v)) { g.save(); this.openWorldCard(v); } }
+    else if (act === 'customworld') this.openCustomWorldBuilder();
+    else if (act === 'customworldgenerate') this.generateCustomWorld();
+    else if (act === 'customworldsave') this.saveCustomWorld();
+    else if (act === 'customworldcancelai') this.customWorldController?.abort();
+    else if (act === 'worldarchive') this.openWorldArchiveConfirm(v);
+    else if (act === 'worldarchivego') this.archiveCustomWorld(v);
+    else if (act === 'worldrestore') this.restoreArchivedWorld(v);
     else if (act === 'cheat') {
       const e = g.sim.econ;
       e.rep = STAR_THRESHOLDS[5];
@@ -578,6 +591,12 @@ export class UI {
     else if (act === 'prompts') this.openPromptSettings();
     else if (act === 'prompttab') this.switchPromptTab(v);
     else if (act === 'promptsave') this.savePromptSettings();
+    else if (act === 'promptmodreset') {
+      const stage = t.dataset.stage; const moduleId = t.dataset.module;
+      const input = this.modal?.querySelector(`[data-world-stage="${stage}"][data-world-module="${moduleId}"]`);
+      const defaults = parseWorldPromptModules(stage, PROMPT_TASKS[stage]?.defaultText || '');
+      if (input && defaults[moduleId] !== undefined) input.value = defaults[moduleId];
+    }
     else if (act === 'promptreset') { const tab = this.activePromptTab(); resetPromptTasks(); this.openPromptSettings('已恢复默认任务文本；玩家身份与背景保持不变。', false, tab); }
     else if (act === 'settings') this.openSettings();
     else if (act === 'aipreset') {
@@ -814,13 +833,18 @@ export class UI {
 
   renderTop()       {
     const g = this.g; const s = g.sim; const e = s.econ;
+    const world = s.currentWorld();
     const tutorial = this.currentTutorialState();
     const stars = s.stars();
     const nextTh = STAR_THRESHOLDS[Math.min(5, stars + 1)];
     const timePct = s.dayActive ? (s.dayT / 300) * 100 : 0;
     const lowStock = ING_KEYS.filter((k) => e.stock[k] < 10);
+    if (typeof document !== 'undefined') {
+      document.documentElement.dataset.world = world.id;
+      document.documentElement.style.setProperty('--world-tint', world.visuals?.atmosphere?.tint || '#F3B84B');
+    }
     this.setPanelHTML(this.top, `
-      <b>多元便携旅店</b>
+      <button data-act="worldcard" data-v="${htmlText(world.id)}" class="world-title" title="当前驻留世界，点击查看世界卡">${htmlText(world.icon)} ${htmlText(world.name)}</button>
       <span class="sep"></span>第 ${e.day} 天
       <span class="dim">${SEASON_NAMES[s.seasonIndex()]}</span>
       <span>${s.dayActive ? `<span class="hi">营业中·${this.phase()}</span> <span class="bar" style="display:inline-block;width:90px"><i style="width:${timePct}%;background:#F3B84B"></i></span>` : '<span class="dim">收盘规划</span>'}</span>
@@ -920,8 +944,8 @@ export class UI {
     } else {
       const e = g.sim.econ;
       const plan = restockPlan(e);
-      body = `<h3>库存与定价</h3>` + ING_KEYS.map((k) => `<div class="row"><span>${ING_LABEL[k]} ${e.stock[k]}</span>
-        <span><button data-act="buy" data-v="${k}" data-n="20">+20 (${ING_PRICE[k] * 20})</button></span></div>`).join('')
+      body = `<h3>库存与定价</h3>` + ING_KEYS.map((k) => { const unit = worldIngredientPrice(e, k); return `<div class="row"><span>${ING_LABEL[k]} ${e.stock[k]}</span>
+        <span><button data-act="buy" data-v="${k}" data-n="20">+20 (${unit * 20})</button><span class="dim"> · 当地单价 ${unit}${unit === ING_PRICE[k] ? '' : `（基础 ${ING_PRICE[k]}）`}</span></span></div>`; }).join('')
         + `<div class="row" style="margin-top:6px"><span>加价倍率 ${e.markup.toFixed(2)}×</span></div>
            <input data-act="markup" type="range" min="0.8" max="3" step="0.05" value="${e.markup}" style="width:100%">
            <div class="dim">高于 2× 会明显降低味道评价与点单率。</div>
@@ -980,7 +1004,7 @@ export class UI {
           : gr.state === 'toFac' ? '带位前往' + w.name : gr.state === 'facility_waiting_attend' ? '等待场务照看'
           : gr.state === 'using' ? (gr.overnight ? '过夜中' : (w.verb || w.name) + '中') : '离店';
         const regular = gr.regularId ? s.regulars.find((profile) => profile.id === gr.regularId) : null;
-        const worlds = (gr.worldIds || [gr.originWorldId]).map(worldById);
+        const worlds = (gr.worldIds || [gr.originWorldId]).map((id) => s.worldById(id));
         return `<div class="card"><div class="row"><b>${gr.size}人组·${w.name}</b><span class="dim">${stateTxt}</span></div>
         <div class="row"><span class="hi">${worlds.map((world) => `${world.icon} ${world.name}`).join(' × ')}</span><span>${htmlText(gr.travelPurpose || '')}</span></div>
         ${regular ? `<div class="row"><span class="hi">★ 常客 ${htmlText(regular.name)} · 第 ${regular.visits} 次来店</span><span>好感 ${Math.round(regular.aff)}</span></div>${regular.offer ? `<div class="dim">${htmlText(regular.offer.text)}</div>` : ''}` : ''}
@@ -989,13 +1013,15 @@ export class UI {
       }).join('') : '<div class="dim">店里还没有客人。</div>';
     } else if (this.rightTab === 'world') {
       const forecast = new Set(s.econ.worldForecast || []);
-      const unlocked = WORLD_PROFILES.filter((world) => world.unlockStars <= s.stars());
-      body = `<div class="card" style="border-left-color:#7A4BE0"><b>位面潮汐预报 · 第 ${s.econ.day} 天</b><div class="dim">今日客流增强：${unlocked.filter((world) => forecast.has(world.id)).map((world) => `${world.icon} ${world.name}`).join('、') || '暂无'}</div></div>`;
-      body += WORLD_PROFILES.map((world) => {
+      const allWorlds = s.worlds();
+      const unlocked = allWorlds.filter((world) => world.custom || world.unlockStars <= s.stars());
+      const current = s.currentWorld();
+      body = `<div class="card" style="border-left-color:#7A4BE0" data-act="worldcard" data-v="${htmlText(current.id)}"><b>当前驻留 · ${htmlText(current.icon)} ${htmlText(current.name)}</b><div>${htmlText(current.tagline || current.identity.summary)}</div><div class="dim">点击查看世界卡与航路</div></div><div class="card"><b>位面潮汐预报 · 第 ${s.econ.day} 天</b><div class="dim">今日客流增强：${unlocked.filter((world) => forecast.has(world.id)).map((world) => `${world.icon} ${world.name}`).join('、') || '暂无'}</div></div>`;
+      body += allWorlds.map((world) => {
         const info = s.econ.worldKnowledge?.[world.id] || { level: 0, arrivals: 0, served: 0 };
         if (world.unlockStars > s.stars()) return `<div class="card"><div class="row"><b>未接通的位面</b><span class="dim">需要 ★${world.unlockStars}</span></div></div>`;
         if (!info.level) return `<div class="card"><div class="row"><b>${world.icon} 尚未到访</b><span class="dim">航路已接通</span></div><div class="dim">等待第一批旅客穿过位面门。</div></div>`;
-        return `<div class="card" style="border-left-color:${forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
+        return `<div class="card" data-act="worldcard" data-v="${htmlText(world.id)}" style="border-left-color:${world.id === current.id ? '#8DDB4A' : forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}${world.id === current.id ? ' · 当前' : ''}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
           <div>${htmlText(world.identity.summary)}</div>
           <div class="dim">环境：${htmlText(world.identity.environment)}｜文明：${htmlText(world.identity.civilization)}</div>
           <div class="dim">常见居民：${world.population.slice(0, 4).map((resident) => `${RACE_NAMES[resident.raceId]}（${resident.role}）`).join('、')}｜地区：${world.regions.map((region) => region.name).join('、')}</div>
@@ -1218,6 +1244,131 @@ export class UI {
   }
 
   // ---------- 模态 ----------
+  openWorldCard(id = this.g.sim.econ.currentWorldId, tab = 'overview') {
+    const sim = this.g.sim; const econ = sim.econ;
+    const worlds = sim.worlds();
+    const world = sim.worldById(id);
+    const unlocked = world.custom || world.unlockStars <= sim.stars();
+    const current = world.id === econ.currentWorldId;
+    const pending = econ.pendingWorldSwitch?.worldId === world.id;
+    const tabs = [['overview', '概览'], ['rules', '规则'], ['society', '社会'], ['history', '历史'], ['factions', '势力'], ['economy', '经济'], ['people', '人物'], ['impact', '旅店影响']];
+    if (!tabs.some(([key]) => key === tab)) tab = 'overview';
+    const list = (rows, render) => rows?.length ? rows.map(render).join('') : '<div class="dim">暂无记录</div>';
+    const namedRows = (rows) => list(rows, (row) => `<div class="card"><b>${htmlText(row.name || row)}</b>${row.detail ? `<div class="dim">${htmlText(row.detail)}</div>` : ''}</div>`);
+    const rule = worldRuleForDay(world, econ.day);
+    const festival = worldFestivalForDay(world, econ.day);
+    const priceRows = ING_KEYS.map((key) => `<div class="row"><span>${ING_LABEL[key]}</span><span>${worldIngredientPrice({ ...econ, currentWorldId: world.id }, key)} / 份 <span class="dim">${Math.round((world.economy?.prices?.[key] || 1) * 100)}%</span></span></div>`).join('');
+    let content = '';
+    if (!unlocked) content = `<div class="card"><b>尚未建立稳定航路</b><div class="dim">达到 ${world.unlockStars} 星经营认证后解锁。当前只能确认其世界类型：${htmlText(world.genre || world.identity?.genre || '未知世界')}。</div></div>`;
+    else if (tab === 'overview') content = `<div class="world-hero" style="--world-card-tint:${htmlText(world.visuals?.atmosphere?.tint || '#F3B84B')}"><div class="world-glyph">${htmlText(world.icon)}</div><div><h2>${htmlText(world.name)}</h2><b>${htmlText(world.genre || world.identity?.genre || '')}</b><div>${htmlText(world.tagline || world.identity?.tagline || '')}</div></div></div>
+      <div class="card">${htmlText(world.identity?.summary || '')}</div>
+      <div class="card"><b>今日驻留规则</b><div>${htmlText(world.environmentRule?.name || '异界环境')}：${htmlText(world.environmentRule?.detail || '')}</div><div>${rule ? `${htmlText(rule.name)}：${htmlText(rule.detail)}` : '今日无额外法令'}</div>${festival ? `<div class="hi">节庆 · ${htmlText(festival.name)}：${htmlText(festival.detail)}</div>` : ''}</div>
+      <div class="card"><b>天象与远景</b><div class="dim">${htmlText(world.visuals?.atmosphere?.weather || '')} · ${htmlText(world.visuals?.atmosphere?.horizon || '')}</div><div class="dim">环境声：${htmlText(world.visuals?.atmosphere?.sound || '')}</div></div>`;
+    else if (tab === 'rules') content = `<div class="card"><b>宇宙结构</b><div>${htmlText(world.cosmology?.cosmology || '')}</div></div><div class="card"><b>自然规律</b><div>${htmlText(world.cosmology?.naturalLaws || '')}</div></div><div class="card"><b>力量体系</b><div>${htmlText(world.cosmology?.powerSystem || '')}</div></div><div class="card"><b>死亡规则</b><div>${htmlText(world.cosmology?.deathRule || '')}</div></div><h3>当地法令与习惯</h3>${namedRows(world.localRules)}`;
+    else if (tab === 'society') content = `<div class="card"><b>政治制度</b><div>${htmlText(world.society?.government || '')}</div></div>${[['语言', world.society?.languages], ['社会阶层', world.society?.classes], ['信仰', [world.society?.faith]], ['家庭', [world.society?.family]], ['教育', [world.society?.education]], ['服饰', [world.society?.clothing]], ['饮食', [world.society?.cuisine]]].map(([label, values]) => `<div class="card"><b>${label}</b><div class="dim">${(values || []).filter(Boolean).map(htmlText).join(' · ')}</div></div>`).join('')}<h3>地区</h3>${namedRows(world.regions?.map((region) => ({ name: region.name, detail: `${region.type || ''}${region.traits?.length ? ` · ${region.traits.join('、')}` : ''}` })))}`;
+    else if (tab === 'history') content = `<div class="world-timeline">${namedRows(world.history)}</div><h3>当代矛盾</h3>${list(world.conflicts, (row) => `<div class="card">• ${htmlText(row)}</div>`)}`;
+    else if (tab === 'factions') content = namedRows(world.factions);
+    else if (tab === 'economy') content = `<div class="card"><b>货币</b><div>${htmlText(world.economy?.currency || '')}</div><b>劳动制度</b><div>${htmlText(world.economy?.labor || '')}</div></div>${[['主要产业', world.economy?.industries], ['出口', world.economy?.exports], ['进口', world.economy?.imports]].map(([label, rows]) => `<div class="card"><b>${label}</b><div class="dim">${(rows || []).map(htmlText).join(' · ')}</div></div>`).join('')}<h3>当地采购价</h3>${priceRows}`;
+    else if (tab === 'people') content = namedRows(world.notableCharacters?.map((character) => ({ name: `${character.visitor ? '✦ ' : ''}${character.name}`, detail: `${character.detail || ''}${character.visitor ? ' · 可能作为稀有访客到店' : ' · 出现在传闻与图鉴中'}` })));
+    else content = `<div class="card"><b>客流构成</b><div>约 60% 当前世界当地客、30% 其他已连接世界、10% 潮汐或使团。</div></div><div class="card"><b>环境规则</b><div>${htmlText(world.environmentRule?.detail || '')}</div></div><div class="card"><b>推荐设施</b><div>${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join(' · ') || '无特定设施'}</div></div><div class="card"><b>招聘</b><div>约 60% 候选人取自当地人口与职业结构。</div></div><h3>采购影响</h3>${priceRows}`;
+    const worldButtons = worlds.map((row) => `<button data-act="worldcard" data-v="${htmlText(row.id)}" class="${row.id === world.id ? 'on' : ''}" title="${row.unlockStars > sim.stars() && !row.custom ? `${row.unlockStars} 星解锁` : row.genre || ''}">${htmlText(row.icon)} ${htmlText(row.name)}${row.unlockStars > sim.stars() && !row.custom ? ' 🔒' : ''}</button>`).join('');
+    const action = unlocked && !current ? pending ? '<span class="hi">✓ 已锁定为下一站</span>' : econ.pendingWorldSwitch ? '<span class="dim">本打烊期已锁定其他目的地</span>' : `<button data-act="worldswitch" data-v="${htmlText(world.id)}" ${sim.dayActive ? 'disabled title="请在打烊规划期切换"' : ''}>设为下一站 · ${worldSwitchCost(world)} 币</button>` : current ? '<span class="good">● 当前驻留世界</span>' : '';
+    const management = world.custom && !current && !pending ? `<button data-act="worldarchive" data-v="${htmlText(world.id)}" class="warn" ${sim.dayActive ? 'disabled title="请在打烊规划期归档"' : ''}>归档世界</button>` : '';
+    this.showModal(`<h3>🌐 世界航路</h3><div class="world-picker">${worldButtons}</div><div class="tabs world-card-tabs">${tabs.map(([key, label]) => `<button data-act="worldcardtab" data-id="${htmlText(world.id)}" data-v="${key}" class="${tab === key ? 'on' : ''}">${label}</button>`).join('')}</div><div class="world-card-body">${content}</div><div class="row" style="margin-top:10px">${action}${management}<span style="flex:1"></span>${sim.stars() >= 3 ? `<button data-act="customworld">AI 自定义世界 ${econ.customWorlds.length}/${CUSTOM_WORLD_LIMIT}</button>` : '<span class="dim">三星开放 AI 自定义世界</span>'}<button data-act="closemodal">关闭</button></div>`);
+  }
+
+  openWorldSwitchConfirm(id) {
+    const sim = this.g.sim; const world = sim.unlockedWorlds().find((row) => row.id === id);
+    if (!world) return;
+    const prices = ING_KEYS.map((key) => `${ING_LABEL[key]} ${Math.round((world.economy?.prices?.[key] || 1) * 100)}%`).join(' · ');
+    this.showModal(`<h3>确认迁移至 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card"><div>${htmlText(world.tagline || world.identity?.summary || '')}</div><div class="dim" style="margin-top:6px">次日客流以当地客为主；采购：${prices}</div><div class="dim">推荐设施：${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join('、') || '无特别限制'}</div></div><div class="card bad">将立即支付 ${worldSwitchCost(world)} 界币；确认后本次打烊期不能修改目的地，次日开门时生效。</div><div class="row"><button data-act="worldswitchgo" data-v="${htmlText(world.id)}">确认航行</button><button data-act="worldcard" data-v="${htmlText(world.id)}">返回世界卡</button></div>`);
+  }
+
+  customWorldFormData() {
+    const old = this.customWorldDraft || { name: '', genre: '', concept: '', mustInclude: '', mustAvoid: '', tone: '' };
+    if (!this.modal) return old;
+    const value = (key) => this.modal.querySelector(`[data-custom-world="${key}"]`)?.value ?? old[key];
+    return { name: value('name'), genre: value('genre'), concept: value('concept'), mustInclude: value('mustInclude'), mustAvoid: value('mustAvoid'), tone: value('tone') };
+  }
+
+  openCustomWorldBuilder(status = '', isError = false) {
+    const sim = this.g.sim; const econ = sim.econ;
+    if (sim.stars() < 3) { sim.toast('三星后开放 AI 自定义世界'); return; }
+    const draft = this.customWorldDraft || { name: '', genre: '', concept: '', mustInclude: '', mustAvoid: '', tone: '' };
+    const result = this.customWorldResult;
+    const fee = customWorldCreationCost(econ.customWorlds.length);
+    const preview = result ? `<div class="card" style="border-left-color:${htmlText(result.visuals?.atmosphere?.tint || '#7A4BE0')}"><div class="row"><h3>${htmlText(result.icon)} ${htmlText(result.name)}</h3><b>${htmlText(result.genre)}</b></div><div>${htmlText(result.tagline)}</div><div class="dim" style="margin-top:5px">${htmlText(result.identity?.summary || '')}</div><div class="dim" style="margin-top:5px">地区 ${result.regions?.length || 0} · 历史 ${result.history?.length || 0} · 势力 ${result.factions?.length || 0} · 标志人物 ${result.notableCharacters?.length || 0}</div></div>` : '';
+    const archived = econ.archivedWorlds?.length ? `<details><summary>已归档世界 ${econ.archivedWorlds.length}</summary>${econ.archivedWorlds.map((world) => `<div class="card"><div class="row"><b>${htmlText(world.icon || '◈')} ${htmlText(world.name)}</b><button data-act="worldrestore" data-v="${htmlText(world.id)}" ${econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>重新生成</button></div><div class="dim">${htmlText(world.summary || '')}</div></div>`).join('')}</details>` : '';
+    this.showModal(`<h3>✦ AI 自定义世界</h3><div class="dim">依次完成概念提炼、完整编译和原创性/经营校验。生成预览免费，确认保存时收费并占用一个世界槽。</div>${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
+      <div class="creator-identity" style="margin-top:8px"><label>期望名称<input data-custom-world="name" maxlength="24" value="${htmlText(draft.name)}" placeholder="可留空，让 AI 命名"></label><label>类型<input data-custom-world="genre" maxlength="80" value="${htmlText(draft.genre)}" placeholder="如东方修仙、海洋科幻"></label></div>
+      <label style="display:block;margin-top:7px"><b>你想穿越到怎样的世界？</b><textarea class="prompt-editor" data-custom-world="concept" maxlength="2400" placeholder="描述世界气质、规则、文明、想体验的冲突或任何灵感。">${htmlText(draft.concept)}</textarea></label>
+      <div class="creator-identity"><label>必须包含<textarea data-custom-world="mustInclude" maxlength="800">${htmlText(draft.mustInclude)}</textarea></label><label>禁止包含<textarea data-custom-world="mustAvoid" maxlength="800">${htmlText(draft.mustAvoid)}</textarea></label></div>
+      <label style="display:block;margin-top:7px">叙事基调<input data-custom-world="tone" maxlength="120" value="${htmlText(draft.tone)}" placeholder="如宏大但有人间烟火、冷峻克制"></label>
+      ${preview}${archived}<div class="row" style="margin-top:10px"><button data-act="customworldgenerate" ${this.customWorldBusy || econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>${this.customWorldBusy ? '生成中…' : result ? '重新生成三阶段世界' : '开始三阶段生成'}</button>${this.customWorldBusy ? '<button data-act="customworldcancelai">取消</button>' : ''}${result ? `<button data-act="customworldsave" ${econ.coins < fee ? 'disabled' : ''}>确认保存 · ${fee} 币</button>` : ''}<span style="flex:1"></span><span class="dim">槽位 ${econ.customWorlds.length}/${CUSTOM_WORLD_LIMIT}</span><button data-act="worldcard" data-v="${htmlText(econ.currentWorldId)}">返回航路</button></div>`);
+  }
+
+  async generateCustomWorld() {
+    const sim = this.g.sim; const econ = sim.econ;
+    this.customWorldDraft = this.customWorldFormData();
+    if (!aiConfigured()) { this.openCustomWorldBuilder('请先在设置中接入 AI 并选择模型。', true); return; }
+    if (!this.customWorldDraft.concept.trim() && !this.customWorldDraft.name.trim()) { this.openCustomWorldBuilder('请至少填写世界名称或世界构想。', true); return; }
+    if (econ.customWorlds.length >= CUSTOM_WORLD_LIMIT) { this.openCustomWorldBuilder('八个活动世界槽已满，请先归档一个自定义世界。', true); return; }
+    this.customWorldBusy = true; this.customWorldResult = null;
+    this.openCustomWorldBuilder('阶段 1/3：正在提炼世界概念…');
+    const controller = new AbortController(); this.customWorldController = controller;
+    const tasks = savePromptTasks(this.readPromptTasksForm());
+    const input = { ...this.customWorldDraft, mustInclude: this.customWorldDraft.mustInclude.split(/[\n,，；;]/).map((row) => row.trim()).filter(Boolean), mustAvoid: this.customWorldDraft.mustAvoid.split(/[\n,，；;]/).map((row) => row.trim()).filter(Boolean) };
+    try {
+      const brief = await requestGameAI('world_concept', { input, existingWorlds: WORLD_PROFILES.map((world) => ({ name: world.name, genre: world.genre, tagline: world.tagline })) }, { signal: controller.signal, promptTasks: tasks });
+      if (controller.signal.aborted) throw new Error('已取消生成');
+      this.openCustomWorldBuilder('阶段 2/3：正在编译地理、历史、势力、经济与人物…');
+      const compiled = await requestGameAI('world_compile', { input, brief, races: RACE_NAMES.map((name, id) => ({ id, name })), fixedWorldNames: WORLD_PROFILES.map((world) => world.name) }, { signal: controller.signal, promptTasks: tasks });
+      if (controller.signal.aborted) throw new Error('已取消生成');
+      this.openCustomWorldBuilder('阶段 3/3：正在检查原创性、一致性和经营平衡…');
+      const reviewed = await requestGameAI('world_review', { input, brief, candidate: compiled.world, fixedWorldNames: WORLD_PROFILES.map((world) => world.name), allowedRanges: { allMultipliers: [.85, 1.2], activeCustomWorldLimit: CUSTOM_WORLD_LIMIT } }, { signal: controller.signal, promptTasks: tasks });
+      this.customWorldResult = normalizeCustomWorld({ ...reviewed.world, generationBrief: JSON.stringify(brief), generatedAt: Date.now() }, `custom_${Date.now().toString(36)}`);
+      this.customWorldBusy = false; this.customWorldController = null;
+      this.openCustomWorldBuilder(`三阶段生成完成；审核修复 ${reviewed.repairs?.length || 0} 项。保存前可先核对预览。`);
+    } catch (error) {
+      this.customWorldBusy = false; this.customWorldController = null;
+      this.openCustomWorldBuilder(error?.message === '已取消生成' || controller.signal.aborted ? '已取消生成；输入内容已保留。' : `生成失败：${error?.message || '未知错误'}。可直接重试，尚未扣费。`, true);
+    }
+  }
+
+  saveCustomWorld() {
+    const sim = this.g.sim; const econ = sim.econ; const world = this.customWorldResult;
+    if (!world || econ.customWorlds.length >= CUSTOM_WORLD_LIMIT) return;
+    const cost = customWorldCreationCost(econ.customWorlds.length);
+    if (econ.coins < cost) { this.openCustomWorldBuilder(`界币不足：保存该世界需要 ${cost} 界币。`, true); return; }
+    econ.coins -= cost; econ.customWorlds.push(world);
+    econ.archivedWorlds = (econ.archivedWorlds || []).filter((row) => row.name !== world.name);
+    econ.worldKnowledge[world.id] = { level: 4, arrivals: 0, served: 0, firstDay: econ.day, reviewed: true, journeyAsked: true };
+    this.customWorldResult = null; this.customWorldDraft = null;
+    sim.toast(`已锚定原创世界 ${world.icon} ${world.name}（-${cost} 界币）`); this.g.save(); this.openWorldCard(world.id);
+  }
+
+  openWorldArchiveConfirm(id) {
+    const sim = this.g.sim; const world = sim.econ.customWorlds.find((row) => row.id === id);
+    if (!world || sim.dayActive || id === sim.econ.currentWorldId || id === sim.econ.pendingWorldSwitch?.worldId) return;
+    this.showModal(`<h3 class="bad">归档 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card">归档会保留名称、摘要和历史引用，但移除完整经营载荷并释放一个活动槽。恢复时需要重新生成并确认。</div><div class="row"><button data-act="worldarchivego" data-v="${htmlText(id)}" class="warn">确认归档</button><button data-act="worldcard" data-v="${htmlText(id)}">取消</button></div>`);
+  }
+
+  archiveCustomWorld(id) {
+    const sim = this.g.sim; const econ = sim.econ; const world = econ.customWorlds.find((row) => row.id === id);
+    if (!world || sim.dayActive || id === econ.currentWorldId || id === econ.pendingWorldSwitch?.worldId) return;
+    econ.archivedWorlds.push({ id: world.id, name: world.name, icon: world.icon, genre: world.genre, summary: world.identity?.summary || '', archivedAt: Date.now(), generationBrief: world.generationBrief || '' });
+    econ.archivedWorlds = econ.archivedWorlds.slice(-40); econ.customWorlds = econ.customWorlds.filter((row) => row.id !== id);
+    delete econ.worldKnowledge[id]; sim.toast(`已归档 ${world.name}，释放一个自定义世界槽`); this.g.save(); this.openWorldCard(econ.currentWorldId);
+  }
+
+  restoreArchivedWorld(id) {
+    const archived = this.g.sim.econ.archivedWorlds?.find((world) => world.id === id);
+    if (!archived || this.g.sim.econ.customWorlds.length >= CUSTOM_WORLD_LIMIT) return;
+    this.customWorldResult = null;
+    this.customWorldDraft = { name: archived.name, genre: archived.genre || '', concept: `重新生成已归档世界“${archived.name}”。保留以下核心记忆并补齐完整规则：${archived.summary || ''}\n旧创作简报：${archived.generationBrief || '无'}`, mustInclude: archived.summary || '', mustAvoid: '不要复制现有作品的专有角色、势力、地点与历史', tone: '' };
+    this.openCustomWorldBuilder('已载入归档摘要；重新生成并确认保存后才会重新占用槽位。');
+  }
+
   openReadiness() {
     const check = this.g.openingReadiness();
     const forecast = new Set(this.g.sim.econ.worldForecast || []);
@@ -1500,8 +1651,9 @@ export class UI {
   staffAIFacts(st       , playerText        )         {
     const sim = this.g.sim;
     const owner = sim.staff.find((person) => person.isOwner);
+    const host = sim.currentWorld();
     return {
-      world: '万界交汇处的一家奇幻酒馆，角色都是店内真实员工。',
+      world: { venue: '多元便携旅店', currentHost: host.name, genre: host.genre, summary: host.identity.summary, environmentRule: host.environmentRule, todayRule: sim.currentWorldRule(), festival: sim.currentWorldFestival(), etiquette: host.culture.etiquette },
       day: sim.econ.day,
       player: this.playerAIFacts(playerText),
       employee: {
@@ -1583,8 +1735,9 @@ export class UI {
     const group = sim.groupOfGuest(guest.id);
     const want = group ? wantById(group.want) : null;
     const affinity = this.guestAffinityFacts(guest, group);
+    const host = sim.currentWorld(); const origin = sim.worldById(guest.originWorldId || group?.originWorldId);
     return {
-      world: '万界交汇处的一家奇幻旅店；玩家是正在经营此处的店主，目标角色是当前住店或消费的客人。',
+      world: { venue: '多元便携旅店', currentHost: host.name, currentSummary: host.identity.summary, localRule: sim.currentWorldRule(), guestOrigin: origin.name, originSummary: origin.identity.summary, originEtiquette: origin.culture.etiquette },
       day: sim.econ.day,
       player: this.playerAIFacts(playerText),
       guest: {
@@ -1929,7 +2082,7 @@ export class UI {
     const pct = Math.round((gr.patience / gr.maxPatience) * 100);
     const cost = 12 + gr.size * 6;
     const regular = gu.regularId ? sim.regulars.find((profile) => profile.id === gu.regularId) : null;
-    const origin = worldById(gu.originWorldId || gr.originWorldId);
+    const origin = this.g.sim.worldById(gu.originWorldId || gr.originWorldId);
     const known = sim.econ.worldKnowledge?.[origin.id]?.level || 1;
     const acts                     = [...(aiConfigured() ? [['gchat', '聊两句']] : []), ['journey', '询问旅途'], ['gpraise', '称赞'], ['treat', `请一杯 -${cost}`], ['gmock', '贬低']];
     if (regular?.visits >= 2) acts.push(['revisit', '聊起上次来访']);
@@ -2327,7 +2480,7 @@ export class UI {
     const tasks = loadPromptTasks();
     const profile = loadPlayerProfile(this.g.currentSlot);
     const owner = this.g.sim.staff.find((person) => person.isOwner);
-    const cards = Object.entries(PROMPT_TASKS).filter(([key]) => !key.startsWith('night_')).map(([key, meta]) => `<section class="prompt-card">
+    const cards = Object.entries(PROMPT_TASKS).filter(([key]) => !key.startsWith('night_') && !key.startsWith('world_')).map(([key, meta]) => `<section class="prompt-card">
       <div class="row"><b>${htmlText(meta.label)}</b><span class="dim">最多 2000 字</span></div>
       ${meta.description ? `<div class="dim">${htmlText(meta.description)}</div>` : ''}
       <textarea class="prompt-editor" data-prompt-key="${key}" maxlength="2000" spellcheck="false">${htmlText(tasks[key])}</textarea>
@@ -2337,10 +2490,15 @@ export class UI {
       const fields = NIGHT_PROMPT_MODULES.map(({ id, label }) => `<label class="prompt-module"><b>${htmlText(label)}</b><textarea data-night-task="${key}" data-night-module="${id}" maxlength="1600" spellcheck="false">${htmlText(modules[id])}</textarea></label>`).join('');
       return `<div class="prompt-pane ${activeTab === tab ? 'on' : ''}" data-prompt-pane="${tab}"><div class="dim">${htmlText(intro)} JSON 输出结构与解析由游戏固定。</div><div class="prompt-module-grid">${fields}</div></div>`;
     };
+    const worldStages = Object.entries(WORLD_PROMPT_STAGES).map(([stage, meta]) => {
+      const modules = parseWorldPromptModules(stage, tasks[stage], PROMPT_TASKS[stage].defaultText);
+      const fields = meta.modules.map(([id, label]) => `<label class="prompt-module"><div class="row"><b>${htmlText(label)}</b><button type="button" data-act="promptmodreset" data-stage="${stage}" data-module="${id}">恢复此模块</button></div><textarea data-world-stage="${stage}" data-world-module="${id}" maxlength="1800" spellcheck="false">${htmlText(modules[id])}</textarea></label>`).join('');
+      return `<section class="prompt-card"><h3>${htmlText(meta.label)}</h3><div class="prompt-module-grid">${fields}</div></section>`;
+    }).join('');
     this.showModal(`<h3>提示词</h3>
       <div class="dim">修改 AI 的任务和叙事模块。夜间剧情除 JSON 输出外均可分模块编辑。</div>
       ${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
-      <div class="prompt-tabs"><button data-act="prompttab" data-v="general" class="${activeTab === 'general' ? 'on' : ''}">通用</button><button data-act="prompttab" data-v="raid" class="${activeTab === 'raid' ? 'on' : ''}">夜袭</button><button data-act="prompttab" data-v="romance" class="${activeTab === 'romance' ? 'on' : ''}">共度春宵</button></div>
+      <div class="prompt-tabs"><button data-act="prompttab" data-v="general" class="${activeTab === 'general' ? 'on' : ''}">通用</button><button data-act="prompttab" data-v="raid" class="${activeTab === 'raid' ? 'on' : ''}">夜袭</button><button data-act="prompttab" data-v="romance" class="${activeTab === 'romance' ? 'on' : ''}">共度春宵</button><button data-act="prompttab" data-v="world" class="${activeTab === 'world' ? 'on' : ''}">世界生成</button></div>
       <div class="prompt-pane ${activeTab === 'general' ? 'on' : ''}" data-prompt-pane="general"><section class="prompt-card" style="border-left-color:#7A4BE0">
         <div class="row"><b>玩家身份与背景</b><span class="dim">档位 ${this.g.currentSlot} 独立保存</span></div>
         <div class="dim">固定角色：${htmlText(owner?.name || '店主')}｜${htmlText(owner?.sex || '未知')}｜${htmlText(owner?.race || '未知')}｜旅店所有者与经营者。AI 不得把你当成来消费的客人。</div>
@@ -2351,6 +2509,7 @@ export class UI {
       ${cards}</div>
       ${nightPane('night_raid', 'raid', '分别设定夜袭的八个叙事模块。')}
       ${nightPane('night_romance', 'romance', '分别设定共度春宵的八个叙事模块。')}
+      <div class="prompt-pane ${activeTab === 'world' ? 'on' : ''}" data-prompt-pane="world"><div class="dim">世界生成分为概念提炼、完整编译和审核修复。下列创作模块可编辑；JSON 字段、枚举、数量和数值边界由游戏固定。</div>${worldStages}</div>
       <div class="row" style="margin-top:12px"><button data-act="promptreset" class="warn">恢复默认</button><span style="flex:1"></span><button data-act="promptsave">保存任务文本</button><button data-act="closemodal">关闭</button></div>`);
   }
 
@@ -2359,7 +2518,7 @@ export class UI {
   }
 
   switchPromptTab(tab) {
-    if (!this.modal || !['general', 'raid', 'romance'].includes(tab)) return;
+    if (!this.modal || !['general', 'raid', 'romance', 'world'].includes(tab)) return;
     for (const button of this.modal.querySelectorAll('.prompt-tabs button')) button.classList.toggle('on', button.dataset.v === tab);
     for (const pane of this.modal.querySelectorAll('[data-prompt-pane]')) pane.classList.toggle('on', pane.dataset.promptPane === tab);
   }
@@ -2372,6 +2531,11 @@ export class UI {
       const modules = {};
       for (const input of this.modal.querySelectorAll(`[data-night-task="${task}"]`)) modules[input.dataset.nightModule] = input.value;
       current[task] = composeNightPromptModules(modules);
+    }
+    for (const stage of Object.keys(WORLD_PROMPT_STAGES)) {
+      const modules = {};
+      for (const input of this.modal.querySelectorAll(`[data-world-stage="${stage}"]`)) modules[input.dataset.worldModule] = input.value;
+      current[stage] = composeWorldPromptModules(stage, modules);
     }
     return current;
   }
@@ -2527,7 +2691,7 @@ export class UI {
     const report = stat.report || {};
     const mapStock = (stock       ) => Object.fromEntries(Object.entries(stock || {}).map(([key, value]) => [ING_LABEL[key] || key, value]));
     return {
-      world: '《多元便携旅店》是一家接待不同位面来客的奇幻酒馆。所有数值和工作统计都是不可改写的事实。',
+      world: { venue: '多元便携旅店', currentHost: sim.currentWorld().name, summary: sim.currentWorld().identity.summary, environmentRule: sim.currentWorld().environmentRule, todayRule: sim.currentWorldRule(), festival: sim.currentWorldFestival(), note: '所有数值和工作统计都是不可改写的事实。' },
       tavern: { rooms: this.g.tavern.rooms.length, furniture: this.g.tavern.furns.length, stars: sim.stars() },
       day: stat.day,
       player: this.playerAIFacts(''),
@@ -2541,7 +2705,7 @@ export class UI {
         lostReasons: report.lostReasons || {},
       },
       worldGuests: Object.entries(report.worldGuests || {}).map(([id, row]) => ({
-        world: worldById(id).name, arrivals: row.arrivals, served: row.served, lost: row.lost, revenue: row.revenue,
+        world: sim.worldById(id).name, arrivals: row.arrivals, served: row.served, lost: row.lost, revenue: row.revenue,
         averageScore: row.scoreSamples ? row.scoreTotal / row.scoreSamples : null, complaints: row.complaints || {},
       })),
       staffWork: (report.finished?.staff || []).map((row) => ({
@@ -2577,9 +2741,9 @@ export class UI {
     const worldRows = Object.entries(stat.report?.worldGuests || {}).map(([id, row]) => {
       const average = row.scoreSamples ? `${(row.scoreTotal / row.scoreSamples).toFixed(2)}★` : '—';
       const complaint = Object.entries(row.complaints || {}).sort((a, b) => b[1] - a[1])[0]?.[0];
-      return `<div class="row"><span><b>${worldById(id).icon} ${htmlText(row.name)}</b><span class="dim"> · 到店 ${row.arrivals} / 接待 ${row.served} / 流失 ${row.lost}</span></span><span>收入 ${row.revenue} · ${average}${complaint ? ` · 抱怨${complaintLabels[complaint] || complaint}` : ''}</span></div>`;
+      return `<div class="row"><span><b>${s.worldById(id).icon} ${htmlText(row.name)}</b><span class="dim"> · 到店 ${row.arrivals} / 接待 ${row.served} / 流失 ${row.lost}</span></span><span>收入 ${row.revenue} · ${average}${complaint ? ` · 抱怨${complaintLabels[complaint] || complaint}` : ''}</span></div>`;
     }).join('');
-    const connections = (stat.newWorldConnections || []).map((id) => worldById(id));
+    const connections = (stat.newWorldConnections || []).map((id) => s.worldById(id));
     const cert = stat.certification;
     const certPanel = cert?.requirements?.length ? `<div class="card" style="margin-top:10px;border-left-color:${cert.achieved ? '#65A85B' : '#D3A23A'}"><h3>${cert.achieved ? `★ ${cert.level} 星经营认证通过` : `★ ${cert.level} 星认证待完成`}</h3>
       ${cert.requirements.map((row) => `<div class="row"><span>${row.met ? '✓' : '○'} ${htmlText(row.label)}</span><span class="${row.met ? 'good' : 'bad'}">${htmlText(String(row.current))} / ${htmlText(String(row.target))}</span></div>`).join('')}
