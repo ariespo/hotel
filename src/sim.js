@@ -740,7 +740,7 @@ export class Sim {
     if (this.econ.coins < cost) { this.toast(`界币不足：迁移至${world.name}需要 ${cost} 界币`); return false; }
     this.econ.coins -= cost;
     this.econ.pendingWorldSwitch = { worldId: world.id, cost, confirmedDay: this.econ.day };
-    this.toast(`已锁定下一站：${world.icon} ${world.name}（-${cost} 界币），次日开门时抵达`);
+    this.toast(`已支付航行费用：${world.icon} ${world.name}（-${cost} 界币）`);
     return true;
   }
 
@@ -1294,7 +1294,6 @@ export class Sim {
 
   // ---------- 营业日 ----------
   openDay()       {
-    this.activatePendingWorldSwitch();
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.stars());
     this.dayT = 0;
     this.aiEventRequested = false;
@@ -3930,6 +3929,8 @@ export class Sim {
     this.econ.worldVisits = this.econ.worldVisits && typeof this.econ.worldVisits === 'object' ? this.econ.worldVisits : { [this.econ.currentWorldId]: 1 };
     this.econ.worldKnowledge = { ...blankWorldKnowledge(), ...Object.fromEntries(this.econ.customWorlds.map((world) => [world.id, { level: 4, arrivals: 0, served: 0, firstDay: this.econ.day, reviewed: true, journeyAsked: true }])), ...(this.econ.worldKnowledge || {}) };
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.econ.certifiedStars);
+    // 兼容旧版本在“次日开门”前保存的航行：载入时直接抵达，避免目的地永久卡住。
+    if (this.econ.pendingWorldSwitch) this.activatePendingWorldSwitch();
     if (!this.econ.menu) this.econ.menu = {};   // 老存档：全部上架
     if (!this.econ.customDishes) this.econ.customDishes = [];   // 老存档：无自创菜
     if (!this.econ.aiChronicles) this.econ.aiChronicles = [];

@@ -472,7 +472,7 @@ export class UI {
     else if (act === 'worldcard') this.openWorldCard(v || g.sim.econ.currentWorldId);
     else if (act === 'worldcardtab') this.openWorldCard(t.dataset.id || g.sim.econ.currentWorldId, v);
     else if (act === 'worldswitch') this.openWorldSwitchConfirm(v);
-    else if (act === 'worldswitchgo') { if (g.sim.requestWorldSwitch(v)) { g.save(); this.openWorldCard(v); } }
+    else if (act === 'worldswitchgo') g.travelToWorld(v);
     else if (act === 'customworld') this.openCustomWorldBuilder();
     else if (act === 'customworldgenerate') this.generateCustomWorld();
     else if (act === 'customworldsave') this.saveCustomWorld();
@@ -1272,7 +1272,7 @@ export class UI {
     else if (tab === 'people') content = namedRows(world.notableCharacters?.map((character) => ({ name: `${character.visitor ? '✦ ' : ''}${character.name}`, detail: `${character.detail || ''}${character.visitor ? ' · 可能作为稀有访客到店' : ' · 出现在传闻与图鉴中'}` })));
     else content = `<div class="card"><b>客流构成</b><div>约 60% 当前世界当地客、30% 其他已连接世界、10% 潮汐或使团。</div></div><div class="card"><b>环境规则</b><div>${htmlText(world.environmentRule?.detail || '')}</div></div><div class="card"><b>推荐设施</b><div>${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join(' · ') || '无特定设施'}</div></div><div class="card"><b>招聘</b><div>约 60% 候选人取自当地人口与职业结构。</div></div><h3>采购影响</h3>${priceRows}`;
     const worldButtons = worlds.map((row) => `<button data-act="worldcard" data-v="${htmlText(row.id)}" class="${row.id === world.id ? 'on' : ''}" title="${row.unlockStars > sim.stars() && !row.custom ? `${row.unlockStars} 星解锁` : row.genre || ''}">${htmlText(row.icon)} ${htmlText(row.name)}${row.unlockStars > sim.stars() && !row.custom ? ' 🔒' : ''}</button>`).join('');
-    const action = unlocked && !current ? pending ? '<span class="hi">✓ 已锁定为下一站</span>' : econ.pendingWorldSwitch ? '<span class="dim">本打烊期已锁定其他目的地</span>' : `<button data-act="worldswitch" data-v="${htmlText(world.id)}" ${sim.dayActive ? 'disabled title="请在打烊规划期切换"' : ''}>设为下一站 · ${worldSwitchCost(world)} 币</button>` : current ? '<span class="good">● 当前驻留世界</span>' : '';
+    const action = unlocked && !current ? pending ? '<span class="hi">位面穿越准备中</span>' : econ.pendingWorldSwitch ? '<span class="dim">正在穿越其他世界</span>' : `<button data-act="worldswitch" data-v="${htmlText(world.id)}" ${sim.dayActive ? 'disabled title="请在打烊规划期切换"' : ''}>穿越至此 · ${worldSwitchCost(world)} 币</button>` : current ? '<span class="good">● 当前驻留世界</span>' : '';
     const management = world.custom && !current && !pending ? `<button data-act="worldarchive" data-v="${htmlText(world.id)}" class="warn" ${sim.dayActive ? 'disabled title="请在打烊规划期归档"' : ''}>归档世界</button>` : '';
     this.showModal(`<h3>🌐 世界航路</h3><div class="world-picker">${worldButtons}</div><div class="tabs world-card-tabs">${tabs.map(([key, label]) => `<button data-act="worldcardtab" data-id="${htmlText(world.id)}" data-v="${key}" class="${tab === key ? 'on' : ''}">${label}</button>`).join('')}</div><div class="world-card-body">${content}</div><div class="row" style="margin-top:10px">${action}${management}<span style="flex:1"></span>${sim.stars() >= 3 ? `<button data-act="customworld">AI 自定义世界 ${econ.customWorlds.length}/${CUSTOM_WORLD_LIMIT}</button>` : '<span class="dim">三星开放 AI 自定义世界</span>'}<button data-act="closemodal">关闭</button></div>`);
   }
@@ -1281,7 +1281,7 @@ export class UI {
     const sim = this.g.sim; const world = sim.unlockedWorlds().find((row) => row.id === id);
     if (!world) return;
     const prices = ING_KEYS.map((key) => `${ING_LABEL[key]} ${Math.round((world.economy?.prices?.[key] || 1) * 100)}%`).join(' · ');
-    this.showModal(`<h3>确认迁移至 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card"><div>${htmlText(world.tagline || world.identity?.summary || '')}</div><div class="dim" style="margin-top:6px">次日客流以当地客为主；采购：${prices}</div><div class="dim">推荐设施：${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join('、') || '无特别限制'}</div></div><div class="card bad">将立即支付 ${worldSwitchCost(world)} 界币；确认后本次打烊期不能修改目的地，次日开门时生效。</div><div class="row"><button data-act="worldswitchgo" data-v="${htmlText(world.id)}">确认航行</button><button data-act="worldcard" data-v="${htmlText(world.id)}">返回世界卡</button></div>`);
+    this.showModal(`<h3>确认穿越至 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card"><div>${htmlText(world.tagline || world.identity?.summary || '')}</div><div class="dim" style="margin-top:6px">抵达后客流以当地客为主；采购：${prices}</div><div class="dim">推荐设施：${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join('、') || '无特别限制'}</div></div><div class="card bad">将立即支付 ${worldSwitchCost(world)} 界币并开始穿越。动画结束后立即抵达目标世界，不再等待次日开门。</div><div class="row"><button data-act="worldswitchgo" data-v="${htmlText(world.id)}">确认穿越</button><button data-act="worldcard" data-v="${htmlText(world.id)}">返回世界卡</button></div>`);
   }
 
   customWorldFormData() {

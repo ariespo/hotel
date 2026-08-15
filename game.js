@@ -131,6 +131,7 @@ class Audio2 {
       ['build', 'assets/sfx-build.wav'], ['place', 'assets/sfx-place.wav'],
       ['serve', 'assets/sfx-serve.wav'], ['coin', 'assets/sfx-coin.wav'], ['portal', 'assets/sfx-portal.wav'],
       ['error', 'assets/sfx-error.wav'], ['chime', 'assets/sfx-chime.wav'], ['happy', 'assets/sfx-happy.wav'],
+      ['world-travel', 'assets/world-travel.mp3'],
       ['angry', 'assets/sfx-angry.wav'], ['clean', 'assets/sfx-clean.wav'], ['sizzle', 'assets/sfx-sizzle.wav'],
       ['upgrade', 'assets/sfx-upgrade.wav'], ['alert', 'assets/sfx-alert.wav'], ['daybell', 'assets/sfx-daybell.wav'],
       ['splash', 'assets/sfx-splash.wav'], ['cue', 'assets/sfx-cue.wav'], ['snore', 'assets/sfx-snore.wav'],
@@ -239,6 +240,18 @@ class Audio2 {
     s.connect(g); g.connect(this.gain);
     s.start();
   }
+
+  playMusicCue(name        , vol = 1)          {
+    if (!this.ctx) return null;
+    const b = this.buffers.get(name);
+    if (!b) return null;
+    const s = this.ctx.createBufferSource();
+    const gain = this.ctx.createGain();
+    s.buffer = b;
+    gain.gain.value = Math.max(0, Math.min(1, vol * this.musicVol));
+    s.connect(gain); gain.connect(this.ctx.destination); s.start();
+    return s;
+  }
 }
 
 // ---------- 游戏 ----------
@@ -261,6 +274,7 @@ class Game                    {
   worldBackgroundFar = new PIXI.Container();
   worldBackgroundMid = new PIXI.Container();
   worldBackgroundWeather = new PIXI.Graphics();
+  worldTravelLayer = new PIXI.Container();
   worldBackgroundMask = new PIXI.Graphics();
   worldBackgroundId = '';
   worldBackgroundLoad = 0;
@@ -269,6 +283,9 @@ class Game                    {
   worldBackgroundFarScale = 1;
   worldBackgroundMidScale = 1;
   worldBackgroundParticles = [];
+  worldTravelActive = false;
+  worldTravelSprite = null;
+  worldTravelVideo = null;
 
   tavern = new Tavern();
   sim      ;
@@ -311,7 +328,7 @@ class Game                    {
           lastW = 0;
           lastH = 0;
 
-  get blocked()          { return this.titleActive || this.creatorPending || !!(this.ui && this.ui.modal); }
+  get blocked()          { return this.titleActive || this.creatorPending || this.worldTravelActive || !!(this.ui && this.ui.modal); }
 
   async boot()                {
     const host = document.getElementById('app')               ;
@@ -336,7 +353,7 @@ class Game                    {
         if (res) this.floorBase.set(name, res                     );
       } catch (e) { /* 缺失贴图用纯色兜底 */ }
     }
-    this.app.stage.addChild(this.stars, this.worldBackgroundFar, this.worldBackgroundMid, this.worldBackgroundMask, this.starGlintsA, this.starGlintsB, this.worldBackgroundWeather, this.world, this.labelLayer);
+    this.app.stage.addChild(this.stars, this.worldBackgroundFar, this.worldBackgroundMid, this.worldBackgroundMask, this.starGlintsA, this.starGlintsB, this.worldBackgroundWeather, this.worldTravelLayer, this.world, this.labelLayer);
     this.worldBackgroundMask.renderable = false;
     this.world.addChild(this.floorLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.overlay);
     this.actorLayer.sortableChildren = true;
@@ -1260,6 +1277,103 @@ class Game                    {
     this.audio.setMusicLevel(0.4);
   }
 
+  worldBackgroundUrls(id        )            {
+    if (!WORLD_BACKGROUND_IDS.has(id)) return [];
+    if (WORLD_LAYERED_BACKGROUND_IDS.has(id)) return [`assets/world-backgrounds/${id}-far.webp`, `assets/world-backgrounds/${id}-mid.webp`];
+    return [`assets/world-backgrounds/${id}.webp`];
+  }
+
+  async preloadWorldBackground(id        )                 {
+    await Promise.all(this.worldBackgroundUrls(id).map((url) => PIXI.Assets.load(url)));
+  }
+
+  async fadeWorldTravel(to        , duration        )                 {
+    const sprite = this.worldTravelSprite;
+    if (!sprite) return;
+    const from = sprite.alpha;
+    const started = performance.now();
+    await new Promise((resolve) => {
+      const step = (now        ) => {
+        const p = Math.min(1, (now - started) / duration);
+        sprite.alpha = from + (to - from) * (p * p * (3 - 2 * p));
+        if (p >= 1) resolve(); else requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
+  layoutWorldTravel()       {
+    const sprite = this.worldTravelSprite;
+    const video = this.worldTravelVideo;
+    if (!sprite || !video?.videoWidth || !video.videoHeight) return;
+    const w = this.app.renderer.width, h = this.app.renderer.height;
+    sprite.scale.set(Math.max(w / video.videoWidth, h / video.videoHeight));
+    sprite.position.set(w / 2, h / 2);
+  }
+
+  async createWorldTravelVideo()                 {
+    const video = document.createElement('video');
+    video.src = 'assets/world-travel.mp4'; video.preload = 'auto'; video.playsInline = true; video.muted = true;
+    await new Promise((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error('穿越动画加载超时')), 30000);
+      video.addEventListener('loadeddata', () => { window.clearTimeout(timeout); resolve(); }, { once: true });
+      video.addEventListener('error', () => { window.clearTimeout(timeout); reject(new Error('穿越动画加载失败')); }, { once: true });
+      video.load();
+    });
+    video.currentTime = 0;
+    const texture = PIXI.Texture.from(video);
+    const sprite = new PIXI.Sprite(texture);
+    sprite.anchor.set(0.5); sprite.alpha = 0;
+    this.worldTravelLayer.removeChildren(); this.worldTravelLayer.addChild(sprite);
+    this.worldTravelVideo = video; this.worldTravelSprite = sprite; this.layoutWorldTravel();
+    return video;
+  }
+
+  cleanupWorldTravel()       {
+    const video = this.worldTravelVideo;
+    if (video) { video.pause(); video.removeAttribute('src'); video.load(); }
+    this.worldTravelLayer.removeChildren();
+    if (this.worldTravelSprite) this.worldTravelSprite.destroy({ texture: true });
+    this.worldTravelVideo = null; this.worldTravelSprite = null;
+  }
+
+  async travelToWorld(id        )                 {
+    if (this.worldTravelActive || !this.sim.requestWorldSwitch(id)) return false;
+    const target = this.sim.worldById(id);
+    this.worldTravelActive = true; this.ui.closeModal(); this.save();
+    this.sim.toast(`位面航路已启动：正在前往${target.name}`);
+    const targetLoad = this.preloadWorldBackground(id).catch(() => null);
+    try {
+      const video = await this.createWorldTravelVideo();
+      await this.fadeWorldTravel(1, 700);
+      const cue = this.audio.playMusicCue('world-travel', 0.95);
+      video.currentTime = 0;
+      await video.play();
+      await new Promise((resolve) => {
+        const timeout = window.setTimeout(resolve, 7500);
+        video.addEventListener('ended', () => { window.clearTimeout(timeout); resolve(); }, { once: true });
+      });
+      if (cue) { try { cue.stop(); } catch (err) { /* 音轨已经自然结束 */ } }
+      await targetLoad;
+      const arrived = this.sim.activatePendingWorldSwitch();
+      if (arrived) {
+        this.worldBackgroundId = '';
+        this.ensureWorldBackground();
+        await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        this.ui.render(true); this.save();
+      }
+      await this.fadeWorldTravel(0, 900);
+      return !!arrived;
+    } catch (err) {
+      const arrived = this.sim.activatePendingWorldSwitch();
+      this.worldBackgroundId = ''; this.ensureWorldBackground(); this.ui.render(true); this.save();
+      this.sim.toast(`${arrived ? '已抵达目标世界，但穿越动画未能完整播放' : '穿越失败'}：${err?.message || '未知错误'}`);
+      return !!arrived;
+    } finally {
+      this.cleanupWorldTravel(); this.worldTravelActive = false;
+    }
+  }
+
   openingReadiness() {
     const blocking = []; const warnings = [];
     const hasSeats = this.tavern.allTables().some((t) => this.tavern.tableSeats(t).length > 0);
@@ -1739,6 +1853,7 @@ class Game                    {
     this.starGlintsA.alpha = 0.48 + Math.sin(skyTime * 1.35) * 0.22;
     this.starGlintsB.alpha = 0.52 + Math.sin(skyTime * 1.07 + 2.1) * 0.2;
     this.renderWorldBackground(skyTime);
+    if (this.worldTravelActive) this.layoutWorldTravel();
 
     if (this.staticVersion !== this.tavern.version) { this.rebuildStatic(); this.staticVersion = this.tavern.version; }
     this.rebuildDirt();
@@ -1746,7 +1861,7 @@ class Game                    {
     this.renderItems();
     this.renderOverlay();
     // 音乐层：营业中提高
-    this.audio.setMusicLevel(this.sim.dayActive ? 0.36 : 0.2);
+    this.audio.setMusicLevel(this.worldTravelActive ? 0 : this.sim.dayActive ? 0.36 : 0.2);
   }
 
   rebuildStatic()       {
