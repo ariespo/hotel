@@ -31,6 +31,7 @@ const WORLD_BACKGROUND_IDS = new Set([
   'hearth_coast', 'verdant_court', 'magma_ridge', 'neon_ring', 'moonsea', 'evernight',
   'honey_sky', 'iron_hive', 'mask_realm', 'inverted_dreamsea', 'ash_dragoncourt', 'timeless_bazaar',
 ]);
+const WORLD_LAYERED_BACKGROUND_IDS = new Set(['hearth_coast']);
 const cloneData = (value) => JSON.parse(JSON.stringify(value));
 // 只列出 assets/ 里确实存在的音轨：抓不到的文件会在控制台刷 CORS/404 噪音。
 // 补上 bgm-tavern / bgm-plan / bgm-night 后，把对应行加回来即可分阶段切换。
@@ -259,6 +260,8 @@ class Game                    {
   worldBackgroundLoad = 0;
   worldBackgroundFarSprite = null;
   worldBackgroundMidSprite = null;
+  worldBackgroundFarScale = 1;
+  worldBackgroundMidScale = 1;
   worldBackgroundParticles = [];
 
   tavern = new Tavern();
@@ -329,7 +332,6 @@ class Game                    {
     }
     this.app.stage.addChild(this.stars, this.worldBackgroundFar, this.worldBackgroundMid, this.worldBackgroundMask, this.starGlintsA, this.starGlintsB, this.worldBackgroundWeather, this.world, this.labelLayer);
     this.worldBackgroundMask.renderable = false;
-    this.worldBackgroundMid.mask = this.worldBackgroundMask;
     this.world.addChild(this.floorLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.overlay);
     this.actorLayer.sortableChildren = true;
     this.labelLayer.addChild(this.speechLayer);
@@ -1590,13 +1592,18 @@ class Game                    {
       size: 1 + (i % 4), speed: 0.012 + (i % 7) * 0.004, phase: (i * 0.173) % 1,
     }));
     if (!WORLD_BACKGROUND_IDS.has(id)) return;
-    PIXI.Assets.load(`assets/world-backgrounds/${id}.webp`).then((texture) => {
+    const layered = WORLD_LAYERED_BACKGROUND_IDS.has(id);
+    const farUrl = layered ? `assets/world-backgrounds/${id}-far.webp` : `assets/world-backgrounds/${id}.webp`;
+    const midUrl = layered ? `assets/world-backgrounds/${id}-mid.webp` : farUrl;
+    Promise.all([PIXI.Assets.load(farUrl), PIXI.Assets.load(midUrl)]).then(([farTexture, midTexture]) => {
       if (load !== this.worldBackgroundLoad) return;
-      texture.source.scaleMode = 'linear';
-      const far = new PIXI.Sprite(texture), mid = new PIXI.Sprite(texture);
+      farTexture.source.scaleMode = 'linear';
+      midTexture.source.scaleMode = 'linear';
+      const far = new PIXI.Sprite(farTexture), mid = new PIXI.Sprite(midTexture);
       far.anchor.set(0.5); mid.anchor.set(0.5);
       far.alpha = 0.94;
-      mid.alpha = 0.18;
+      mid.alpha = layered ? 0.42 : 0.18;
+      mid.mask = layered ? null : this.worldBackgroundMask;
       this.worldBackgroundFar.addChild(far);
       this.worldBackgroundMid.addChild(mid);
       this.worldBackgroundFarSprite = far;
@@ -1611,8 +1618,12 @@ class Game                    {
     for (const sp of [this.worldBackgroundFarSprite, this.worldBackgroundMidSprite]) {
       if (!sp?.texture) continue;
       const tw = sp.texture.width || 1, th = sp.texture.height || 1;
-      const extra = sp === this.worldBackgroundMidSprite ? 1.12 : 1.06;
-      sp.scale.set(Math.max(w / tw, h / th) * extra);
+      const layered = WORLD_LAYERED_BACKGROUND_IDS.has(this.worldBackgroundId);
+      const extra = sp === this.worldBackgroundMidSprite ? (layered ? 1.18 : 1.12) : 1.08;
+      const scale = Math.max(w / tw, h / th) * extra;
+      sp.scale.set(scale);
+      if (sp === this.worldBackgroundFarSprite) this.worldBackgroundFarScale = scale;
+      else this.worldBackgroundMidScale = scale;
       sp.position.set(w / 2, h / 2);
     }
   }
@@ -1621,8 +1632,20 @@ class Game                    {
     this.ensureWorldBackground();
     const w = this.app.renderer.width, h = this.app.renderer.height;
     const driftX = Math.sin((this.cam.x || 0) * 0.045), driftY = Math.sin((this.cam.y || 0) * 0.04);
-    if (this.worldBackgroundFarSprite) this.worldBackgroundFarSprite.position.set(w / 2 - driftX * 3, h / 2 - driftY * 2);
-    if (this.worldBackgroundMidSprite) this.worldBackgroundMidSprite.position.set(w / 2 - driftX * 11, h / 2 - driftY * 5);
+    const layered = WORLD_LAYERED_BACKGROUND_IDS.has(this.worldBackgroundId);
+    if (this.worldBackgroundFarSprite) {
+      const farX = layered ? Math.sin(time * 0.07) * 3 : 0;
+      const farY = layered ? Math.cos(time * 0.055) * 2 : 0;
+      this.worldBackgroundFarSprite.position.set(w / 2 - driftX * 3 + farX, h / 2 - driftY * 2 + farY);
+      this.worldBackgroundFarSprite.scale.set(this.worldBackgroundFarScale * (layered ? 1 + Math.sin(time * 0.045) * 0.0025 : 1));
+    }
+    if (this.worldBackgroundMidSprite) {
+      const midX = layered ? Math.sin(time * 0.11 + 0.8) * 16 : 0;
+      const midY = layered ? Math.cos(time * 0.085) * 9 : 0;
+      this.worldBackgroundMidSprite.position.set(w / 2 - driftX * 13 + midX, h / 2 - driftY * 6 + midY);
+      this.worldBackgroundMidSprite.scale.set(this.worldBackgroundMidScale * (layered ? 1 + Math.sin(time * 0.08) * 0.006 : 1));
+      if (layered) this.worldBackgroundMidSprite.alpha = 0.39 + Math.sin(time * 0.17) * 0.03;
+    }
     const g = this.worldBackgroundWeather;
     g.clear();
     const world = this.sim?.currentWorld?.();
