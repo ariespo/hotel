@@ -2508,8 +2508,9 @@ export class UI {
       const result = await requestGameAI('recruitment_candidates', {
         birthWorldName: spec.customWorldName,
         advertisement: { tier: sim.adTier(spec.tier).name, sex: spec.sex || '不限', race: spec.race >= 0 ? RACE_NAMES[spec.race] : '不限', skillBias: spec.bias ? SKILL_LABEL[spec.bias] : '不限' },
+        raceOptions: RACE_NAMES.map((name, id) => ({ id, name })),
         candidates: candidates.map((person, index) => ({
-          index, sex: person.sex, age: person.age, race: person.race,
+          index, sex: person.sex, age: person.age, lockedRaceId: spec.race >= 0 ? spec.race : null,
           traits: person.traits.map((id) => TRAITS.find((trait) => trait.id === id)?.name || id),
           skills: Object.fromEntries(SKILL_KEYS.map((key) => [SKILL_LABEL[key], person.skills[key]])), wage: person.wage,
         })),
@@ -2517,6 +2518,12 @@ export class UI {
       for (const profile of result.candidates) {
         const person = candidates[profile.index];
         if (!person) continue;
+        const appearanceRng = new Rng(Math.floor(Math.random() * 1e9));
+        person.app = randomAppearance(appearanceRng, profile.raceId, true);
+        person.raceIdx = profile.raceId; person.race = RACE_NAMES[profile.raceId];
+        person.age = Math.min(person.age, AGE_MAX[profile.raceId] || 100);
+        person.ht = Math.round([148, 168, 192][person.app.ht] + appearanceRng.range(-6, 6));
+        person.wt = Math.round([46, 62, 88][person.app.bd] + appearanceRng.range(-5, 8));
         person.name = profile.name;
         person.originWorldId = '';
         person.originWorldName = spec.customWorldName;

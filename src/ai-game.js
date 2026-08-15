@@ -237,6 +237,7 @@ const DEFINITIONS = Object.freeze({
       candidates: [{
         index: '整数，与 facts.candidates[index] 一一对应',
         name: '姓名，1-20 个字符',
+        raceId: '整数，从 facts.raceOptions 中选择最符合出生世界的种族 ID；若候选人 lockedRaceId 非空则必须原样采用',
         role: '在出生世界和旅店中的身份定位，10-100 个汉字',
         background: '来到旅店应聘前的经历，120-500 个汉字',
         aspiration: '当前个人目标，15-100 个汉字',
@@ -247,7 +248,7 @@ const DEFINITIONS = Object.freeze({
     rules: [
       '必须为 facts.candidates 中每一位候选人返回一项，index 不得缺失、重复或改变；不得增减人数。',
       '所有人都出生并成长于 facts.birthWorldName 对应的世界观；姓名、身份、经历、求职动机和说话习惯必须体现该世界。',
-      '不得改变 facts.candidates 已确定的性别、年龄、种族、性格、能力与工资，只负责生成与这些属性相容的人物设定。',
+      '不得改变 facts.candidates 已确定的性别、年龄、性格、能力与工资。种族未锁定时从 facts.raceOptions 选择最符合出生世界的 raceId；lockedRaceId 非空时不得改变。',
       '若出生世界来自既有 ACG、文学、影视或其他作品，生成该世界中合理存在的原创普通居民，不冒充或改写著名原作角色。',
       '候选人来到多元便携旅店是为了正常求职并领取工资；不得给予无限财富、无敌、强制控制他人或跳过经营规则的权限。',
       '每位候选人的经历和动机必须明显不同，不能只替换姓名。',
@@ -574,9 +575,13 @@ export function validateGameAIResult(kind, raw, facts = {}) {
       const index = boundedInteger(item?.index, 0, expected.length - 1);
       if (seen.has(index) || !expected[index]) throw new Error(`AI 返回的应聘者索引无效：${row}`);
       seen.add(index);
+      const raceId = Number(item?.raceId);
+      if (!Number.isInteger(raceId) || raceId < 0 || raceId >= RACE_NAMES.length) throw new Error(`AI 返回的应聘者种族无效：${row}`);
+      if (Number.isInteger(expected[index]?.lockedRaceId) && raceId !== expected[index].lockedRaceId) throw new Error(`AI 改变了广告锁定的应聘者种族：${row}`);
       return {
         index,
         name: requiredText(item.name, `candidates[${row}].name`, 1, 20),
+        raceId,
         role: requiredText(item.role, `candidates[${row}].role`, 4, 120),
         background: requiredText(item.background, `candidates[${row}].background`, 30, 700),
         aspiration: requiredText(item.aspiration, `candidates[${row}].aspiration`, 4, 140),
