@@ -3,7 +3,7 @@ import { ACC_NAMES,                  appKey, avatarURL, defaultAppearance, drawA
 import { furnPix, dirtPix, doorPix, equipAnimPix, platePix, ROOM_WALL, T, wallPix } from './src/furniture.js';
 
 const ACTOR_S = 0.5;          // 世界里的小人按 50% 画（美术画布 64×72 → 场内 32×36）
-import { FLOOR_VARIANTS, floorVariant, glowPix, rugTile, wallDecoPix } from './src/floor.js';
+import { FLOOR_VARIANTS, floorVariant, glowPix, wallDecoPix } from './src/floor.js';
 import { hexToNum, mix, PAL, Rng } from './src/pix.js';
 import {
   BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById, worldById,
@@ -22,6 +22,15 @@ const SAVE_KEY = 'wjbdy.save.v1';
 const MORNING_KEY = 'wjbdy.morning.v1';
 const ACTIVE_SLOT_KEY = 'wjbdy.save.active.v1';
 const SAVE_SLOT_COUNT = 3;
+const WORLD_ART_SCALE = 4;
+const WORLD_MATERIALS = {
+  'floor-wood': 'assets/world-materials/floor-walnut-v2.webp',
+  'floor-kitchen': 'assets/world-materials/floor-kitchen-v2.webp',
+  rug: 'assets/world-materials/rug-wine-v2.webp',
+  wall: 'assets/world-materials/wall-beam-v2.webp',
+  door: 'assets/world-materials/door-frame-v2.webp',
+  furniture: 'assets/world-materials/furniture-target-v2.webp',
+};
 const saveKeyFor = (slot        ) => slot === 1 ? SAVE_KEY : `wjbdy.save.v2.slot.${slot}`;
 const morningKeyFor = (slot        ) => slot === 1 ? MORNING_KEY : `wjbdy.morning.v2.slot.${slot}`;
 const backupKeyFor = (slot        ) => `wjbdy.save.backup.v3.slot.${slot}`;
@@ -90,7 +99,25 @@ function actorTexture(app            , dir        , pose      , frame        , c
   return t;
 }
 const furnTex = new Map                      ();
-function furnTexture(kind        , q        , accent = '#C9922F')               {
+const FURNITURE_ATLAS_FRAMES = {
+  table: [0, 0, 128, 128], chair: [128, 0, 128, 128], plant: [256, 0, 128, 128],
+  desk: [384, 0, 256, 128], prep: [0, 128, 256, 128], stove: [256, 128, 256, 128],
+  sconce: [512, 128, 128, 128],
+};
+function furnitureAtlasTexture(kind, atlas) {
+  const frame = FURNITURE_ATLAS_FRAMES[kind];
+  if (!atlas || !frame) return null;
+  const key = `atlas|${kind}`;
+  let t = furnTex.get(key);
+  if (!t) {
+    t = new PIXI.Texture({ source: atlas.source, frame: new PIXI.Rectangle(...frame) });
+    furnTex.set(key, t);
+  }
+  return t;
+}
+function furnTexture(kind        , q        , accent = '#C9922F', atlas = null)               {
+  const hd = furnitureAtlasTexture(kind, atlas);
+  if (hd) return hd;
   const key = kind + q + accent;
   let t = furnTex.get(key);
   if (!t) { t = texFromCanvas(furnPix(kind, q, accent).canvas); furnTex.set(key, t); }
@@ -329,6 +356,7 @@ class Game                    {
   labels              = [];
   floorTextures = new Map                      ();
   floorBase = new Map                           ();
+  worldMaterials = new Map();
   decoSprites = new PIXI.Container();
   pixTex = new Map                      ();
   wallSprites = new PIXI.Container();
@@ -362,6 +390,13 @@ class Game                    {
         const res = (tex.source                                     ).resource;
         if (res) this.floorBase.set(name, res                     );
       } catch (e) { /* 缺失贴图用纯色兜底 */ }
+    }
+    for (const [name, url] of Object.entries(WORLD_MATERIALS)) {
+      try {
+        const tex = await PIXI.Assets.load(url);
+        tex.source.scaleMode = 'linear';
+        this.worldMaterials.set(name, tex);
+      } catch (e) { /* 高清材质缺失时保留原有程序贴图 */ }
     }
     this.app.stage.addChild(this.stars, this.worldBackgroundFar, this.worldBackgroundMid, this.worldBackgroundMask, this.starGlintsA, this.starGlintsB, this.worldBackgroundWeather, this.worldTravelLayer, this.world, this.labelLayer);
     this.worldBackgroundMask.renderable = false;
@@ -1939,16 +1974,31 @@ class Game                    {
       if (!tex) { tex = texFromCanvas(floorVariant(name, v, this.floorBase.get(name) || null).canvas); this.pixTex.set(key, tex); }
       return tex;
     };
-    const rugTex = (edge        , accent        , body        , seed        )               => {
-      const key = `r|${edge}|${accent}|${body}|${seed}`;
+    const materialFrame = (name, x = 0, y = 0) => {
+      const base = this.worldMaterials.get(name);
+      if (!base) return null;
+      const size = T * WORLD_ART_SCALE;
+      const fx = ((x % WORLD_ART_SCALE) + WORLD_ART_SCALE) % WORLD_ART_SCALE;
+      const fy = ((y % WORLD_ART_SCALE) + WORLD_ART_SCALE) % WORLD_ART_SCALE;
+      const key = `hd|${name}|${fx}|${fy}`;
       let tex = this.pixTex.get(key);
-      if (!tex) { tex = texFromCanvas(rugTile(edge, accent, body, seed).canvas); this.pixTex.set(key, tex); }
+      if (!tex) {
+        tex = new PIXI.Texture({
+          source: base.source,
+          frame: new PIXI.Rectangle(fx * size, fy * size, size, size),
+        });
+        this.pixTex.set(key, tex);
+      }
       return tex;
     };
     const glowTex = (r        , c        )               => {
       const key = `g|${r}|${c}`;
       let tex = this.pixTex.get(key);
-      if (!tex) { tex = texFromCanvas(glowPix(r, c).canvas); this.pixTex.set(key, tex); }
+      if (!tex) {
+        tex = texFromCanvas(glowPix(r, c).canvas);
+        tex.source.scaleMode = 'linear';
+        this.pixTex.set(key, tex);
+      }
       return tex;
     };
     const decoTex = (kind        , horiz         )               => {
@@ -1967,7 +2017,9 @@ class Game                    {
           const hash = ((x * 73856093) ^ (y * 19349663) ^ (r.id * 83492791)) >>> 0;
           const roll = hash % 100;
           const v = roll < 62 ? 0 : 1 + (hash >>> 7) % (FLOOR_VARIANTS - 1);
-          const sp = new PIXI.Sprite(floorTex(name, v));
+          const hd = materialFrame(name, x - r.x, y - r.y);
+          const sp = new PIXI.Sprite(hd || floorTex(name, v));
+          sp.width = T; sp.height = T;
           if (name === 'floor-tatami' && ((x + y) & 1)) {
             // 榻榻米经典铺法：相邻格织向转 90°（贴图四边对称，旋转不破缝）
             sp.anchor.set(0.5);
@@ -1985,19 +2037,14 @@ class Game                    {
         }
       }
       // 地毯：酒吧/休息室/餐饮房间内缩一格铺一张，边饰自动拼接
-      const baseRug = RUG[r.kind];
-      const rug                               = baseRug && stl.trim
-        ? [stl.trim, mix(stl.wall || '#2A1A22', stl.trim, 0.18)]                    
-        : baseRug;
-      if (rug && r.w >= 4 && r.h >= 3) {
-        const x0 = r.x + 1, y0 = r.y + 1, x1 = r.x + r.w - 2, y1 = r.y + r.h - 2;
-        for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) {
-          const edge = (y === y0 ? 1 : 0) | (y === y1 ? 2 : 0) | (x === x0 ? 4 : 0) | (x === x1 ? 8 : 0);
-          const sp = new PIXI.Sprite(rugTex(edge, rug[0], rug[1], ((x * 31 + y * 17) % 7)));
-          sp.x = x * T; sp.y = y * T;
-          sp.alpha = stl.trim ? 0.6 : 0.94;   // 风格房间让地砖纹理透出来，地毯只当一层染色
-          this.floorLayer.addChild(sp);
-        }
+      const rug = RUG[r.kind];
+      const rugMaterial = this.worldMaterials.get('rug');
+      if (rug && rugMaterial && r.w >= 4 && r.h >= 3) {
+        const sp = new PIXI.Sprite(rugMaterial);
+        sp.x = (r.x + 1) * T; sp.y = (r.y + 1) * T;
+        sp.width = (r.w - 2) * T; sp.height = (r.h - 2) * T;
+        sp.alpha = 0.96;
+        this.floorLayer.addChild(sp);
       }
     }
     // 墙体贴图化：外墙 8px（壁纸+踢脚线），内墙 5px，门口铺门框；墙脚再压两层地面投影
@@ -2020,6 +2067,7 @@ class Game                    {
       if (!tex) { tex = texFromCanvas(doorPix(horiz).canvas); this.pixTex.set(key, tex); }
       return tex;
     };
+    const beamTex = (x, y) => materialFrame('wall', x + y, 0);
     for (const r of this.tavern.rooms) {
       for (let x = r.x; x < r.x + r.w; x++) for (let y = r.y; y < r.y + r.h; y++) {
         const sides                             = [[0, 0, -1], [1, 0, 1], [2, -1, 0], [3, 1, 0]];
@@ -2029,8 +2077,14 @@ class Game                    {
           if (nb && nb.id < r.id && !isDoor(x, y, x + dx, y + dy)) continue;   // 内墙只画一次
           const horiz = side === 0 || side === 1;
           if (nb && isDoor(x, y, x + dx, y + dy)) {
-            const sp = new PIXI.Sprite(doorTex(horiz));
-            if (side === 0) { sp.x = x * T; sp.y = y * T - 1; }
+            const hdDoor = this.worldMaterials.get('door');
+            const sp = new PIXI.Sprite(hdDoor || doorTex(horiz));
+            if (hdDoor) {
+              sp.anchor.set(0.5); sp.width = T; sp.height = 10;
+              sp.rotation = horiz ? 0 : Math.PI / 2;
+              sp.x = side === 2 ? x * T + 4 : side === 3 ? (x + 1) * T - 4 : x * T + T / 2;
+              sp.y = side === 0 ? y * T + 4 : side === 1 ? (y + 1) * T - 4 : y * T + T / 2;
+            } else if (side === 0) { sp.x = x * T; sp.y = y * T - 1; }
             else if (side === 1) { sp.x = x * T; sp.y = (y + 1) * T - 9; }
             else if (side === 2) { sp.x = x * T - 1; sp.y = y * T; }
             else { sp.x = (x + 1) * T - 9; sp.y = y * T; }
@@ -2045,16 +2099,27 @@ class Game                    {
           else if (side === 2) { sp.x = x * T; sp.y = y * T; }
           else { sp.x = (x + 1) * T; sp.y = y * T; sp.scale.x = -1; }
           this.wallSprites.addChild(sp);
+          const beam = beamTex(x, y);
+          if (beam) {
+            const trim = new PIXI.Sprite(beam);
+            trim.anchor.set(0.5); trim.width = T; trim.height = th;
+            trim.rotation = horiz ? 0 : Math.PI / 2;
+            trim.x = side === 2 ? x * T + th / 2 : side === 3 ? (x + 1) * T - th / 2 : x * T + T / 2;
+            trim.y = side === 0 ? y * T + th / 2 : side === 1 ? (y + 1) * T - th / 2 : y * T + T / 2;
+            this.wallSprites.addChild(trim);
+          }
           if (!nb && ((x * 5 + y * 3 + side) % 4 === 0)) {
             const pick = WALL_DECO[r.kind] || WALL_DECO.dining;
             const kindDeco = pick[(x + y + side) % pick.length];
-            const d = new PIXI.Sprite(decoTex(kindDeco, horiz));
-            d.tint = hexToNum(styleById(this.tavern.roomStyle(r)).furnTint);
+            const hdSconce = kindDeco === 'sconce' ? furnitureAtlasTexture('sconce', this.worldMaterials.get('furniture')) : null;
+            const d = new PIXI.Sprite(hdSconce || decoTex(kindDeco, horiz));
+            if (hdSconce) { d.width = 24; d.height = 24; d.rotation = horiz ? 0 : Math.PI / 2; }
+            else d.tint = hexToNum(styleById(this.tavern.roomStyle(r)).furnTint);
             d.anchor.set(0.5);
             if (side === 0) { d.x = x * T + T / 2; d.y = y * T + 4; }
-            else if (side === 1) { d.x = x * T + T / 2; d.y = (y + 1) * T - 4; d.scale.y = -1; }
+            else if (side === 1) { d.x = x * T + T / 2; d.y = (y + 1) * T - 4; d.scale.y *= -1; }
             else if (side === 2) { d.x = x * T + 4; d.y = y * T + T / 2; }
-            else { d.x = (x + 1) * T - 4; d.y = y * T + T / 2; d.scale.x = -1; }
+            else { d.x = (x + 1) * T - 4; d.y = y * T + T / 2; d.scale.x *= -1; }
             this.decoSprites.addChild(d);
             if (kindDeco === 'sconce') {
               const gl = new PIXI.Sprite(glowTex(20, '#F3B84B'));
@@ -2102,12 +2167,16 @@ class Game                    {
     this.furnSprites.length = 0;
     for (const f of this.tavern.furns) {
       const fstyle = styleById(this.tavern.roomStyle(this.tavern.roomOfFurn(f)));
-      const sp = new PIXI.Sprite(furnTexture(f.kind, f.quality, fstyle.accent));
+      const furnitureAtlas = this.worldMaterials.get('furniture');
+      const hdFurniture = !!(furnitureAtlas && FURNITURE_ATLAS_FRAMES[f.kind]);
+      const sp = new PIXI.Sprite(furnTexture(f.kind, f.quality, fstyle.accent, furnitureAtlas));
       // 实例级微色差：同种家具不再千件一面（色相暖冷 4 档抖动）
       const jit = [0xFFFFFF, 0xF7EEE0, 0xFFF6E4, 0xEFF2F4][((f.id * 2654435761) >>> 0) % 4];
       const base = hexToNum(fstyle.furnTint);
-      sp.tint = (((base >> 16 & 255) * (jit >> 16 & 255) / 255) << 16) | (((base >> 8 & 255) * (jit >> 8 & 255) / 255) << 8) | Math.round((base & 255) * (jit & 255) / 255);
+      if (!hdFurniture) sp.tint = (((base >> 16 & 255) * (jit >> 16 & 255) / 255) << 16) | (((base >> 8 & 255) * (jit >> 8 & 255) / 255) << 8) | Math.round((base & 255) * (jit & 255) / 255);
       const [fw, fh] = furnFootprint(f.kind, f.dir);
+      const [sourceW, sourceH] = furnFootprint(f.kind, 0);
+      sp.width = sourceW * T; sp.height = sourceH * T;
       sp.anchor.set(0.5);
       sp.x = (f.x + fw / 2) * T;
       sp.y = (f.y + fh / 2) * T;
