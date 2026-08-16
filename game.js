@@ -2192,10 +2192,17 @@ class Game                    {
         }
       }
     }
-    // 位面门（门厅入口）
+    // 门厅入口只在真正朝向室外时补门槛；与上方房间相连时由普通门系统处理。
     const e = this.tavern.entrance();
-    wall.rect(e.x * T + 3, e.y * T - 1, T - 6, 5).fill(hexToNum(PAL.cyan));
-    wall.rect(e.x * T + 7, e.y * T - 3, T - 14, 3).fill(hexToNum(PAL.magenta));
+    if (!this.tavern.roomAt(e.x, e.y - 1)) {
+      const entranceDoor = this.materialPack === 'hd' ? this.worldMaterials.get('door') : null;
+      const sp = new PIXI.Sprite(entranceDoor || doorTex(true));
+      if (entranceDoor) {
+        sp.anchor.set(0.5); sp.width = T; sp.height = 10;
+        sp.x = e.x * T + T / 2; sp.y = e.y * T + 4;
+      } else { sp.x = e.x * T; sp.y = e.y * T - 1; }
+      this.wallSprites.addChild(sp);
+    }
     // 家具：和角色同层，按底边 y 排序 —— 站在家具上方（更小的 y）的角色会被家具挡住
     for (const sp of this.furnSprites) sp.destroy();
     this.furnSprites.length = 0;
