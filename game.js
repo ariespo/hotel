@@ -3,7 +3,7 @@ import { ACC_NAMES,                  appKey, avatarURL, defaultAppearance, drawA
 import { furnPix, dirtPix, doorPix, equipAnimPix, platePix, ROOM_WALL, T, wallPix } from './src/furniture.js';
 
 const ACTOR_S = 0.5;          // 世界里的小人按 50% 画（美术画布 64×72 → 场内 32×36）
-import { FLOOR_VARIANTS, floorVariant, glowPix, wallDecoPix } from './src/floor.js';
+import { FLOOR_VARIANTS, floorVariant, glowPix, rugTile, wallDecoPix } from './src/floor.js';
 import { hexToNum, mix, PAL, Rng } from './src/pix.js';
 import {
   BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById, worldById,
@@ -22,6 +22,8 @@ const SAVE_KEY = 'wjbdy.save.v1';
 const MORNING_KEY = 'wjbdy.morning.v1';
 const ACTIVE_SLOT_KEY = 'wjbdy.save.active.v1';
 const SAVE_SLOT_COUNT = 3;
+const MATERIAL_PACK_KEY = 'wjbdy.material-pack.v1';
+const normalizeMaterialPack = (pack) => pack === 'classic' ? 'classic' : 'hd';
 const WORLD_ART_SCALE = 4;
 const WORLD_MATERIALS = {
   'floor-wood': 'assets/world-materials/floor-walnut-v2.webp',
@@ -29,7 +31,10 @@ const WORLD_MATERIALS = {
   rug: 'assets/world-materials/rug-wine-v2.webp',
   wall: 'assets/world-materials/wall-beam-v2.webp',
   door: 'assets/world-materials/door-frame-v2.webp',
-  furniture: 'assets/world-materials/furniture-target-v2.webp',
+  'floor-storage': 'assets/world-materials/floor-storage-v3.webp',
+  'floor-carpet': 'assets/world-materials/floor-carpet-v3.webp',
+  'floor-tatami': 'assets/world-materials/floor-tatami-v3.webp',
+  furniture: 'assets/world-materials/furniture-target-v3.webp',
 };
 const saveKeyFor = (slot        ) => slot === 1 ? SAVE_KEY : `wjbdy.save.v2.slot.${slot}`;
 const morningKeyFor = (slot        ) => slot === 1 ? MORNING_KEY : `wjbdy.morning.v2.slot.${slot}`;
@@ -103,6 +108,9 @@ const FURNITURE_ATLAS_FRAMES = {
   table: [0, 0, 128, 128], chair: [128, 0, 128, 128], plant: [256, 0, 128, 128],
   desk: [384, 0, 256, 128], prep: [0, 128, 256, 128], stove: [256, 128, 256, 128],
   sconce: [512, 128, 128, 128],
+  sink: [0, 256, 256, 128], pass: [256, 256, 256, 128], shelf: [512, 256, 256, 128], bed: [768, 256, 256, 128],
+  lamp: [0, 384, 128, 128], couch: [128, 384, 256, 128], bunk: [384, 384, 256, 128],
+  bookshelf: [640, 384, 256, 128], teatable: [896, 384, 128, 128], vanity: [0, 512, 128, 128],
 };
 function furnitureAtlasTexture(kind, atlas) {
   const frame = FURNITURE_ATLAS_FRAMES[kind];
@@ -362,6 +370,7 @@ class Game                    {
   wallSprites = new PIXI.Container();
   ownerName = '店主';
   currentSlot = 1;
+  materialPack = normalizeMaterialPack(localStorage.getItem(MATERIAL_PACK_KEY));
   static MANUAL_KEY = 'wjbdy.manual.v1';
           lastW = 0;
           lastH = 0;
@@ -369,6 +378,7 @@ class Game                    {
   get blocked()          { return this.titleActive || this.creatorPending || this.worldTravelActive || !!(this.ui && this.ui.modal); }
 
   async boot()                {
+    document.documentElement.dataset.materialPack = this.materialPack;
     const host = document.getElementById('app')               ;
     this.titleScreen = new TitleScreen(document.body);
     this.app = new PIXI.Application();
@@ -702,6 +712,17 @@ class Game                    {
     const own = this.sim.staff.find((x) => x.isOwner);
     if (own) { own.task = null; own.path = []; own.bubble = { text: v ? '听你指挥！' : '我自己忙去', t: 1.6 }; }
     this.sim.toast(v ? `已开启直控：${this.ui.compact ? '拖动屏下摇杆' : 'WASD / 方向键'}移动店主` : '已关闭直控：店主恢复自动干活，WASD 平移镜头');
+  }
+
+  setMaterialPack(pack) {
+    pack = normalizeMaterialPack(pack);
+    document.documentElement.dataset.materialPack = pack;
+    if (pack === this.materialPack) return;
+    this.materialPack = pack;
+    try { localStorage.setItem(MATERIAL_PACK_KEY, pack); } catch (e) { /* 隐私模式下忽略 */ }
+    this.staticVersion = -1;
+    this.ui?.root.classList.toggle('material-hd', pack === 'hd');
+    this.sim.toast(pack === 'hd' ? '已切换高清材质' : '已切换经典材质');
   }
 
   setManualInput(x        , y        )       {
@@ -2001,6 +2022,12 @@ class Game                    {
       }
       return tex;
     };
+    const rugTex = (edge, accent, body, seed) => {
+      const key = `rug|${edge}|${accent}|${body}|${seed % 12}`;
+      let tex = this.pixTex.get(key);
+      if (!tex) { tex = texFromCanvas(rugTile(edge, accent, body, seed).canvas); this.pixTex.set(key, tex); }
+      return tex;
+    };
     const decoTex = (kind        , horiz         )               => {
       const key = `dc|${kind}|${horiz ? 'h' : 'v'}`;
       let tex = this.pixTex.get(key);
@@ -2017,7 +2044,7 @@ class Game                    {
           const hash = ((x * 73856093) ^ (y * 19349663) ^ (r.id * 83492791)) >>> 0;
           const roll = hash % 100;
           const v = roll < 62 ? 0 : 1 + (hash >>> 7) % (FLOOR_VARIANTS - 1);
-          const hd = materialFrame(name, x - r.x, y - r.y);
+          const hd = this.materialPack === 'hd' ? materialFrame(name, x - r.x, y - r.y) : null;
           const sp = new PIXI.Sprite(hd || floorTex(name, v));
           sp.width = T; sp.height = T;
           if (name === 'floor-tatami' && ((x + y) & 1)) {
@@ -2039,12 +2066,19 @@ class Game                    {
       // 地毯：酒吧/休息室/餐饮房间内缩一格铺一张，边饰自动拼接
       const rug = RUG[r.kind];
       const rugMaterial = this.worldMaterials.get('rug');
-      if (rug && rugMaterial && r.w >= 4 && r.h >= 3) {
+      if (rug && this.materialPack === 'hd' && rugMaterial && r.w >= 4 && r.h >= 3) {
         const sp = new PIXI.Sprite(rugMaterial);
         sp.x = (r.x + 1) * T; sp.y = (r.y + 1) * T;
         sp.width = (r.w - 2) * T; sp.height = (r.h - 2) * T;
         sp.alpha = 0.96;
         this.floorLayer.addChild(sp);
+      } else if (rug && (this.materialPack === 'classic' || !rugMaterial) && r.w >= 4 && r.h >= 3) {
+        for (let x = 0; x < r.w - 2; x++) for (let y = 0; y < r.h - 2; y++) {
+          const edge = (y === 0 ? 1 : 0) | (y === r.h - 3 ? 2 : 0) | (x === 0 ? 4 : 0) | (x === r.w - 3 ? 8 : 0);
+          const sp = new PIXI.Sprite(rugTex(edge, rug[0], rug[1], r.id * 31 + x * 7 + y));
+          sp.x = (r.x + x + 1) * T; sp.y = (r.y + y + 1) * T;
+          this.floorLayer.addChild(sp);
+        }
       }
     }
     // 墙体贴图化：外墙 8px（壁纸+踢脚线），内墙 5px，门口铺门框；墙脚再压两层地面投影
@@ -2077,7 +2111,7 @@ class Game                    {
           if (nb && nb.id < r.id && !isDoor(x, y, x + dx, y + dy)) continue;   // 内墙只画一次
           const horiz = side === 0 || side === 1;
           if (nb && isDoor(x, y, x + dx, y + dy)) {
-            const hdDoor = this.worldMaterials.get('door');
+            const hdDoor = this.materialPack === 'hd' ? this.worldMaterials.get('door') : null;
             const sp = new PIXI.Sprite(hdDoor || doorTex(horiz));
             if (hdDoor) {
               sp.anchor.set(0.5); sp.width = T; sp.height = 10;
@@ -2099,7 +2133,7 @@ class Game                    {
           else if (side === 2) { sp.x = x * T; sp.y = y * T; }
           else { sp.x = (x + 1) * T; sp.y = y * T; sp.scale.x = -1; }
           this.wallSprites.addChild(sp);
-          const beam = beamTex(x, y);
+          const beam = this.materialPack === 'hd' ? beamTex(x, y) : null;
           if (beam) {
             const trim = new PIXI.Sprite(beam);
             trim.anchor.set(0.5); trim.width = T; trim.height = th;
@@ -2111,7 +2145,7 @@ class Game                    {
           if (!nb && ((x * 5 + y * 3 + side) % 4 === 0)) {
             const pick = WALL_DECO[r.kind] || WALL_DECO.dining;
             const kindDeco = pick[(x + y + side) % pick.length];
-            const hdSconce = kindDeco === 'sconce' ? furnitureAtlasTexture('sconce', this.worldMaterials.get('furniture')) : null;
+            const hdSconce = kindDeco === 'sconce' && this.materialPack === 'hd' ? furnitureAtlasTexture('sconce', this.worldMaterials.get('furniture')) : null;
             const d = new PIXI.Sprite(hdSconce || decoTex(kindDeco, horiz));
             if (hdSconce) { d.width = 24; d.height = 24; d.rotation = horiz ? 0 : Math.PI / 2; }
             else d.tint = hexToNum(styleById(this.tavern.roomStyle(r)).furnTint);
@@ -2167,7 +2201,7 @@ class Game                    {
     this.furnSprites.length = 0;
     for (const f of this.tavern.furns) {
       const fstyle = styleById(this.tavern.roomStyle(this.tavern.roomOfFurn(f)));
-      const furnitureAtlas = this.worldMaterials.get('furniture');
+      const furnitureAtlas = this.materialPack === 'hd' ? this.worldMaterials.get('furniture') : null;
       const hdFurniture = !!(furnitureAtlas && FURNITURE_ATLAS_FRAMES[f.kind]);
       const sp = new PIXI.Sprite(furnTexture(f.kind, f.quality, fstyle.accent, furnitureAtlas));
       // 实例级微色差：同种家具不再千件一面（色相暖冷 4 档抖动）

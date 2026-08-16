@@ -288,6 +288,14 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 @media(max-width:650px){.metric-row{grid-template-columns:18px 56px minmax(44px,1fr) 22px}.skill-inline{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media(max-width:650px){.candidate-compare-modal{width:94vw}.compare-grid{grid-template-columns:1fr}.compare-column:not(.focused){display:none}.compare-column{font-size:14px}.compare-footer{position:sticky;bottom:-14px;margin:10px -14px -14px;padding:10px 14px;background:var(--paper-clean)}.metric-row.with-label{grid-template-columns:18px 40px 36px minmax(64px,1fr) 22px}}
 @media(max-width:1040px){#ui.compact{font-size:14px}#ui.compact button{font-size:13px}#ui.compact #top{height:40px;min-height:40px;padding:0 4px;gap:0;scrollbar-width:none}#ui.compact #top::-webkit-scrollbar{display:none}#ui.compact #top .top-group{padding:0 7px}#ui.compact #top .top-identity{display:none}#ui.compact #top .top-economy{min-width:0}#ui.compact #top .top-status,#ui.compact #top .top-tools{display:none}#ui.compact #top .top-actions>button{min-width:0;min-height:30px;padding:2px 7px}#ui.compact #left,#ui.compact #right{top:44px;bottom:0;width:min(90vw,400px);max-height:none;padding:10px}#ui.compact #left>.tabs,#ui.compact #right>.tabs{top:-10px;margin:-10px -10px 10px;padding:8px 8px 7px}#ui.compact .tabs button{min-height:34px}#ui.compact .tabs button.fold{width:36px;height:36px;flex-basis:36px}#ui.compact .rail{top:48px;bottom:52px}#ui.compact #bottom{height:44px;min-height:0;max-height:32vh}#ui.compact .metric-row{grid-template-columns:18px 56px minmax(48px,1fr) 22px;gap:6px;min-height:24px}#ui.compact .metric-row+.metric-row{margin-top:4px}#ui.compact .metric-icon,#ui.compact .metric-icon .ui-icon{width:18px;height:18px}#ui.compact .metric-band{font-size:11px}#ui.compact .metric-track{height:7px}#ui.compact .portrait-main{width:88px;height:110px}#ui.compact .staff-summary{margin-bottom:8px!important;padding:0;font-size:14px}#ui.compact .staff-card{min-height:0;padding:10px!important;margin-bottom:8px!important}#ui.compact .staff-card-grid{grid-template-columns:88px minmax(0,1fr);gap:14px}#ui.compact .staff-card-head{min-height:36px}#ui.compact .staff-identity b{font-size:17px}#ui.compact .staff-role-tag{margin-left:6px;padding:1px 6px;font-size:11px}#ui.compact .staff-metrics{margin:8px 0 6px;padding:7px 0 0}}
+#ui.material-hd:after{border-image-source:url('assets/ui-frame-ornament-v3.webp');filter:drop-shadow(0 2px 2px #120904aa)}
+#ui.material-hd .pane{border-width:9px;border-image:url('assets/ui-frame-ornament-v3.webp') 54 / 9px stretch;background-image:linear-gradient(135deg,#fffdf877 0%,#ead5ae44 48%,#aa794a1f 100%),url('assets/ui-paper-target-v2.webp');box-shadow:0 5px 18px #10090566,inset 0 1px #fffdf5cc,inset 0 -3px 12px #72451622}
+#ui.material-hd button:not(.brand-title){border-color:#7a5427;background-color:#ead1a8;background-image:linear-gradient(180deg,#fffdf0bd 0%,#f1d9ad66 38%,#ba84473d 100%),url('assets/ui-control-ornament-v3.webp');background-size:auto,100% 100%;background-repeat:no-repeat;color:#52331e;text-shadow:0 1px #fff8dfb8;box-shadow:0 3px 5px #2b160b40,inset 0 2px #fffbe7cc,inset 0 -3px #6a3b162f,inset 0 0 0 1px #d8aa5f66}
+#ui.material-hd button:not(.brand-title):hover{border-color:#c6923e;background-image:linear-gradient(180deg,#fffff1d6 0%,#f5ddb16e 40%,#c18a4b42 100%),url('assets/ui-control-ornament-v3.webp');box-shadow:0 4px 7px #2b160b4d,inset 0 2px #fffef0e8,inset 0 -3px #75421838,0 0 0 1px #e0b76a55}
+#ui.material-hd button.on,#ui.material-hd .primary-action{background-image:linear-gradient(180deg,#a54339 0%,#7f2823 48%,#531612 100%)!important;border-color:#d2a85f!important;color:#fff5dc!important;text-shadow:0 1px #2a0908!important;box-shadow:0 3px 7px #2d090955,inset 0 2px #f6b8a044,inset 0 -3px #2e080966,inset 0 0 0 1px #e4bd7644!important}
+#ui.material-hd .card{border-color:#aa8350;background-image:linear-gradient(145deg,#fffdf4a6,#efd9b466 52%,#b8844921),url('assets/ui-paper-target-v2.webp');box-shadow:0 3px 8px #3a210f24,inset 0 1px #fffdf1e8,inset 0 0 0 1px #d5aa6a4d}
+#ui.material-hd #top .top-group{border-right-color:#9b6c30;box-shadow:inset -1px 0 #fff9e7c9,inset -3px 0 #6a421522}
+#ui.material-hd #left>.tabs,#ui.material-hd #right>.tabs{border-bottom:2px solid #b08143;box-shadow:0 3px 7px #2b170b22,inset 0 -1px #fff7da}
 `;
 
 function el(html        )              {
@@ -446,6 +454,7 @@ export class UI {
     style.textContent = CSS;
     document.head.appendChild(style);
     this.root = el('<div id="ui"></div>');
+    this.root.classList.toggle('material-hd', this.g.materialPack === 'hd');
     document.body.appendChild(this.root);
     this.top = el('<div id="top" class="pane"></div>');
     this.left = el('<div id="left" class="pane"></div>');
@@ -860,6 +869,7 @@ export class UI {
     else if (act === 'firec') this.openFireConfirm(parseInt(v, 10));
     else if (act === 'firego') { if (g.fire(parseInt(v, 10))) this.closeModal(); }
     else if (act === 'manual') { g.setManualOwner(v === '1'); this.openSettings(); }
+    else if (act === 'materialpack') { g.setMaterialPack(v); this.openSettings(); }
     else if (act === 'mobilemanual') g.setManualOwner(!g.sim.manualOwner);
     else if (act === 'confirmnew') this.openConfirmRestart();
     this.handleTutorialAction(act, v);
@@ -3121,6 +3131,12 @@ export class UI {
         <button data-act="manual" data-v="1" class="${manual ? 'on' : ''}">直控店主</button>
       </div>
       <div class="dim">直控：电脑用 WASD / 方向键，手机窄屏用屏下摇杆移动店主；关闭时店主自己接派工。其他员工始终自动干活。</div>
+      <h3 style="margin:14px 0 6px">画面材质</h3>
+      <div class="row">
+        <button data-act="materialpack" data-v="hd" class="${this.g.materialPack === 'hd' ? 'on' : ''}">高清材质</button>
+        <button data-act="materialpack" data-v="classic" class="${this.g.materialPack === 'classic' ? 'on' : ''}">经典材质</button>
+      </div>
+      <div class="dim">同步切换房间地板、地毯、墙门、壁灯、家具与界面框体；只保存在当前浏览器，不改动游戏存档。</div>
       <div class="row" style="margin-top:10px"><span style="width:56px">音乐</span><input data-act="volm" type="range" min="0" max="1" step="0.05" value="${vols.m}" style="flex:1"></div>
       <div class="row"><span style="width:56px">音效</span><input data-act="vols" type="range" min="0" max="1" step="0.05" value="${vols.s}" style="flex:1"></div>
       <div class="row" style="margin-top:10px"><span>操作</span><span class="dim">空格暂停 · 1/2/3 变速 · R 旋转 · F 聚焦 · E 与身边的伙计/客人搭话 · 点角色开互动菜单 · 双击伙计看详情 · 鼠标拖拽平移 · 滚轮缩放</span></div>
