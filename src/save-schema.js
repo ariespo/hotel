@@ -3,7 +3,7 @@ import { starsOf, WORLD_PROFILES, worldsForStars } from './data.js';
 import { RACE_NAMES } from './chargen.js';
 import { normalizeCustomWorld } from './world-system.js';
 
-export const SAVE_SCHEMA_VERSION = 6;
+export const SAVE_SCHEMA_VERSION = 7;
 
 function stableHash(text) {
   let hash = 2166136261;
@@ -98,6 +98,14 @@ export function migrateGameSaveData(source) {
     for (const world of econ.customWorlds) econ.worldKnowledge[world.id] ||= { level: 4, arrivals: 0, served: 0, firstDay: econ.day || 1, reviewed: true, journeyAsked: true };
     data.meta.version = 6;
     version = 6;
+  }
+  if (version < 7) {
+    const econ = data.sim.econ;
+    econ.factionRelations = econ.factionRelations && typeof econ.factionRelations === 'object' ? econ.factionRelations : {};
+    econ.worldSeenLevels = econ.worldSeenLevels && typeof econ.worldSeenLevels === 'object' ? econ.worldSeenLevels : {};
+    econ.recruitmentSeen = econ.recruitmentSeen && typeof econ.recruitmentSeen === 'object' ? econ.recruitmentSeen : {};
+    data.meta.version = 7;
+    version = 7;
   }
   if (version > SAVE_SCHEMA_VERSION) throw new Error(`存档版本 ${version} 高于当前支持的 ${SAVE_SCHEMA_VERSION}`);
   data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, migratedAt: originalVersion < SAVE_SCHEMA_VERSION ? Date.now() : data.meta.migratedAt || 0 };

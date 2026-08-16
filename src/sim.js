@@ -11,6 +11,7 @@ import {
 } from './data.js';
 import {            Tavern, dirDelta, furnFootprint } from './world.js';
 import { normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
+import { worldContentFor, worldSpecialtyFor } from './world-content.js';
 
 export const LONG_EVENT_CHAINS = [
   { id: 'starwhale', name: '星鲸迁徙季', steps: [
@@ -688,6 +689,19 @@ export function applyRecruitmentWorld(person, world, rng) {
     aspiration: `在旅店站稳脚跟，并让来自${world.name}的经验成为自己的长处。`,
     quirk: `谈到故乡时会自然提起${person.homeRegion || world.name}的生活习惯。`,
   };
+  applyWorldSpecialty(person, world);
+  return person;
+}
+
+/** 当地员工拥有一项真实生效的世界专长；已写入存档的专长不会重复加成。 */
+export function applyWorldSpecialty(person, world) {
+  if (!person || !world) return person;
+  const specialty = worldSpecialtyFor(world);
+  if (!specialty) return person;
+  if (person.worldSpecialty?.id === specialty.id) return person;
+  person.worldSpecialty = { ...specialty };
+  person.skills = normalizedSkills(person.skills);
+  if (SKILL_KEYS.includes(specialty.skill)) person.skills[specialty.skill] = Math.round(clamp(person.skills[specialty.skill] + specialty.bonus, 1, 100));
   return person;
 }
 
@@ -727,6 +741,7 @@ export class Sim {
   eventHistory = [];
   eventChains = {};
   lastChainEventDay = 0;
+  lastWorldChainEventDay = 0;
   aiEventRequested = false;
   queuedDynamicEvent = null;
   log           = [];
@@ -760,6 +775,9 @@ export class Sim {
     this.econ.pendingWorldSwitch = this.econ.pendingWorldSwitch && typeof this.econ.pendingWorldSwitch === 'object' ? this.econ.pendingWorldSwitch : null;
     this.econ.worldVisits = this.econ.worldVisits && typeof this.econ.worldVisits === 'object' ? this.econ.worldVisits : { [this.econ.currentWorldId]: 1 };
     this.econ.worldKnowledge = { ...blankWorldKnowledge(), ...Object.fromEntries(this.econ.customWorlds.map((world) => [world.id, { level: 4, arrivals: 0, served: 0, firstDay: this.econ.day, reviewed: true, journeyAsked: true }])), ...(this.econ.worldKnowledge || {}) };
+    this.econ.factionRelations = this.econ.factionRelations && typeof this.econ.factionRelations === 'object' ? this.econ.factionRelations : {};
+    this.econ.worldSeenLevels = this.econ.worldSeenLevels && typeof this.econ.worldSeenLevels === 'object' ? this.econ.worldSeenLevels : {};
+    this.econ.recruitmentSeen = this.econ.recruitmentSeen && typeof this.econ.recruitmentSeen === 'object' ? this.econ.recruitmentSeen : {};
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.econ.certifiedStars);
     this.rng = new Rng(econ.seed || 12345);
   }
@@ -769,6 +787,34 @@ export class Sim {
   currentWorld() { return this.worldById(this.econ.currentWorldId); }
   currentWorldRule() { return worldRuleForDay(this.currentWorld(), this.econ.day); }
   currentWorldFestival() { return worldFestivalForDay(this.currentWorld(), this.econ.day); }
+
+  worldFactionRelations(worldId) {
+    const world = this.worldById(worldId);
+    const saved = this.econ.factionRelations[world.id] && typeof this.econ.factionRelations[world.id] === 'object' ? this.econ.factionRelations[world.id] : {};
+    this.econ.factionRelations[world.id] = saved;
+    for (const faction of world.factions || []) if (!Number.isFinite(Number(saved[faction.id]))) saved[faction.id] = 0;
+    return saved;
+  }
+
+  factionRelation(worldId, factionId) {
+    return clamp(Math.round(Number(this.worldFactionRelations(worldId)[factionId]) || 0), -100, 100);
+  }
+
+  adjustFactionRelation(worldId, factionId, delta) {
+    if (!worldId || !factionId) return 0;
+    const rows = this.worldFactionRelations(worldId);
+    rows[factionId] = clamp(Math.round((Number(rows[factionId]) || 0) + Number(delta || 0)), -100, 100);
+    return rows[factionId];
+  }
+
+  worldCommission(worldId = this.econ.currentWorldId) {
+    const world = this.worldById(worldId);
+    const content = worldContentFor(world);
+    const key = `world_${world.id}`;
+    const stage = Math.max(0, Math.min(content.chain.steps.length, Number(this.eventChains[key]) || 0));
+    const faction = world.factions?.[content.chain.factionIndex] || world.factions?.[0] || { id: 'local', name: '当地势力' };
+    return { key, world, faction, chain: content.chain, stage, complete: stage >= content.chain.steps.length, next: content.chain.steps[stage] || null };
+  }
 
   unlockedWorlds() {
     return this.worlds().filter((world) => world.custom || world.unlockStars <= this.stars());
@@ -3781,6 +3827,23 @@ export class Sim {
   }
 
   triggerEvent()       {
+    const commission = this.worldCommission();
+    if (this.econ.day >= 2 && this.econ.day % 2 === 0 && !commission.complete && this.lastWorldChainEventDay !== this.econ.day) {
+      const stage = commission.stage;
+      const step = commission.next;
+      const id = `world_chain_${commission.world.id}_${stage}`;
+      this.pendingEvent = this.structuredEventCard(step, id, {
+        chainId: commission.key, chainStage: stage, chainName: commission.chain.name,
+        worldEvent: true, worldId: commission.world.id, factionId: commission.faction.id, factionName: commission.faction.name,
+      });
+      this.lastWorldChainEventDay = this.econ.day;
+      this.lastEventId = id;
+      this.eventHistory.push(id);
+      if (this.eventHistory.length > 12) this.eventHistory.shift();
+      this.fx.push({ ...this.tavern.entrance(), t: 1.2, kind: 'event' });
+      this.sounds.push('alert');
+      return;
+    }
     if (this.econ.day >= 3 && this.econ.day % 3 === 0 && this.lastChainEventDay !== this.econ.day) {
       const available = LONG_EVENT_CHAINS.filter((chain) => (this.eventChains[chain.id] || 0) < chain.steps.length);
       if (available.length) {
@@ -3799,6 +3862,21 @@ export class Sim {
       }
     }
     const recent = new Set(this.eventHistory.slice(-5));
+    const world = this.currentWorld();
+    const worldAccident = worldContentFor(world).accident;
+    const worldAccidentId = `world_accident_${world.id}`;
+    if (!recent.has(worldAccidentId) && this.rng.chance(0.55)) {
+      const faction = world.factions?.[worldAccident.factionIndex] || world.factions?.[0] || { id: 'local', name: '当地势力' };
+      this.lastEventId = worldAccidentId;
+      this.eventHistory.push(worldAccidentId);
+      if (this.eventHistory.length > 12) this.eventHistory.shift();
+      this.pendingEvent = this.structuredEventCard(worldAccident, worldAccidentId, {
+        worldEvent: true, worldId: world.id, factionId: faction.id, factionName: faction.name,
+      });
+      this.fx.push({ ...this.tavern.entrance(), t: 1.2, kind: 'event' });
+      this.sounds.push('alert');
+      return;
+    }
     const pool = EVENTS.filter((e) => !recent.has(e.id));
     const card = pool[this.rng.int(pool.length)];
     this.lastEventId = card.id;
@@ -3875,6 +3953,8 @@ export class Sim {
     const dirt = amount(effects.dirt, -4, 6);
     if (dirt > 0) ctx.spawnDirt(dirt);
     else if (dirt < 0) this.tavern.dirt.splice(Math.max(0, this.tavern.dirt.length + dirt), -dirt);
+    if (card.worldId && card.factionId) this.adjustFactionRelation(card.worldId, card.factionId, success ? 8 : -5);
+    if (card.chainId) this.eventChains[card.chainId] = Math.max(this.eventChains[card.chainId] || 0, (card.chainStage || 0) + 1);
     this.pendingEvent = null;
     const after = snapshot();
     const stock = {};
@@ -3893,6 +3973,7 @@ export class Sim {
       choiceNote: plan.rationale || '由 AI 解释玩家的自定义处理方式', skill, success,
       originalResult: branch?.narrative || branch?.impact || '事件告一段落。', effects: actualEffects,
       aiCustom: true, difficulty, chance, roll, impact: branch?.impact || '', resultTitle: plan.title || card.title,
+      worldId: card.worldId || '', factionId: card.factionId || '', factionName: card.factionName || '',
     };
     if (this.dayReport) this.dayReport.events.push(this.lastEventResolution);
     return { ...this.lastEventResolution, narrative: this.lastEventResolution.originalResult, best };
@@ -3927,6 +4008,7 @@ export class Sim {
         text = success ? c.ok(ctx) : (c.fail ? c.fail(ctx) : '失败了。');
       } else text = c.ok(ctx);
     }
+    if (card.worldId && card.factionId) this.adjustFactionRelation(card.worldId, card.factionId, success ? 8 : -5);
     const after = snapshot();
     const stock = {};
     for (const key of Object.keys(after.stock)) {
@@ -3943,6 +4025,7 @@ export class Sim {
     this.lastEventResolution = {
       eventId: card.id, title: card.title, premise: card.text, choice: c.label, choiceNote: c.note,
       skill: c.skill || '', success, originalResult: text, effects,
+      worldId: card.worldId || '', factionId: card.factionId || '', factionName: card.factionName || '',
     };
     if (this.dayReport) this.dayReport.events.push(this.lastEventResolution);
     return text;
@@ -4014,6 +4097,9 @@ export class Sim {
     if (!this.econ.aiChronicles) this.econ.aiChronicles = [];
     if (!this.econ.aiNightStories) this.econ.aiNightStories = [];
     if (!this.econ.notableVisits || typeof this.econ.notableVisits !== 'object') this.econ.notableVisits = {};
+    if (!this.econ.factionRelations || typeof this.econ.factionRelations !== 'object') this.econ.factionRelations = {};
+    if (!this.econ.worldSeenLevels || typeof this.econ.worldSeenLevels !== 'object') this.econ.worldSeenLevels = {};
+    if (!this.econ.recruitmentSeen || typeof this.econ.recruitmentSeen !== 'object') this.econ.recruitmentSeen = {};
     if (!this.econ.dishMastery || typeof this.econ.dishMastery !== 'object') this.econ.dishMastery = {};
     this.econ.restockTargets = { ...DEFAULT_RESTOCK_TARGETS, ...(this.econ.restockTargets || {}) };
     this.econ.restockBudget = Math.max(0, Math.round(Number(this.econ.restockBudget) || 0));
@@ -4041,8 +4127,12 @@ export class Sim {
       originWorldName: String(s.originWorldName || (s.originWorldId ? this.worldById(s.originWorldId).name : '')).slice(0, 80),
       homeRegion: String(s.homeRegion || '').slice(0, 80),
     });
-    this.staff = data.staff.map((s) => fix(s, false));
-    this.pool = data.pool.map((s) => fix(s, true)).map((person) => person.originWorldName ? person : applyRecruitmentWorld(person, this.currentWorld(), this.rng));
+    const restoreSpecialty = (person) => {
+      if (person.isOwner || person.worldSpecialty?.id || !person.originWorldId) return person;
+      return applyWorldSpecialty(person, this.worldById(person.originWorldId));
+    };
+    this.staff = data.staff.map((s) => restoreSpecialty(fix(s, false)));
+    this.pool = data.pool.map((s) => restoreSpecialty(fix(s, true))).map((person) => person.originWorldName ? person : applyRecruitmentWorld(person, this.currentWorld(), this.rng));
     this.ads = (data.ads && data.ads.length === 3 ? data.ads : [{ spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }, { spec: null, cands: [], day: 0 }])
       .map((a) => {
         const spec = a.spec ? {
@@ -4052,7 +4142,7 @@ export class Sim {
           customWorldName: String(a.spec.customWorldName || '').trim().slice(0, 80),
         } : null;
         const fixedWorld = spec ? WORLD_PROFILES.find((world) => world.id === spec.birthWorldId) : null;
-        const cands = (a.cands || []).map((s) => fix(s, true)).map((person) => {
+        const cands = (a.cands || []).map((s) => restoreSpecialty(fix(s, true))).map((person) => {
           if (person.originWorldName) return person;
           if (fixedWorld) return applyRecruitmentWorld(person, fixedWorld, this.rng);
           if (spec?.customWorldName) { person.originWorldId = ''; person.originWorldName = spec.customWorldName; }
@@ -4084,6 +4174,7 @@ export function newEcon(seed        )       {
     menu: {},
     customDishes: [], dishMastery: {}, aiChronicles: [], aiNightStories: [],
     currentWorldId: 'hearth_coast', pendingWorldSwitch: null, customWorlds: [], archivedWorlds: [], worldVisits: { hearth_coast: 1 }, notableVisits: {},
+    factionRelations: {}, worldSeenLevels: {}, recruitmentSeen: {},
     worldKnowledge: blankWorldKnowledge(), worldForecast: worldForecastForDay(seed, 1, 0),
     revenue: 0, served: 0, lost: 0, seed,
   };

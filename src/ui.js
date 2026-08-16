@@ -234,12 +234,13 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .prompt-card{padding:8px 10px;border:2px solid #E3C9A4;border-left:5px solid #8A74B8;border-radius:10px;background:#FFF8E9;margin-top:8px}
 .prompt-tabs{display:flex;gap:6px;position:sticky;top:-12px;z-index:2;padding:8px 0;background:#F5E6C8;flex-wrap:wrap}.prompt-tabs button{min-width:100px}.prompt-tabs button.on{background:#7A4BE0;color:#fff;border-color:#5E3EA0}.prompt-pane{display:none}.prompt-pane.on{display:block}.world-prompt-tabs,.world-builder-tabs{position:static;top:auto}.world-prompt-stage-pane{display:none}.world-prompt-stage-pane.on{display:block}.prompt-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.prompt-module{padding:8px 9px;border:2px solid #E3C9A4;border-radius:9px;background:#FFF8E9}.prompt-module textarea{width:100%;min-height:112px;box-sizing:border-box;margin-top:5px;resize:vertical;line-height:1.5}
 .world-title{font-weight:900;border-color:var(--world-tint,#C9922F);box-shadow:0 0 0 1px color-mix(in srgb,var(--world-tint,#C9922F) 35%,transparent);white-space:nowrap}.world-picker{display:flex;gap:5px;overflow-x:auto;padding:4px 0 8px}.world-picker button{flex:0 0 auto}.world-card-tabs{position:static;background:transparent}.world-card-tabs button{min-width:70px}.world-card-body{min-height:280px;max-height:55vh;overflow:auto;padding-right:4px}.world-hero{display:flex;align-items:center;gap:14px;padding:14px;border:2px solid var(--world-card-tint);border-radius:12px;background:linear-gradient(135deg,#FFF8E9,color-mix(in srgb,var(--world-card-tint) 16%,#FFF8E9))}.world-hero h2{margin:0 0 4px}.world-glyph{font-size:46px;min-width:56px;text-align:center;color:var(--world-card-tint);text-shadow:0 2px 0 #fff}.world-timeline .card{border-left-color:var(--world-tint,#7A4BE0)}
+.decision-toolbar{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:6px 0}.decision-toolbar label{display:flex;align-items:center;gap:4px}.decision-toolbar select{max-width:116px}.candidate-card.recommended{border-left-color:#58A947;background:linear-gradient(135deg,#FFF8E9,#EAF8DE)}.candidate-summary{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.candidate-details{margin:4px 0}.candidate-details summary{cursor:pointer;color:#7A4BE0}.compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.compare-grid .card{min-width:0}.new-dot{display:inline-block;color:#D94832;font-weight:900;margin-left:3px}.world-decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:7px 0}.world-decision-grid .card{margin:0}.relation-meter{height:6px;border-radius:4px;background:#E1D0B5;overflow:hidden;margin-top:4px}.relation-meter i{display:block;height:100%;background:#7A4BE0}.filter-empty{padding:12px;text-align:center;border:1px dashed #C9A176;border-radius:8px;color:#87684e}
 #tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper2.png');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 120px}html.portrait-v2 .creator-preview img.big{width:120px;height:160px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
 .owner-skill-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0}.owner-skill-presets button{text-align:left;white-space:normal}.owner-skill-presets small{display:block;color:#87684e;margin-top:2px}.owner-growth{position:relative;overflow:hidden;border-left-color:#7A4BE0!important;background:linear-gradient(115deg,#fff7db,#efe3ff,#fff7db);animation:ownerGrowthGlow 1.6s ease-in-out infinite alternate}.owner-growth:after{content:'✦';position:absolute;right:12px;top:7px;color:#7A4BE0;font-size:24px;animation:ownerGrowthSpark 1.2s ease-in-out infinite}@keyframes ownerGrowthGlow{to{box-shadow:0 0 18px #9e72e866,inset 0 0 12px #fff}}@keyframes ownerGrowthSpark{50%{transform:scale(1.3) rotate(15deg);opacity:.45}}
 .creator-background,.creator-ai-design{padding:9px 10px;border:2px solid #D9BC91;border-radius:11px;background:#FFF8E9;margin-bottom:9px}.creator-background-presets{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.creator-background label{display:block;margin-top:6px}.creator-background input,.creator-background textarea,.creator-ai-design textarea{width:100%;box-sizing:border-box}.creator-background textarea{min-height:116px;resize:vertical;line-height:1.55}.creator-ai-design{border-color:#A78BD0;background:linear-gradient(135deg,#FFF8E9,#F2EAFE)}.creator-ai-design textarea{min-height:86px;resize:vertical;line-height:1.5}.creator-ai-skills{margin-top:5px;padding:5px 7px;border-radius:7px;background:#7A4BE014;color:#6A4B91}.creator-ai-status{margin-top:6px}.creator-ai-design button{border-color:#8D6CC0}.creator-ai-design.generating{animation:ownerGrowthGlow 1.4s ease-in-out infinite alternate}
-@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.prompt-module-grid{grid-template-columns:1fr}.prompt-tabs button{flex:1;min-width:84px}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 92px}html.portrait-v2 .creator-preview img.big{width:92px;height:123px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
+@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.prompt-module-grid,.world-decision-grid,.compare-grid{grid-template-columns:1fr}.prompt-tabs button{flex:1;min-width:84px}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 92px}html.portrait-v2 .creator-preview img.big{width:92px;height:123px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
 `;
 
 function el(html        )              {
@@ -307,6 +308,11 @@ export class UI {
   purchaseConfirm = null;
   customWorldActiveTab = 'concept';
   worldPromptActiveStage = 'world_concept';
+  candidateSort = 'gap';
+  candidateJobFilter = 'all';
+  candidateWorldFilter = 'all';
+  candidateCompareIds = new Set();
+  worldFilter = 'all';
           panelHTML = new WeakMap();
 
   constructor(g         ) {
@@ -478,6 +484,7 @@ export class UI {
     else if (act === 'home') { const e = g.tavern.entrance(); g.focusOn(e.x, e.y + 2); }
     else if (act === 'worldcard') this.openWorldCard(v || g.sim.econ.currentWorldId);
     else if (act === 'worldcardtab') this.openWorldCard(t.dataset.id || g.sim.econ.currentWorldId, v);
+    else if (act === 'worldfilter') { this.worldFilter = v; this.render(true); }
     else if (act === 'worldswitch') this.openWorldSwitchConfirm(v);
     else if (act === 'worldswitchgo') g.travelToWorld(v);
     else if (act === 'customworld') this.openCustomWorldBuilder();
@@ -658,6 +665,16 @@ export class UI {
     else if (act === 'adpost') this.postRecruitmentAd(parseInt(v, 10));
     else if (act === 'adcancelai') this.adAIController?.abort();
     else if (act === 'adclear') { g.sim.withdrawAd(parseInt(v, 10)); g.save(); }
+    else if (act === 'adseen') {
+      const slot = parseInt(v, 10); const ad = g.sim.ads[slot];
+      if (ad?.spec) { g.sim.econ.recruitmentSeen[slot] = this.recruitmentToken(ad); g.save(); }
+    }
+    else if (act === 'candcompare') {
+      const id = parseInt(v, 10);
+      if (this.candidateCompareIds.has(id)) this.candidateCompareIds.delete(id);
+      else if (this.candidateCompareIds.size < 3) this.candidateCompareIds.add(id);
+      else g.sim.toast('最多同时比较 3 名候选人');
+    }
     else if (act === 'firec') this.openFireConfirm(parseInt(v, 10));
     else if (act === 'firego') { if (g.fire(parseInt(v, 10))) this.closeModal(); }
     else if (act === 'manual') { g.setManualOwner(v === '1'); this.openSettings(); }
@@ -675,6 +692,9 @@ export class UI {
       if (t.value !== 'ai_custom') this.adSpec.customWorldName = '';
       this.openAdPanel(this.adSlot);
     }
+    if (t.dataset.act === 'candsort') { this.candidateSort = t.value; this.render(true); }
+    if (t.dataset.act === 'candjobfilter') { this.candidateJobFilter = t.value; this.render(true); }
+    if (t.dataset.act === 'candworldfilter') { this.candidateWorldFilter = t.value; this.render(true); }
     if (t.dataset.act === 'restock') { this.g.sim.econ.autoRestock = t.checked; this.g.save(); }
     if (t.dataset.act === 'restockbudget') {
       this.g.sim.econ.restockBudget = Math.max(0, Math.min(999999, Math.round(Number(t.value) || 0)));
@@ -982,6 +1002,126 @@ export class UI {
       ${g.buildBp || g.buildFurn ? `<div class="row" style="margin-top:6px"><button data-act="rotate">R 旋转</button><button data-act="cancelbuild" class="warn">取消</button></div>` : ''}`);
   }
 
+  recruitmentToken(ad) {
+    return ad?.spec ? `${ad.day}:${(ad.cands || []).map((person) => person.id).join(',')}` : '';
+  }
+
+  allRecruitmentCandidates() {
+    const sim = this.g.sim;
+    return [...sim.ads.flatMap((ad) => ad.cands || []), ...sim.pool];
+  }
+
+  requiredRecruitmentJobs() {
+    const kinds = new Set(this.g.tavern.rooms.map((room) => room.kind));
+    const jobs = ['front', 'cleaner'];
+    if (kinds.has('kitchen')) jobs.push('cook');
+    if (['dining', 'parlor', 'bar'].some((kind) => kinds.has(kind))) jobs.push('server');
+    if (['bar', 'parlor'].some((kind) => kinds.has(kind))) jobs.push('bartender');
+    if (['onsen', 'billiard', 'theater', 'garden', 'observatory', 'arcade', 'alchemy'].some((kind) => kinds.has(kind))) jobs.push('attendant');
+    if (kinds.has('guestroom')) jobs.push('porter');
+    return [...new Set(jobs)];
+  }
+
+  recruitmentGap() {
+    const staff = this.g.sim.staff;
+    const rows = this.requiredRecruitmentJobs().map((job) => {
+      const coverage = staff.reduce((best, person) => Math.max(best, staffAnalysis(person).roles.find((row) => row.job === job)?.score || 0), 0);
+      return { job, coverage };
+    }).sort((a, b) => a.coverage - b.coverage);
+    return rows[0] || { job: 'front', coverage: 0 };
+  }
+
+  candidateRoleScore(person, job) {
+    return staffAnalysis(person).roles.find((row) => row.job === job)?.score || 0;
+  }
+
+  filteredSortedCandidates(rows) {
+    const gap = this.recruitmentGap();
+    const filtered = rows.filter((person) => {
+      const analysis = staffAnalysis(person);
+      if (this.candidateJobFilter !== 'all' && analysis.recommendedJob !== this.candidateJobFilter) return false;
+      if (this.candidateWorldFilter !== 'all' && (person.originWorldName || '未知') !== this.candidateWorldFilter) return false;
+      return true;
+    });
+    return [...filtered].sort((a, b) => {
+      if (this.candidateSort === 'wage') return a.wage - b.wage || staffAnalysis(b).score - staffAnalysis(a).score;
+      if (this.candidateSort === 'score') return staffAnalysis(b).score - staffAnalysis(a).score || a.wage - b.wage;
+      if (this.candidateSort === 'world') return String(a.originWorldName || '').localeCompare(String(b.originWorldName || ''), 'zh-CN') || staffAnalysis(b).score - staffAnalysis(a).score;
+      return this.candidateRoleScore(b, gap.job) - this.candidateRoleScore(a, gap.job) || staffAnalysis(b).score - staffAnalysis(a).score;
+    });
+  }
+
+  bestGapCandidateId() {
+    const gap = this.recruitmentGap();
+    return [...this.allRecruitmentCandidates()].sort((a, b) => this.candidateRoleScore(b, gap.job) - this.candidateRoleScore(a, gap.job) || staffAnalysis(b).score - staffAnalysis(a).score)[0]?.id || 0;
+  }
+
+  candidateDecisionControls() {
+    const all = this.allRecruitmentCandidates();
+    const worlds = [...new Set(all.map((person) => person.originWorldName || '未知'))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+    const gap = this.recruitmentGap();
+    return `<div class="card" style="border-left-color:#58A947"><div class="row"><b>当前最缺：${JOB_LABEL[gap.job]}岗位</b><span class="dim">现有最高匹配 ${gap.coverage}</span></div>
+      <div class="decision-toolbar"><label>排序<select data-act="candsort"><option value="gap" ${this.candidateSort === 'gap' ? 'selected' : ''}>缺口匹配</option><option value="score" ${this.candidateSort === 'score' ? 'selected' : ''}>综合评分</option><option value="wage" ${this.candidateSort === 'wage' ? 'selected' : ''}>日薪从低</option><option value="world" ${this.candidateSort === 'world' ? 'selected' : ''}>出生世界</option></select></label>
+      <label>岗位<select data-act="candjobfilter"><option value="all">全部</option>${JOBS.filter((job) => job !== 'free').map((job) => `<option value="${job}" ${this.candidateJobFilter === job ? 'selected' : ''}>${htmlText(JOB_LABEL[job])}</option>`).join('')}</select></label>
+      <label>世界<select data-act="candworldfilter"><option value="all">全部</option>${worlds.map((name) => `<option value="${htmlText(name)}" ${this.candidateWorldFilter === name ? 'selected' : ''}>${htmlText(name)}</option>`).join('')}</select></label></div>
+      <div class="dim">绿色候选人为当前岗位缺口的最佳匹配；可勾选最多 3 人并排比较。</div></div>`;
+  }
+
+  candidateComparison() {
+    const chosen = this.allRecruitmentCandidates().filter((person) => this.candidateCompareIds.has(person.id)).slice(0, 3);
+    if (chosen.length < 2) return '';
+    const gap = this.recruitmentGap();
+    return `<div class="card" style="border-left-color:#7A4BE0"><div class="row"><b>候选人并排比较</b><span class="dim">当前缺口：${JOB_LABEL[gap.job]}</span></div><div class="compare-grid">${chosen.map((person) => {
+      const analysis = staffAnalysis(person);
+      return `<div class="card"><b>${htmlText(person.name)}</b><div>${htmlText(person.originWorldName || '未知')} · 日薪 ${person.wage}</div><div class="hi">缺口匹配 ${this.candidateRoleScore(person, gap.job)} · 综合 ${analysis.score}</div><div class="dim">${analysis.strengths.map((item) => `${SKILL_LABEL[item.key]} ${item.value}`).join(' · ')}</div><button data-act="candcompare" data-v="${person.id}">移出比较</button></div>`;
+    }).join('')}</div></div>`;
+  }
+
+  candidateBackgroundSummary(background) {
+    const text = String(background?.background || '').trim();
+    const first = text.split(/(?<=[。！？!?])/)[0] || text;
+    return first.slice(0, 72) + (first.length > 72 ? '…' : '');
+  }
+
+  hasNewRecruitment() {
+    return this.g.sim.ads.some((ad, slot) => ad.spec && (ad.cands || []).length && this.g.sim.econ.recruitmentSeen?.[slot] !== this.recruitmentToken(ad));
+  }
+
+  hasNewWorldInfo() {
+    return this.g.sim.worlds().some((world) => {
+      const level = this.g.sim.econ.worldKnowledge?.[world.id]?.level || 0;
+      return level > (Number(this.g.sim.econ.worldSeenLevels?.[world.id]) || 0);
+    });
+  }
+
+  worldDecisionSummary(world) {
+    const effectLabels = { patience: '客人耐心', budget: '消费预算', hygiene: '卫生要求', comfort: '舒适需求', spectacle: '观赏需求', etiquette: '礼仪要求' };
+    const effects = { ...(world.hospitality?.servicePriorities || {}), ...(world.environmentRule?.effects || {}) };
+    const topWants = Object.entries(world.hospitality?.wantWeights || {}).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id]) => wantById(id).name);
+    const good = Object.entries(effects).filter(([, value]) => Number(value) >= 1.06).map(([key]) => `${effectLabels[key] || key}有利`);
+    if (topWants.length) good.unshift(`高需求：${topWants.join('、')}`);
+    const risks = Object.entries(effects).filter(([, value]) => Number(value) <= .95).map(([key]) => `${effectLabels[key] || key}不利`);
+    const built = new Set(this.g.tavern.rooms.map((room) => room.kind));
+    const missing = (world.recommendedFacilities || []).filter((kind) => !built.has(kind));
+    if (missing.length) risks.push(`缺少：${missing.map((kind) => ROOM_LABEL[kind] || kind).join('、')}`);
+    const ingredientByFlavor = { umami: ['meat', 'veg'], spicy: ['spice', 'meat'], sweet: ['grain', 'veg'], sour: ['veg', 'spice'], mellow: ['grain', 'ether'], weird: ['ether', 'spice'] };
+    const ingredients = [...new Set((world.hospitality?.flavorLikes || []).flatMap((flavor) => ingredientByFlavor[flavor] || []))];
+    if (topWants.includes('吃饭')) ingredients.push('grain', 'meat', 'veg');
+    if (topWants.includes('喝一杯')) ingredients.push('grain', 'ether');
+    const stock = [...new Set(ingredients)].slice(0, 4).map((key) => `${ING_LABEL[key]}≥${key === 'ether' || key === 'spice' ? 25 : 45}`);
+    return {
+      advantages: good.slice(0, 3).join('；') || '经营条件均衡',
+      risks: risks.slice(0, 3).join('；') || `注意礼仪：${world.culture?.taboos?.[0] || '暂无明显风险'}`,
+      facilities: (world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join('、') || '无特定设施',
+      stock: stock.join('、') || '维持常规补货线',
+    };
+  }
+
+  factionRelationLabel(value) {
+    if (value >= 60) return '盟友'; if (value >= 30) return '信赖'; if (value >= 10) return '友好';
+    if (value <= -40) return '敌对'; if (value <= -15) return '疏远'; if (value < 0) return '戒备'; return '中立';
+  }
+
           renderRight()       {
     const g = this.g; const s = g.sim;
     let body = '';
@@ -992,6 +1132,8 @@ export class UI {
       body += `<div class="card" style="border-left-color:#8A74B8"><div class="row"><b>定向招募 · 员工 DIY</b><span class="${directUnlocked ? 'good' : 'dim'}">${directUnlocked ? '四星已解锁' : '需要 ★★★★'}</span></div>
         <div class="dim">自行决定员工的姓名、外貌、性格与岗位能力；确认后按生成工资支付正常入职费。</div>
         <div class="row"><button data-act="directrecruit" ${directUnlocked && s.staff.length < s.maxStaff() ? '' : 'disabled'}>${s.staff.length >= s.maxStaff() ? '先准备空卧室' : directUnlocked ? '创建定向员工' : '四星后开放'}</button></div></div>`;
+      if (this.allRecruitmentCandidates().length) body += this.candidateDecisionControls() + this.candidateComparison();
+      const bestGapId = this.bestGapCandidateId();
       body += '<h3>招募广告（3 个广告位）</h3>' + s.ads.map((ad, i) => {
         if (!ad.spec) {
           return `<div class="card"><div class="row"><b>广告位 ${i + 1}</b><span class="dim">空置</span></div>
@@ -1005,14 +1147,17 @@ export class UI {
         if (ad.spec.race >= 0) req.push(RACE_NAMES[ad.spec.race]);
         if (ad.spec.sex) req.push(ad.spec.sex);
         if (ad.spec.bias) req.push(SKILL_LABEL[ad.spec.bias           ] + '偏向');
-        return `<div class="card"><div class="row"><b>广告位 ${i + 1}·${t.name}</b><span class="dim">第${ad.day}天发布</span></div>
+        const unseen = s.econ.recruitmentSeen?.[i] !== this.recruitmentToken(ad);
+        const candidates = this.filteredSortedCandidates(ad.cands);
+        return `<div class="card"><div class="row"><b>广告位 ${i + 1}·${t.name}${unseen ? '<span class="new-dot">● 新</span>' : ''}</b><span class="dim">第${ad.day}天发布</span></div>
           <div class="dim">要求：${req.length ? req.join('·') : '不限'}｜候选 ${ad.cands.length} 人</div>
-          ${ad.cands.map((p) => this.candCard(p)).join('')}
-          <div class="row"><button data-act="adopen" data-v="${i}">重发广告</button>
+          ${candidates.length ? candidates.map((p) => this.candCard(p, bestGapId)).join('') : '<div class="filter-empty">此广告没有符合当前筛选条件的候选人</div>'}
+          <div class="row">${unseen ? `<button data-act="adseen" data-v="${i}">标记已读</button>` : ''}<button data-act="adopen" data-v="${i}">重发广告</button>
             <button data-act="adclear" data-v="${i}" class="warn">撤下</button></div></div>`;
       }).join('');
       if (s.pool.length) {
-        body += `<h3>自来应聘（${s.pool.length}）</h3>` + s.pool.map((p) => this.candCard(p)).join('');
+        const pool = this.filteredSortedCandidates(s.pool);
+        body += `<h3>自来应聘（${s.pool.length}）</h3>` + (pool.length ? pool.map((p) => this.candCard(p, bestGapId)).join('') : '<div class="filter-empty">没有符合当前筛选条件的自来应聘者</div>');
       }
     } else if (this.rightTab === 'guest') {
       body = s.groups.length ? s.groups.map((gr) => {
@@ -1037,12 +1182,22 @@ export class UI {
       const allWorlds = s.worlds();
       const unlocked = allWorlds.filter((world) => world.custom || world.unlockStars <= s.stars());
       const current = s.currentWorld();
-      body = `<div class="card" style="border-left-color:#7A4BE0" data-act="worldcard" data-v="${htmlText(current.id)}"><b>当前驻留 · ${htmlText(current.icon)} ${htmlText(current.name)}</b><div>${htmlText(current.tagline || current.identity.summary)}</div><div class="dim">点击查看世界卡与航路</div></div><div class="card"><b>位面潮汐预报 · 第 ${s.econ.day} 天</b><div class="dim">今日客流增强：${unlocked.filter((world) => forecast.has(world.id)).map((world) => `${world.icon} ${world.name}`).join('、') || '暂无'}</div></div>`;
-      body += allWorlds.map((world) => {
+      const filteredWorlds = allWorlds.filter((world) => {
+        const info = s.econ.worldKnowledge?.[world.id] || { level: 0 };
+        if (this.worldFilter === 'visited') return info.level > 0;
+        if (this.worldFilter === 'unlocked') return (world.custom || world.unlockStars <= s.stars()) && world.id !== current.id;
+        if (this.worldFilter === 'custom') return !!world.custom;
+        if (this.worldFilter === 'existing') return world.source?.mode === 'existing_work';
+        return true;
+      });
+      body = `<div class="card" style="border-left-color:#7A4BE0" data-act="worldcard" data-v="${htmlText(current.id)}"><b>当前驻留 · ${htmlText(current.icon)} ${htmlText(current.name)}</b><div>${htmlText(current.tagline || current.identity.summary)}</div><div class="dim">点击查看世界卡、经营摘要与势力委托</div></div><div class="card"><b>位面潮汐预报 · 第 ${s.econ.day} 天</b><div class="dim">今日客流增强：${unlocked.filter((world) => forecast.has(world.id)).map((world) => `${world.icon} ${world.name}`).join('、') || '暂无'}</div></div>
+      <div class="decision-toolbar">${[['all', '全部'], ['visited', '已到访'], ['unlocked', '可穿越'], ['custom', '自定义'], ['existing', '作品世界']].map(([id, label]) => `<button data-act="worldfilter" data-v="${id}" class="${this.worldFilter === id ? 'on' : ''}">${label}</button>`).join('')}</div>`;
+      body += filteredWorlds.map((world) => {
         const info = s.econ.worldKnowledge?.[world.id] || { level: 0, arrivals: 0, served: 0 };
+        const unseen = info.level > (Number(s.econ.worldSeenLevels?.[world.id]) || 0);
         if (world.unlockStars > s.stars()) return `<div class="card"><div class="row"><b>未接通的位面</b><span class="dim">需要 ★${world.unlockStars}</span></div></div>`;
         if (!info.level) return `<div class="card"><div class="row"><b>${world.icon} 尚未到访</b><span class="dim">航路已接通</span></div><div class="dim">等待第一批旅客穿过位面门。</div></div>`;
-        return `<div class="card" data-act="worldcard" data-v="${htmlText(world.id)}" style="border-left-color:${world.id === current.id ? '#8DDB4A' : forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}${world.id === current.id ? ' · 当前' : ''}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
+        return `<div class="card" data-act="worldcard" data-v="${htmlText(world.id)}" style="border-left-color:${world.id === current.id ? '#8DDB4A' : forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}${world.id === current.id ? ' · 当前' : ''}${unseen ? '<span class="new-dot">● 新资料</span>' : ''}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
           <div>${htmlText(world.identity.summary)}</div>
           <div class="dim">环境：${htmlText(world.identity.environment)}｜文明：${htmlText(world.identity.civilization)}</div>
           <div class="dim">常见居民：${world.population.slice(0, 4).map((resident) => `${RACE_NAMES[resident.raceId]}（${resident.role}）`).join('、')}｜地区：${world.regions.map((region) => region.name).join('、')}</div>
@@ -1051,7 +1206,7 @@ export class UI {
           ${info.level >= 3 ? `<div class="dim">口味偏好：${world.hospitality.flavorLikes.map((id) => FLAVOR_LABEL[id]).join('、')}｜重视：${world.culture.values.join('、')}</div>` : '<div class="dim">累计接待 3 人可解锁口味偏好。</div>'}
           ${info.level >= 4 ? `<div class="dim bad">礼仪雷区：${world.culture.taboos.join('、')}</div><div class="dim">世界线索：${world.storyHooks.join('；')}</div>` : '<div class="dim">获得明确评价或询问旅途，可解锁礼仪雷区与世界线索。</div>'}
         </div>`;
-      }).join('');
+      }).join('') || '<div class="filter-empty">当前筛选下没有世界</div>';
     } else if (this.rightTab === 'task') {
       const queue = s.workQueue();
       const waiting = queue.filter((x) => !x.staff).length;
@@ -1064,22 +1219,27 @@ export class UI {
       body = s.log.length ? s.log.slice(0, 24).map((l) => `<div class="dim">· ${l}</div>`).join('') : '<div class="dim">暂无记录。</div>';
     }
     this.setPanelHTML(this.right, `<div class="tabs">
-      ${[['staff', '员工', 'ic-staff'], ['guest', '客人', 'ic-guest'], ['world', '万界', 'ic-room'], ['task', '工作', 'ic-econ'], ['log', '日志', 'ic-log']].map(([k, n, ic]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}"><img class="tic" src="assets/${ic}.png" alt="">${n}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏">❯</button>
+      ${[['staff', '员工', 'ic-staff'], ['guest', '客人', 'ic-guest'], ['world', '万界', 'ic-room'], ['task', '工作', 'ic-econ'], ['log', '日志', 'ic-log']].map(([k, n, ic]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}"><img class="tic" src="assets/${ic}.png" alt="">${n}${k === 'staff' && this.hasNewRecruitment() || k === 'world' && this.hasNewWorldInfo() ? '<span class="new-dot">●</span>' : ''}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏">❯</button>
       </div>${body}`);
   }
 
-  candCard(p       )         {
+  candCard(p, bestGapId = 0) {
     const bg = p.background;
     const analysis = staffAnalysis(p);
-    return `<div class="card"><div class="row"><img class="portrait list" src="${portraitURL(p.app)}" width="42" height="56">
+    const gap = this.recruitmentGap();
+    const selected = this.candidateCompareIds.has(p.id);
+    const recommended = p.id === bestGapId;
+    return `<div class="card candidate-card ${recommended ? 'recommended' : ''}"><div class="row"><img class="portrait list" src="${portraitURL(p.app)}" width="42" height="56">
         <span style="flex:1"><b>${p.name}</b><div class="dim">${p.race}·${p.sex}·${p.age}岁</div><div class="hi">出生世界：${htmlText(p.originWorldName || '未知')}</div></span>
         <span class="hi">日薪${p.wage}</span></div>
+      ${recommended ? `<div class="good"><b>★ 最适合当前缺口</b> · ${JOB_LABEL[gap.job]}匹配 ${this.candidateRoleScore(p, gap.job)}</div>` : ''}
+      ${p.worldSpecialty ? `<div class="hi">世界专长：${htmlText(p.worldSpecialty.name)} · ${htmlText(p.worldSpecialty.note)}</div>` : ''}
       <div class="dim">${SKILL_KEYS.map((k) => `${SKILL_LABEL[k]}${p.skills[k]}`).join(' ')}</div>
       <div class="row" style="align-items:flex-start"><b class="hi">综合 ${analysis.score}</b><span>推荐：${JOB_LABEL[analysis.recommendedJob]}</span></div>
       <div class="dim"><span class="good">优势 ${analysis.strengths.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span> · <span class="bad">短板 ${analysis.weaknesses.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span></div>
       <div class="row" style="justify-content:flex-start;flex-wrap:wrap">${p.traits.map((t) => this.traitTag(t)).join('')}<span class="dim" title="根据综合技能与性格自动规划">自动优先级 ${p.prio}</span></div>
-      ${bg ? `<div class="dim">${htmlText(bg.background.slice(0, 56))}${bg.background.length > 56 ? '…' : ''}</div>` : ''}
-      <div class="row"><button data-act="hire" data-v="${p.id}">雇用（入职费${p.wage * 3}）</button>
+      ${bg ? `<div class="dim candidate-summary">${htmlText(this.candidateBackgroundSummary(bg))}</div><details class="candidate-details"><summary>展开背景与求职动机</summary><div class="dim">${htmlText(bg.role || '')}</div><div>${htmlText(bg.aspiration || bg.background || '')}</div>${bg.quirk ? `<div class="dim">习惯：${htmlText(bg.quirk)}</div>` : ''}</details>` : ''}
+      <div class="row"><button data-act="candcompare" data-v="${p.id}" class="${selected ? 'on' : ''}">${selected ? '✓ 比较中' : '加入比较'}</button><button data-act="hire" data-v="${p.id}">雇用（入职费${p.wage * 3}）</button>
         ${bg ? `<button data-act="viewbg" data-v="${p.id}">查看背景</button>` : aiConfigured() ? `<button data-act="aibg" data-v="${p.id}">AI 生成背景</button>` : ''}</div></div>`;
   }
 
@@ -1272,6 +1432,9 @@ export class UI {
     const unlocked = world.custom || world.unlockStars <= sim.stars();
     const current = world.id === econ.currentWorldId;
     const pending = econ.pendingWorldSwitch?.worldId === world.id;
+    const knowledgeLevel = Number(econ.worldKnowledge?.[world.id]?.level) || 0;
+    econ.worldSeenLevels ||= {};
+    if (knowledgeLevel > (Number(econ.worldSeenLevels[world.id]) || 0)) { econ.worldSeenLevels[world.id] = knowledgeLevel; this.g.save(); }
     const tabs = [['overview', '概览'], ['rules', '规则'], ['society', '社会'], ['history', '历史'], ['factions', '势力'], ['economy', '经济'], ['people', '人物'], ['impact', '旅店影响']];
     if (!tabs.some(([key]) => key === tab)) tab = 'overview';
     const list = (rows, render) => rows?.length ? rows.map(render).join('') : '<div class="dim">暂无记录</div>';
@@ -1281,15 +1444,29 @@ export class UI {
     const priceRows = ING_KEYS.map((key) => `<div class="row"><span>${ING_LABEL[key]}</span><span>${worldIngredientPrice({ ...econ, currentWorldId: world.id }, key)} / 份 <span class="dim">${Math.round((world.economy?.prices?.[key] || 1) * 100)}%</span></span></div>`).join('');
     let content = '';
     if (!unlocked) content = `<div class="card"><b>尚未建立稳定航路</b><div class="dim">达到 ${world.unlockStars} 星经营认证后解锁。当前只能确认其世界类型：${htmlText(world.genre || world.identity?.genre || '未知世界')}。</div></div>`;
-    else if (tab === 'overview') content = `<div class="world-hero" style="--world-card-tint:${htmlText(world.visuals?.atmosphere?.tint || '#F3B84B')}"><div class="world-glyph">${htmlText(world.icon)}</div><div><h2>${htmlText(world.name)}</h2><b>${htmlText(world.genre || world.identity?.genre || '')}</b><div>${htmlText(world.tagline || world.identity?.tagline || '')}</div></div></div>
+    else if (tab === 'overview') {
+      const decision = this.worldDecisionSummary(world);
+      const commission = sim.worldCommission(world.id);
+      const relation = sim.factionRelation(world.id, commission.faction.id);
+      content = `<div class="world-hero" style="--world-card-tint:${htmlText(world.visuals?.atmosphere?.tint || '#F3B84B')}"><div class="world-glyph">${htmlText(world.icon)}</div><div><h2>${htmlText(world.name)}</h2><b>${htmlText(world.genre || world.identity?.genre || '')}</b><div>${htmlText(world.tagline || world.identity?.tagline || '')}</div></div></div>
       ${world.source?.mode === 'existing_work' ? `<div class="card hi"><b>既有作品世界</b><div>${htmlText(world.source.workName)} · 著名原作角色会作为稀有访客到店</div></div>` : ''}
       <div class="card">${htmlText(world.identity?.summary || '')}</div>
+      <div class="world-decision-grid"><div class="card"><b class="good">优势</b><div>${htmlText(decision.advantages)}</div></div><div class="card"><b class="bad">风险</b><div>${htmlText(decision.risks)}</div></div><div class="card"><b>建议设施</b><div>${htmlText(decision.facilities)}</div></div><div class="card"><b>建议库存</b><div>${htmlText(decision.stock)}</div></div></div>
+      <div class="card" style="border-left-color:#7A4BE0"><div class="row"><b>当前势力委托 · ${htmlText(commission.chain.name)}</b><span>${commission.stage}/${commission.chain.steps.length}</span></div><div>${htmlText(commission.complete ? '委托已完成，长期合作关系已经建立。' : commission.next?.title || '')}</div><div class="dim">委托方：${htmlText(commission.faction.name)} · ${this.factionRelationLabel(relation)} ${relation >= 0 ? '+' : ''}${relation}</div></div>
       <div class="card"><b>今日驻留规则</b><div>${htmlText(world.environmentRule?.name || '异界环境')}：${htmlText(world.environmentRule?.detail || '')}</div><div>${rule ? `${htmlText(rule.name)}：${htmlText(rule.detail)}` : '今日无额外法令'}</div>${festival ? `<div class="hi">节庆 · ${htmlText(festival.name)}：${htmlText(festival.detail)}</div>` : ''}</div>
       <div class="card"><b>天象与远景</b><div class="dim">${htmlText(world.visuals?.atmosphere?.weather || '')} · ${htmlText(world.visuals?.atmosphere?.horizon || '')}</div><div class="dim">环境声：${htmlText(world.visuals?.atmosphere?.sound || '')}</div></div>`;
+    }
     else if (tab === 'rules') content = `<div class="card"><b>宇宙结构</b><div>${htmlText(world.cosmology?.cosmology || '')}</div></div><div class="card"><b>自然规律</b><div>${htmlText(world.cosmology?.naturalLaws || '')}</div></div><div class="card"><b>力量体系</b><div>${htmlText(world.cosmology?.powerSystem || '')}</div></div><div class="card"><b>死亡规则</b><div>${htmlText(world.cosmology?.deathRule || '')}</div></div><h3>当地法令与习惯</h3>${namedRows(world.localRules)}`;
     else if (tab === 'society') content = `<div class="card"><b>政治制度</b><div>${htmlText(world.society?.government || '')}</div></div>${[['语言', world.society?.languages], ['社会阶层', world.society?.classes], ['信仰', [world.society?.faith]], ['家庭', [world.society?.family]], ['教育', [world.society?.education]], ['服饰', [world.society?.clothing]], ['饮食', [world.society?.cuisine]]].map(([label, values]) => `<div class="card"><b>${label}</b><div class="dim">${(values || []).filter(Boolean).map(htmlText).join(' · ')}</div></div>`).join('')}<h3>地区</h3>${namedRows(world.regions?.map((region) => ({ name: region.name, detail: `${region.type || ''}${region.traits?.length ? ` · ${region.traits.join('、')}` : ''}` })))}`;
     else if (tab === 'history') content = `<div class="world-timeline">${namedRows(world.history)}</div><h3>当代矛盾</h3>${list(world.conflicts, (row) => `<div class="card">• ${htmlText(row)}</div>`)}`;
-    else if (tab === 'factions') content = namedRows(world.factions);
+    else if (tab === 'factions') {
+      const relations = sim.worldFactionRelations(world.id);
+      const commission = sim.worldCommission(world.id);
+      content = `<div class="card" style="border-left-color:#7A4BE0"><div class="row"><b>势力委托 · ${htmlText(commission.chain.name)}</b><span>${commission.stage}/${commission.chain.steps.length}</span></div><div>${htmlText(commission.complete ? '长期委托已完成。' : commission.next?.premise || '暂无后续阶段。')}</div><div class="dim">下一阶段：${htmlText(commission.next?.title || '已完成')}</div></div>` + list(world.factions, (faction) => {
+        const value = Math.max(-100, Math.min(100, Number(relations[faction.id]) || 0));
+        return `<div class="card"><div class="row"><b>${htmlText(faction.name)}</b><span class="${value >= 10 ? 'good' : value < 0 ? 'bad' : 'dim'}">${this.factionRelationLabel(value)} ${value >= 0 ? '+' : ''}${value}</span></div><div class="dim">${htmlText(faction.detail || '')}</div><div class="relation-meter"><i style="width:${Math.round((value + 100) / 2)}%"></i></div></div>`;
+      });
+    }
     else if (tab === 'economy') content = `<div class="card"><b>货币</b><div>${htmlText(world.economy?.currency || '')}</div><b>劳动制度</b><div>${htmlText(world.economy?.labor || '')}</div></div>${[['主要产业', world.economy?.industries], ['出口', world.economy?.exports], ['进口', world.economy?.imports]].map(([label, rows]) => `<div class="card"><b>${label}</b><div class="dim">${(rows || []).map(htmlText).join(' · ')}</div></div>`).join('')}<h3>当地采购价</h3>${priceRows}`;
     else if (tab === 'people') content = namedRows(world.notableCharacters?.map((character) => ({ name: `${character.visitor ? '✦ ' : ''}${character.name}`, detail: `${character.canonical ? '原作著名角色 · ' : ''}${character.detail || ''}${character.visitor ? ' · 可能作为稀有访客到店' : ' · 出现在传闻与图鉴中'}` })));
     else content = `<div class="card"><b>客流构成</b><div>约 60% 当前世界当地客、30% 其他已连接世界、10% 潮汐或使团。</div></div><div class="card"><b>环境规则</b><div>${htmlText(world.environmentRule?.detail || '')}</div></div><div class="card"><b>推荐设施</b><div>${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join(' · ') || '无特定设施'}</div></div><div class="card"><b>招聘</b><div>约 60% 候选人取自当地人口与职业结构。</div></div><h3>采购影响</h3>${priceRows}`;
@@ -1526,7 +1703,7 @@ export class UI {
       <div class="dim" style="margin:5px 0 8px">描述店主要采取的行动。AI 会生成成功与失败结果，由游戏检定并在安全范围内结算真实数值。</div>
       <textarea data-event-custom maxlength="300" rows="3" placeholder="例如：让店主先安抚客人，再请最冷静的员工检查异常来源" style="width:100%;box-sizing:border-box"></textarea>
       <div class="row" style="margin-top:8px;justify-content:flex-end"><button data-act="eventcustom">使用 AI 推演</button></div></div>` : '';
-    const sourceBadge = card.challengeFallback ? '<span class="hi">◆ 客人挑战 · 补救检定</span>' : card.aiGenerated ? '<span class="hi">✦ AI 当日事件</span>' : card.chainId ? `<span class="hi">◆ 长期事件链：${htmlText(card.chainName)} ${Number(card.chainStage) + 1}/3</span>` : '';
+    const sourceBadge = card.challengeFallback ? '<span class="hi">◆ 客人挑战 · 补救检定</span>' : card.aiGenerated ? '<span class="hi">✦ AI 当日事件</span>' : card.worldEvent ? `<span class="hi">◆ ${card.chainId ? `世界长期委托：${htmlText(card.chainName)} ${Number(card.chainStage) + 1}/3` : '世界专属营业事故'} · ${htmlText(card.factionName || '当地势力')}</span>` : card.chainId ? `<span class="hi">◆ 长期事件链：${htmlText(card.chainName)} ${Number(card.chainStage) + 1}/3</span>` : '';
     this.showModal(`<h3>⚡ ${card.title}</h3>${sourceBadge}<div style="max-width:520px;margin-top:5px">${card.text}</div>${choices}${custom}
       <div class="dim">暂停中仍可拖动镜头查看酒馆。</div>`);
   }
@@ -2049,6 +2226,7 @@ export class UI {
           <span class="dim">年龄</span><span>${st.age}</span>
           <span class="dim">身高/体重</span><span>${st.ht}cm / ${st.wt}kg</span></div>
         ${st.isOwner ? '' : `<div class="row"><span class="dim">出生世界</span><span class="hi">${htmlText(st.originWorldName || '未记录')}</span>${st.homeRegion ? `<span class="dim">故乡</span><span>${htmlText(st.homeRegion)}</span>` : ''}</div>`}
+        ${st.isOwner || !st.worldSpecialty ? '' : `<div class="card" style="margin-top:7px;border-left-color:#58A947"><b>世界专长 · ${htmlText(st.worldSpecialty.name)}</b><div class="dim">${htmlText(st.worldSpecialty.note)}</div></div>`}
         <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><span class="dim">性格</span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</div>
         <div class="row"><span class="dim">岗位</span><span>${JOB_LABEL[st.job]}</span><span class="dim">负责</span><span>${room ? ROOM_LABEL[room.kind] : '全店'}</span><span class="dim">薪资</span><span class="${st.isOwner ? 'dim' : 'hi'}">${st.isOwner ? '店主不领取工资' : `日薪 ${st.wage}`}</span></div>
         <div class="row"><span class="dim">卧室</span><span>${st.isOwner ? '<span class="dim">店主守店</span>' : (() => { const br = sim.bedroomOf(st.id); return br ? `休息室 #${br.id}` : '<span class="bad">无（打地铺）</span>'; })()}</span></div>
