@@ -16,7 +16,7 @@ import {
   ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
   WORLD_PROFILES, worldById,
 } from './data.js';
-import { AGE_MAX, fairWageRange, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
+import { AGE_MAX, fairWageRange, jobFocusSkill, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
 import { CUSTOM_WORLD_LIMIT, customWorldCreationCost, normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
@@ -136,11 +136,11 @@ const CSS = `
   radial-gradient(circle at calc(100% - 9px) 9px, #C9922F 0 2px, rgba(0,0,0,0) 2.8px),
   radial-gradient(circle at 9px calc(100% - 9px), #C9922F 0 2px, rgba(0,0,0,0) 2.8px),
   radial-gradient(circle at calc(100% - 9px) calc(100% - 9px), #C9922F 0 2px, rgba(0,0,0,0) 2.8px),
-  #F5E6C8 url('assets/ui-paper2.png');
+  #F5E6C8 url('assets/ui-paper-commercial.webp');
   background-size:auto,auto,auto,auto,420px;
   border:3px solid #B0895E;border-radius:14px;
   box-shadow:0 5px 14px rgba(90,64,51,.28), inset 0 0 0 1.5px rgba(255,250,235,.7), inset 0 0 18px rgba(150,110,60,.14)}
-#ui button{font-family:inherit;font-size:13px;color:#6B4429;background:linear-gradient(rgba(255,250,235,.35), rgba(140,90,40,.14)), #F2D9B8 url('assets/ui-wood.png');background-size:auto,160px;border:2px solid #B98B5E;border-radius:9px;padding:4px 9px;cursor:pointer;box-shadow:0 2px 0 rgba(155,91,60,.45), inset 0 1px 0 rgba(255,255,255,.5);transition:filter .12s}
+#ui button{font-family:inherit;font-size:13px;color:#6B4429;background:linear-gradient(rgba(255,250,235,.35), rgba(140,90,40,.14)), #F2D9B8 url('assets/ui-walnut-commercial.webp');background-size:auto,160px;border:2px solid #B98B5E;border-radius:9px;padding:4px 9px;cursor:pointer;box-shadow:0 2px 0 rgba(155,91,60,.45), inset 0 1px 0 rgba(255,255,255,.5);transition:filter .12s}
 #ui button:hover{filter:brightness(1.08);border-color:#C97F2B}
 #ui button:active{transform:translateY(1px);box-shadow:none}
 #ui button.on{background:linear-gradient(rgba(255,255,255,.22), rgba(30,70,20,.18)), #7FB069;color:#FFFBEF;border-color:#5C8749;text-shadow:0 1px 0 rgba(60,40,20,.3);box-shadow:inset 0 2px 4px rgba(40,70,25,.35)}
@@ -149,7 +149,7 @@ const CSS = `
 #ui button:disabled{opacity:.45;cursor:not-allowed}
 @keyframes purchasePulse{50%{box-shadow:0 0 0 3px #F3B84B88,inset 0 1px 0 rgba(255,255,255,.5)}}
 #top{position:absolute;left:0;right:0;top:0;min-height:38px;display:flex;align-items:center;gap:10px;padding:0 10px;font-size:14px;border-radius:0 0 14px 14px;white-space:nowrap;overflow-x:auto;overflow-y:hidden;
-  background:linear-gradient(rgba(255,235,200,.16), rgba(70,40,18,.22)), #D8AE7C url('assets/ui-wood.png');background-size:auto,340px;
+  background:linear-gradient(rgba(255,235,200,.16), rgba(70,40,18,.22)), #D8AE7C url('assets/ui-walnut-commercial.webp');background-size:auto,340px;
   border-color:#8A5A38;box-shadow:0 3px 10px rgba(90,64,51,.35), inset 0 -2px 0 rgba(90,50,20,.25), inset 0 1px 0 rgba(255,245,220,.5)}
 #top .dim{color:#8A6A4A}
 #top .hi{color:#B45F10}
@@ -182,7 +182,7 @@ img.portrait.list{width:42px;height:56px;flex:0 0 42px;border-width:1px;border-r
 .pstrip img{width:44px;height:56px;object-fit:cover;object-position:50% 0;border:2px solid #E3C9A4;border-radius:8px;cursor:pointer;image-rendering:auto}
 .pstrip img.on{border-color:#7FB069}
 .modal{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:#3A2C20B8;pointer-events:auto;z-index:20}
-.mbox{background:#F5E6C8 url('assets/ui-paper2.png');background-size:420px;border:3px solid #B0895E;border-radius:16px;box-shadow:0 10px 28px rgba(60,40,25,.45), inset 0 0 0 1.5px rgba(255,250,235,.7), inset 0 0 22px rgba(150,110,60,.16);padding:14px;max-width:min(900px,94vw);max-height:92vh;overflow:auto}
+.mbox{background:#F5E6C8 url('assets/ui-paper-commercial.webp');background-size:420px;border:3px solid #B0895E;border-radius:16px;box-shadow:0 10px 28px rgba(60,40,25,.45), inset 0 0 0 1.5px rgba(255,250,235,.7), inset 0 0 22px rgba(150,110,60,.16);padding:14px;max-width:min(900px,94vw);max-height:92vh;overflow:auto}
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(58px,1fr));gap:3px}
 .grid button{padding:2px;font-size:12px;overflow:hidden;white-space:nowrap}
 .scoregrid{display:grid;grid-template-columns:repeat(3,minmax(96px,1fr));gap:5px;margin:8px 0}.scoregrid>div{display:flex;justify-content:space-between;gap:8px;background:#E9D4AD88;border:1px solid #C6A87D;border-radius:7px;padding:4px 7px}
@@ -204,16 +204,16 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #chatter{position:absolute;left:50%;transform:translateX(-50%);bottom:96px;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:3px;max-width:72vw}
 #chatter div{background:#F7E9CDD9;border:2px solid #B0895E;border-radius:12px;padding:2px 12px;color:#6B4429;font-size:13px;box-shadow:0 2px 6px rgba(90,64,51,.18)}
 #ui input[type=range]{-webkit-appearance:none;appearance:none;height:26px;background:transparent;cursor:pointer}
-#ui input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:6px;background:#E7D2B2 url('assets/ui-wood.png');background-size:120px;border:1px solid #C9A176;box-shadow:inset 0 1px 3px rgba(90,64,51,.35)}
-#ui input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;margin-top:-9px;border:none;background:url('assets/ui-knob.png') center/contain no-repeat;filter:drop-shadow(0 2px 2px rgba(90,64,51,.4))}
+#ui input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:6px;background:#E7D2B2 url('assets/ui-walnut-commercial.webp');background-size:120px;border:1px solid #C9A176;box-shadow:inset 0 1px 3px rgba(90,64,51,.35)}
+#ui input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:20px;height:20px;margin-top:-6px;border:2px solid #725129;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f6ddb0,#b88945 60%,#6f4a21);box-shadow:0 2px 3px rgba(50,30,16,.4)}
 #ui input[type=range]::-moz-range-track{height:10px;border-radius:6px;background:#E7D2B2;border:1px solid #C9A176;box-shadow:inset 0 1px 3px rgba(90,64,51,.35)}
-#ui input[type=range]::-moz-range-thumb{width:26px;height:26px;border:none;background:url('assets/ui-knob.png') center/contain no-repeat}
+#ui input[type=range]::-moz-range-thumb{width:20px;height:20px;border:2px solid #725129;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f6ddb0,#b88945 60%,#6f4a21);box-shadow:0 2px 3px rgba(50,30,16,.4)}
 #ui input[type=text],#ui input[type=number],#ui input[type=url],#ui input[type=password],#ui input:not([type]),#ui select,#ui textarea{font-family:inherit;font-size:13px;color:#5A4033;background:#FFFDF6;border:2px solid #D8BC94;border-radius:8px;padding:3px 7px;box-shadow:inset 0 2px 4px rgba(120,85,45,.18)}
 #ui input:focus,#ui select:focus{outline:none;border-color:#C97F2B}
 .rail{position:absolute;top:46px;display:flex;flex-direction:column;gap:6px;z-index:6}
 #railL{left:8px}
 #railR{right:8px}
-.rail button{pointer-events:auto;width:44px;height:44px;padding:6px;border-radius:12px;background:#F5E6C8 url('assets/ui-paper2.png');background-size:200px;border:2px solid #B0895E;box-shadow:0 3px 8px rgba(90,64,51,.25), inset 0 1px 0 rgba(255,255,255,.6)}
+.rail button{pointer-events:auto;width:44px;height:44px;padding:6px;border-radius:12px;background:#F5E6C8 url('assets/ui-paper-commercial.webp');background-size:200px;border:2px solid #B0895E;box-shadow:0 3px 8px rgba(90,64,51,.25), inset 0 1px 0 rgba(255,255,255,.6)}
 .rail button:hover{border-color:#C97F2B}
 .rail img{width:100%;height:100%;object-fit:contain;display:block}
 #scrim{position:fixed;inset:0;background:rgba(40,28,20,.38);z-index:13;display:none;pointer-events:auto}
@@ -234,13 +234,52 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .prompt-card{padding:8px 10px;border:2px solid #E3C9A4;border-left:5px solid #8A74B8;border-radius:10px;background:#FFF8E9;margin-top:8px}
 .prompt-tabs{display:flex;gap:6px;position:sticky;top:-12px;z-index:2;padding:8px 0;background:#F5E6C8;flex-wrap:wrap}.prompt-tabs button{min-width:100px}.prompt-tabs button.on{background:#7A4BE0;color:#fff;border-color:#5E3EA0}.prompt-pane{display:none}.prompt-pane.on{display:block}.world-prompt-tabs,.world-builder-tabs{position:static;top:auto}.world-prompt-stage-pane{display:none}.world-prompt-stage-pane.on{display:block}.prompt-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.prompt-module{padding:8px 9px;border:2px solid #E3C9A4;border-radius:9px;background:#FFF8E9}.prompt-module textarea{width:100%;min-height:112px;box-sizing:border-box;margin-top:5px;resize:vertical;line-height:1.5}
 .world-title{font-weight:900;border-color:var(--world-tint,#C9922F);box-shadow:0 0 0 1px color-mix(in srgb,var(--world-tint,#C9922F) 35%,transparent);white-space:nowrap}.world-picker{display:flex;gap:5px;overflow-x:auto;padding:4px 0 8px}.world-picker button{flex:0 0 auto}.world-card-tabs{position:static;background:transparent}.world-card-tabs button{min-width:70px}.world-card-body{min-height:280px;max-height:55vh;overflow:auto;padding-right:4px}.world-hero{display:flex;align-items:center;gap:14px;padding:14px;border:2px solid var(--world-card-tint);border-radius:12px;background:linear-gradient(135deg,#FFF8E9,color-mix(in srgb,var(--world-card-tint) 16%,#FFF8E9))}.world-hero h2{margin:0 0 4px}.world-glyph{font-size:46px;min-width:56px;text-align:center;color:var(--world-card-tint);text-shadow:0 2px 0 #fff}.world-timeline .card{border-left-color:var(--world-tint,#7A4BE0)}
-.decision-toolbar{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:6px 0}.decision-toolbar label{display:flex;align-items:center;gap:4px}.decision-toolbar select{max-width:116px}.candidate-card.recommended{border-left-color:#58A947;background:linear-gradient(135deg,#FFF8E9,#EAF8DE)}.candidate-summary{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.candidate-details{margin:4px 0}.candidate-details summary{cursor:pointer;color:#7A4BE0}.compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.compare-grid .card{min-width:0}.new-dot{display:inline-block;color:#D94832;font-weight:900;margin-left:3px}.world-decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:7px 0}.world-decision-grid .card{margin:0}.relation-meter{height:6px;border-radius:4px;background:#E1D0B5;overflow:hidden;margin-top:4px}.relation-meter i{display:block;height:100%;background:#7A4BE0}.filter-empty{padding:12px;text-align:center;border:1px dashed #C9A176;border-radius:8px;color:#87684e}
-#tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper2.png');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
+.decision-toolbar{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:6px 0}.decision-toolbar label{display:flex;align-items:center;gap:4px}.decision-toolbar select{max-width:116px}.candidate-card.recommended{border-left-color:#58A947;background:linear-gradient(135deg,#FFF8E9,#EAF8DE)}.candidate-summary{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.candidate-details{margin:4px 0}.candidate-details summary{cursor:pointer;color:#7A4BE0}.compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.compare-grid .card{min-width:0}.world-decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:7px 0}.world-decision-grid .card{margin:0}.relation-meter{height:6px;border-radius:4px;background:#E1D0B5;overflow:hidden;margin-top:4px}.relation-meter i{display:block;height:100%;background:#7A4BE0}.filter-empty{padding:12px;text-align:center;border:1px dashed #C9A176;border-radius:8px;color:#87684e}
+#tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper-commercial.webp');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 120px}html.portrait-v2 .creator-preview img.big{width:120px;height:160px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
 .owner-skill-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0}.owner-skill-presets button{text-align:left;white-space:normal}.owner-skill-presets small{display:block;color:#87684e;margin-top:2px}.owner-growth{position:relative;overflow:hidden;border-left-color:#7A4BE0!important;background:linear-gradient(115deg,#fff7db,#efe3ff,#fff7db);animation:ownerGrowthGlow 1.6s ease-in-out infinite alternate}.owner-growth:after{content:'✦';position:absolute;right:12px;top:7px;color:#7A4BE0;font-size:24px;animation:ownerGrowthSpark 1.2s ease-in-out infinite}@keyframes ownerGrowthGlow{to{box-shadow:0 0 18px #9e72e866,inset 0 0 12px #fff}}@keyframes ownerGrowthSpark{50%{transform:scale(1.3) rotate(15deg);opacity:.45}}
 .creator-background,.creator-ai-design{padding:9px 10px;border:2px solid #D9BC91;border-radius:11px;background:#FFF8E9;margin-bottom:9px}.creator-background-presets{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.creator-background label{display:block;margin-top:6px}.creator-background input,.creator-background textarea,.creator-ai-design textarea{width:100%;box-sizing:border-box}.creator-background textarea{min-height:116px;resize:vertical;line-height:1.55}.creator-ai-design{border-color:#A78BD0;background:linear-gradient(135deg,#FFF8E9,#F2EAFE)}.creator-ai-design textarea{min-height:86px;resize:vertical;line-height:1.5}.creator-ai-skills{margin-top:5px;padding:5px 7px;border-radius:7px;background:#7A4BE014;color:#6A4B91}.creator-ai-status{margin-top:6px}.creator-ai-design button{border-color:#8D6CC0}.creator-ai-design.generating{animation:ownerGrowthGlow 1.4s ease-in-out infinite alternate}
 @media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.prompt-module-grid,.world-decision-grid,.compare-grid{grid-template-columns:1fr}.prompt-tabs button{flex:1;min-width:84px}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 92px}html.portrait-v2 .creator-preview img.big{width:92px;height:123px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
+
+/* 商业版 UI 基础设计系统：集中覆盖旧样式，避免并行维护第二套组件。 */
+#ui{--paper:#f2e7d2;--paper-clean:#fbf6eb;--paper-deep:#e4d3b6;--walnut:#24170f;--walnut-2:#3a2518;--ink:#39291f;--ink-muted:#786552;--brass:#9a763f;--brass-soft:#c2a36b;--oxblood:#7c241f;--positive:#5f8f42;--info:#3f8992;--rose:#c25d71;--warning:#c47a2c;--danger:#a64037;--line:#b9a17d;--portrait-face-y:14%;font-family:"Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC",sans-serif;color:var(--ink);font-variant-numeric:tabular-nums}
+#ui h1,#ui h2,#ui h3,#ui .ui-title{font-family:"SimSun","Songti SC","Noto Serif CJK SC",serif;letter-spacing:.04em}
+#ui button{border-width:1px;border-color:var(--line);border-radius:4px;background:linear-gradient(#fff9ed,#e9dbc2);color:var(--ink);box-shadow:0 1px 0 #fff8 inset,0 1px 1px #2d1d1022;transition:background-color .12s,border-color .12s,transform .08s,box-shadow .12s}
+#ui button:hover{filter:none;border-color:var(--brass);background:linear-gradient(#fffdf6,#ead7b7)}
+#ui button:focus-visible,#ui input:focus-visible,#ui select:focus-visible,#ui textarea:focus-visible,#ui summary:focus-visible{outline:2px solid var(--info);outline-offset:2px}
+#ui button:active{transform:translateY(1px);box-shadow:inset 0 1px 2px #3c281c33}
+#ui button.on{background:var(--oxblood);border-color:#571713;color:#fff9ec;text-shadow:none;box-shadow:inset 0 1px #ffffff22}
+#ui button.warn{border-color:var(--danger);color:var(--danger);background:#fff5ec}
+#ui button:disabled{opacity:.46;filter:grayscale(.35);cursor:not-allowed;transform:none}
+#ui .card{border:1px solid var(--line);border-left-width:1px;border-radius:5px;padding:8px;margin-bottom:8px;background:var(--paper-clean);box-shadow:0 1px 0 #fff inset;cursor:default}
+#ui .card:hover{border-color:var(--brass-soft)}
+#ui .good{color:var(--positive)}#ui .bad{color:var(--danger)}#ui .hi{color:#865c23}#ui .dim{color:var(--ink-muted)}
+.ui-icon{display:inline-block;width:1em;height:1em;vertical-align:-.12em;fill:none;stroke:currentColor;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+.metric-row{display:grid;grid-template-columns:18px 56px minmax(48px,1fr) 22px;align-items:center;gap:6px;min-height:24px;color:var(--ink);font-variant-numeric:tabular-nums}
+.metric-row+.metric-row{margin-top:4px}.metric-icon{display:grid;place-items:center;width:18px;height:18px;color:var(--ink-muted)}.metric-icon .ui-icon{width:18px;height:18px}.metric-value{text-align:right;white-space:nowrap}.metric-band{font-size:11px;font-weight:700;text-align:center}.metric-band.good{color:var(--positive)}.metric-band.bad{color:var(--danger)}.metric-band.neutral{color:var(--ink-muted)}
+.metric-track{height:7px;border:1px solid #b7a486;border-radius:999px;background:#dfd4c1;overflow:hidden}.metric-track>i{display:block;height:100%;border-radius:inherit;background:var(--metric-color,var(--info))}
+.skill-inline{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:3px;margin:7px 0}.skill-inline span{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:0;font-size:11px;color:var(--ink-muted)}.skill-inline .ui-icon{width:16px;height:16px}.skill-inline b{font-weight:600;color:var(--ink)}
+.portrait-safe{display:block;position:relative;flex:0 0 auto;overflow:hidden;border:1px solid #7e6a55;border-radius:4px;background:#d9d1c4;box-shadow:0 1px 2px #2b1d1433}.portrait-safe img{display:block;width:100%;height:100%;object-fit:cover;object-position:50% var(--portrait-face-y);image-rendering:auto}.portrait-main{width:88px;height:110px}.portrait-compare{width:128px;height:160px}.portrait-detail{width:112px;height:140px}.portrait-compact{width:72px;height:90px}.portrait-creator{width:120px;height:160px}.creator-preview .portrait-creator img.big{width:100%;height:100%}
+.candidate-details,.mbox details{margin:6px 0}.candidate-details>summary,.mbox details>summary{position:relative;display:flex;align-items:center;min-height:36px;padding:0 8px 0 32px;cursor:pointer;color:var(--ink);list-style:none;border-radius:3px}.candidate-details>summary::-webkit-details-marker,.mbox details>summary::-webkit-details-marker{display:none}.candidate-details>summary:before,.mbox details>summary:before{content:"";position:absolute;left:12px;width:7px;height:7px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg);transition:transform .12s}.candidate-details[open]>summary:before,.mbox details[open]>summary:before{transform:rotate(45deg)}
+.portrait-head{gap:12px}.candidate-card>.row:first-child{align-items:flex-start}
+#ui .pane{border:1px solid var(--brass);border-radius:3px;background-color:var(--paper);background-image:linear-gradient(#ffffff18,#8d74400a),url('assets/ui-paper-commercial.webp');background-size:auto,320px;box-shadow:0 3px 12px #170d0840,inset 0 0 0 1px #fff8df99}
+#top{height:48px;min-height:48px;box-sizing:border-box;padding:0 8px;gap:0;border-radius:0;background:var(--paper) url('assets/ui-paper-commercial.webp');background-size:320px;border-color:var(--brass);box-shadow:0 2px 8px #160d0744;overflow-x:auto}
+#top .top-group{display:flex;align-items:center;align-self:stretch;gap:6px;padding:0 10px;border-right:1px solid #bba783;flex:0 0 auto}
+#top .top-identity{padding-left:4px}.top-identity .world-title{font-family:"SimSun","Songti SC",serif;font-size:16px}.top-date{font-weight:600}.top-day-state{display:flex;align-items:center;gap:5px}.top-speed button{min-width:36px;height:32px;padding:2px 8px}.top-economy{font-variant-numeric:tabular-nums}.top-economy .ui-icon{width:16px;height:16px;color:#a97820}.top-status{display:flex;gap:7px;align-items:center}.top-actions{margin-left:auto;border-right:0!important}.top-tools{display:flex;gap:4px;align-items:center}.primary-action{background:var(--oxblood)!important;border-color:#571713!important;color:#fff9ec!important;font-weight:700;min-width:92px;box-shadow:inset 0 1px #ffffff2b,0 1px 2px #2b100d44!important}.primary-action:hover{background:#912f28!important}
+#left,#right{top:56px;bottom:60px;max-height:none;box-sizing:border-box;padding:10px;overflow:auto}#left{width:232px}#right{width:clamp(320px,24vw,400px)}
+#bottom{height:44px;min-height:44px;left:8px;right:8px;bottom:8px;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;overflow:hidden;transition:height .14s,max-height .14s}#bottom.bottom-expanded{height:auto;min-height:76px;max-height:32vh;align-items:flex-start;padding:10px 12px;overflow:auto}#bottom>*{width:100%}
+#left>.tabs,#right>.tabs{position:sticky;top:-10px;z-index:4;margin:-10px -10px 10px;padding:8px 8px 7px;background:color-mix(in srgb,var(--paper) 96%,transparent);border-bottom:1px solid var(--line)}
+.tabs button{min-height:34px;display:flex;align-items:center;justify-content:center;gap:4px}.tabs .ui-icon{width:16px;height:16px}.tabs button.fold{flex:0 0 36px;width:36px;height:36px;padding:0}.panel-collapse-mark{display:inline-block;position:relative;width:17px;height:14px;border:1.5px solid currentColor;border-radius:2px}.panel-collapse-mark:before{content:"";position:absolute;top:1px;bottom:1px;width:4px;background:currentColor;opacity:.55}.panel-collapse-mark.left:before{left:1px}.panel-collapse-mark.right:before{right:1px}
+.rail{top:56px;gap:8px}#ui .rail button{width:46px;height:46px;padding:11px;border:1px solid #8b693b;border-radius:3px;background-color:var(--walnut-2);background-image:linear-gradient(#ffffff0d,#00000018),url('assets/ui-walnut-commercial.webp');background-size:auto,180px;color:var(--brass-soft);box-shadow:0 2px 6px #0c070555}#ui .rail button:hover{border-color:var(--brass-soft);background:#49301f}#ui .rail button .ui-icon{width:22px;height:22px}.rail .notice-dot{position:absolute;right:-4px;top:-4px}
+.staff-card{padding:10px}.staff-card-head{align-items:flex-start}.staff-card-head>span:last-child{min-width:0}.staff-metrics{margin:8px 0;padding:7px 0;border-top:1px solid #ded1ba;border-bottom:1px solid #ded1ba}.staff-current{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.staff-detail-action{flex:0 0 auto}
+.sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}.notice-dot{display:inline-block;position:relative;flex:0 0 auto;width:12px;height:12px;margin-left:4px;border:1px solid #7c1e19;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e65442 0 18%,#b72c25 22% 64%,#7d1c18 68%);box-shadow:0 1px 1px #2c0d0a66,inset 0 0 0 1px #f28a7355;vertical-align:middle}.tabs button>.notice-dot{position:absolute;right:2px;top:2px;margin:0}.rail button>.notice-dot{position:absolute;right:-4px;top:-4px;margin:0}.modal-notice{position:absolute;z-index:3;right:46px;top:12px}
+.mbox.modal-plain{border:1px solid var(--line);border-radius:5px;background:var(--paper-clean) url('assets/ui-paper-commercial.webp');background-size:360px;box-shadow:0 10px 28px #170e0966}.mbox.modal-important{border:2px solid var(--brass);border-radius:4px;background:var(--paper-clean) url('assets/ui-paper-commercial.webp');background-size:360px;box-shadow:0 14px 36px #120a066e,0 0 0 3px #2d1d13}.mbox.modal-important>h3:first-of-type{margin:-14px -14px 14px;padding:11px 48px 10px 14px;border:0;border-bottom:2px solid var(--brass);background-color:var(--walnut);background-image:linear-gradient(90deg,#1d120ccc,#382319dd),url('assets/ui-walnut-commercial.webp');background-size:auto,360px;color:#f4dfb8}.mbox.modal-danger{border:2px solid var(--danger);border-radius:4px;background:#fff5eb url('assets/ui-paper-commercial.webp');background-size:360px;box-shadow:0 14px 36px #2d0b0866}.mbox.modal-danger>h3:first-of-type{color:var(--danger);border-bottom-color:#d5a19a}
+.metric-row.with-label{grid-template-columns:18px 38px 34px minmax(48px,1fr) 22px}.metric-label{font-size:12px;white-space:nowrap}.metric-row.with-label .metric-value{font-weight:700}
+.compare-tray{position:sticky;bottom:-10px;z-index:5;margin:10px -10px -10px;padding:9px 10px;border-top:1px solid var(--brass);background:linear-gradient(#f8f1e5f5,#e8d8bcf8);box-shadow:0 -5px 12px #24160d22}.compare-tray button{min-width:112px}.mbox:has(.candidate-compare-modal){width:min(1120px,96vw);max-width:min(1120px,96vw)}.candidate-compare-modal{width:100%}.candidate-compare-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}.candidate-compare-head .spacer{flex:1}.compare-person-tabs{display:flex;gap:5px;flex-wrap:wrap}.compare-grid{display:grid;grid-template-columns:repeat(var(--compare-count,3),minmax(250px,1fr));gap:10px;align-items:stretch}.compare-column{display:flex;flex-direction:column;min-width:0;padding:10px;border:1px solid var(--line);border-radius:4px;background:#fffaf0}.compare-column.focused{border-color:var(--oxblood);box-shadow:inset 0 0 0 1px var(--oxblood)}.compare-portrait{display:flex;justify-content:center;margin-bottom:8px}.compare-identity{text-align:center;min-height:68px}.compare-identity h4{margin:0 0 4px;font-family:"SimSun","Songti SC",serif;font-size:17px}.compare-analysis{min-height:44px;margin:8px 0;padding:7px;border:1px solid #d8c9af;border-radius:3px;background:#f4ead8}.compare-skills{display:grid;gap:3px;margin-top:4px}.compare-skills .metric-row{position:relative;padding:2px 4px;border-radius:3px}.compare-skills .gap-focus{padding-right:38px;background:repeating-linear-gradient(135deg,#8a612314 0 6px,#8a612306 6px 12px);box-shadow:inset 3px 0 var(--warning)}.compare-skills .gap-focus:after{content:"缺口";position:absolute;right:3px;top:50%;transform:translateY(-50%);font-size:10px;font-weight:700;color:#86551c}.compare-column details{margin-top:8px}.compare-column-actions{margin-top:auto;padding-top:8px}.compare-hire{background:var(--oxblood)!important;border-color:#571713!important;color:#fff9ec!important;font-weight:700;min-width:160px}.compare-footer{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+@media(max-width:650px){.metric-row{grid-template-columns:18px 56px minmax(44px,1fr) 22px}.skill-inline{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@media(max-width:650px){.candidate-compare-modal{width:94vw}.compare-grid{grid-template-columns:1fr}.compare-column:not(.focused){display:none}.compare-column{font-size:14px}.compare-footer{position:sticky;bottom:-14px;margin:10px -14px -14px;padding:10px 14px;background:var(--paper-clean)}.metric-row.with-label{grid-template-columns:18px 40px 36px minmax(64px,1fr) 22px}}
+@media(max-width:1040px){#ui.compact #top{height:40px;min-height:40px;padding:0 4px;gap:0;scrollbar-width:none}#ui.compact #top::-webkit-scrollbar{display:none}#ui.compact #top .top-group{padding:0 7px}#ui.compact #top .top-identity{display:none}#ui.compact #top .top-status,#ui.compact #top .top-tools{display:none}#ui.compact #left,#ui.compact #right{top:44px;bottom:0;width:min(90vw,400px);max-height:none}#ui.compact .rail{top:48px}#ui.compact #bottom{max-height:32vh}}
 `;
 
 function el(html        )              {
@@ -254,6 +293,69 @@ const ORDER_STAGE                         = {
 };
 
 export const PURCHASE_ACTIONS = Object.freeze(['hire', 'uproom', 'upfurn', 'buy', 'rstyle', 'adpost', 'rdgo', 'trainingchoice', 'staffequip', 'staffperk']);
+
+export function metricLevel(value, max = 100, polarity = 'positive') {
+  const pct = Math.max(0, Math.min(100, (Number(value) || 0) / Math.max(1, Number(max) || 100) * 100));
+  const band = pct <= 33 ? 'low' : pct <= 66 ? 'mid' : 'high';
+  const label = band === 'low' ? '低' : band === 'mid' ? '中' : '高';
+  const tone = band === 'mid' ? 'neutral' : polarity === 'negative'
+    ? (band === 'low' ? 'good' : 'bad') : (band === 'high' ? 'good' : 'bad');
+  return { band, label, tone };
+}
+
+export function uiIcon(name, label = '') {
+  const safeName = String(name || 'log').replace(/[^a-z-]/g, '');
+  const aria = label ? `role="img" aria-label="${htmlText(label)}"` : 'aria-hidden="true"';
+  return `<svg class="ui-icon" ${aria}><use href="assets/ui-icons.svg#icon-${safeName}"></use></svg>`;
+}
+
+export function noticeDot(active, label = '有新内容或待处理事项') {
+  return active ? `<span class="notice-dot" role="status" aria-label="${htmlText(label)}" title="${htmlText(label)}"><span class="sr-only">${htmlText(label)}</span></span>` : '';
+}
+
+export function metricRow({ icon, label, value, max = 100, color = 'var(--info)', polarity = 'positive', showLabel = false, compactValue = false, className = '' }) {
+  const safeMax = Math.max(1, Number(max) || 100);
+  const safeValue = Math.max(0, Math.min(safeMax, Number(value) || 0));
+  const pct = Math.round(safeValue / safeMax * 1000) / 10;
+  const level = metricLevel(safeValue, safeMax, polarity);
+  const fullValue = `${Math.round(safeValue)}/${Math.round(safeMax)}`;
+  const textValue = compactValue ? String(Math.round(safeValue)).padStart(2, '0') : fullValue;
+  const safeClass = String(className || '').replace(/[^a-z0-9_-]+/gi, ' ').trim();
+  return `<div class="metric-row metric-${level.band}${showLabel ? ' with-label' : ''}${safeClass ? ` ${safeClass}` : ''}" aria-label="${htmlText(label)} ${fullValue}，${level.label}"><span class="metric-icon" title="${htmlText(label)}">${uiIcon(icon)}</span>${showLabel ? `<span class="metric-label">${htmlText(label)}</span>` : ''}<span class="metric-value">${textValue}</span><span class="metric-track" aria-hidden="true"><i style="width:${pct}%;--metric-color:${htmlText(color)}"></i></span><span class="metric-band ${level.tone}">${level.label}</span></div>`;
+}
+
+export function portraitFrame(app, size = 'main', alt = '') {
+  const safeSize = ['main', 'compare', 'detail', 'compact', 'creator'].includes(size) ? size : 'main';
+  const imageClass = safeSize === 'creator' ? ' class="big"' : '';
+  return `<span class="portrait-safe portrait-${safeSize}"><img${imageClass} src="${htmlText(portraitURL(app))}" alt="${htmlText(alt)}"></span>`;
+}
+
+export function toggleCandidateComparison(current, id, limit = 3) {
+  const next = new Set(current || []);
+  if (next.has(id)) next.delete(id);
+  else if (next.size < limit) next.add(id);
+  return next;
+}
+
+function recruitmentNoticeToken(ad) {
+  return ad?.spec ? `${ad.day}:${(ad.cands || []).map((person) => person.id).join(',')}` : '';
+}
+
+/** 只根据未读与待处理数据生成通知；无状态的导航项必须保持 false。 */
+export function navNoticeState(sim) {
+  if (!sim) return { staff: false, world: false, task: false, econ: false, menu: false, room: false, furn: false };
+  const econ = sim.econ || {};
+  const staff = (sim.ads || []).some((ad, slot) => ad?.spec && (ad.cands || []).length
+    && econ.recruitmentSeen?.[slot] !== recruitmentNoticeToken(ad));
+  const world = (typeof sim.worlds === 'function' ? sim.worlds() : []).some((item) =>
+    (Number(econ.worldKnowledge?.[item.id]?.level) || 0) > (Number(econ.worldSeenLevels?.[item.id]) || 0));
+  const task = (typeof sim.workQueue === 'function' ? sim.workQueue() : []).some((item) => !item.staff);
+  const lowStock = Object.values(econ.stock || {}).some((amount) => Number(amount) < 10);
+  const econNotice = lowStock || Number(econ.strikes) > 0 || !!econ.pendingCertification || !!sim.pendingCertification;
+  const menu = (typeof sim.allDishes === 'function' && typeof sim.dishStatus === 'function' ? sim.allDishes() : [])
+    .some((dish) => { const status = sim.dishStatus(dish); return status.on && (!status.facility || !status.skillOk || !status.stockOk); });
+  return { staff, world, task, econ: econNotice, menu, room: false, furn: false };
+}
 
 export function nightInteractionAction(sim       , kind                   , owner       , target       , group        )            {
   if (!sim || sim.dayActive || !owner || !target) return '';
@@ -307,12 +409,16 @@ export class UI {
           interactionRelease = 0;
   purchaseConfirm = null;
   customWorldActiveTab = 'concept';
+  customWorldResultNotice = false;
   worldPromptActiveStage = 'world_concept';
   candidateSort = 'gap';
   candidateJobFilter = 'all';
   candidateWorldFilter = 'all';
   candidateCompareIds = new Set();
+  candidateCompareFocusId = 0;
+  candidateGapHighlight = true;
   worldFilter = 'all';
+  noticeState = { staff: false, world: false, task: false, econ: false, menu: false, room: false, furn: false };
           panelHTML = new WeakMap();
 
   constructor(g         ) {
@@ -372,6 +478,11 @@ export class UI {
     window.addEventListener('pointercancel', releaseInteraction, true);
     this.root.addEventListener('click', (e) => this.onClick(e));
     this.root.addEventListener('change', (e) => this.onChange(e));
+    this.root.addEventListener('toggle', (e) => {
+      const details = e.target;
+      if (!(details instanceof HTMLDetailsElement)) return;
+      details.querySelector(':scope > summary')?.setAttribute('aria-expanded', String(details.open));
+    }, true);
     this.root.addEventListener('input', (e) => {
       const target = e.target;
       if (target?.dataset?.act === 'adworldname') this.adSpec.customWorldName = target.value;
@@ -432,11 +543,12 @@ export class UI {
     return false;
   }
 
-          renderRails()       {
+  renderRails()       {
+    const notices = this.noticeState || {};
     const btn = (side        , tab        , icon        , name        ) =>
-      `<button data-act="rail" data-s="${side}" data-v="${tab}" title="${name}"><img src="assets/${icon}.png" alt="${name}"></button>`;
-    this.railL.innerHTML = btn('left', 'room', 'ic-room', '房间') + btn('left', 'furn', 'ic-furn', '家具') + btn('left', 'menu', 'ic-menu', '菜单') + btn('left', 'econ', 'ic-econ', '经营');
-    this.railR.innerHTML = btn('right', 'staff', 'ic-staff', '员工') + btn('right', 'guest', 'ic-guest', '客人') + btn('right', 'task', 'ic-econ', '工作') + btn('right', 'log', 'ic-log', '日志');
+      `<button data-act="rail" data-s="${side}" data-v="${tab}" title="${name}" aria-label="打开${name}面板">${uiIcon(icon)}${noticeDot(!!notices[tab], `${name}有新内容或待处理事项`)}</button>`;
+    this.railL.innerHTML = btn('left', 'room', 'room', '房间') + btn('left', 'furn', 'furn', '家具') + btn('left', 'menu', 'menu', '菜单') + btn('left', 'econ', 'econ', '经营');
+    this.railR.innerHTML = btn('right', 'staff', 'staff', '员工') + btn('right', 'guest', 'guest', '客人') + btn('right', 'world', 'world', '万界') + btn('right', 'task', 'task', '工作') + btn('right', 'log', 'log', '日志');
   }
 
           applyCollapse()       {
@@ -521,7 +633,15 @@ export class UI {
         if (this.compact) this.collapsed.right = true;
       }
     }
-    else if (act === 'hire') g.hire(parseInt(v, 10));
+    else if (act === 'hire') {
+      const id = parseInt(v, 10); const comparing = !!this.modal?.querySelector('.candidate-compare-modal');
+      g.hire(id);
+      if (!g.sim.candById(id)) {
+        this.candidateCompareIds.delete(id);
+        if (this.candidateCompareFocusId === id) this.candidateCompareFocusId = 0;
+        if (comparing) this.closeModal();
+      }
+    }
     else if (act === 'directrecruit') this.openTargetRecruit();
     else if (act === 'rotbuild') g.rotateBuild();
     else if (act === 'fire') this.openFireConfirm(parseInt(v, 10));
@@ -671,10 +791,17 @@ export class UI {
     }
     else if (act === 'candcompare') {
       const id = parseInt(v, 10);
-      if (this.candidateCompareIds.has(id)) this.candidateCompareIds.delete(id);
-      else if (this.candidateCompareIds.size < 3) this.candidateCompareIds.add(id);
-      else g.sim.toast('最多同时比较 3 名候选人');
+      const before = this.candidateCompareIds.size; const wasSelected = this.candidateCompareIds.has(id);
+      this.candidateCompareIds = toggleCandidateComparison(this.candidateCompareIds, id);
+      if (!wasSelected && before >= 3 && !this.candidateCompareIds.has(id)) g.sim.toast('最多同时比较 3 名候选人');
+      if (!this.candidateCompareIds.has(this.candidateCompareFocusId)) this.candidateCompareFocusId = 0;
+      if (this.modal?.querySelector('.candidate-compare-modal')) {
+        if (this.candidateComparisonPeople().length >= 2) this.openCandidateComparison(); else this.closeModal();
+      }
     }
+    else if (act === 'candcompareopen') this.openCandidateComparison();
+    else if (act === 'candcomparefocus') { this.candidateCompareFocusId = parseInt(v, 10); this.openCandidateComparison(); }
+    else if (act === 'candgaphighlight') { this.candidateGapHighlight = !this.candidateGapHighlight; this.openCandidateComparison(); }
     else if (act === 'firec') this.openFireConfirm(parseInt(v, 10));
     else if (act === 'firego') { if (g.fire(parseInt(v, 10))) this.closeModal(); }
     else if (act === 'manual') { g.setManualOwner(v === '1'); this.openSettings(); }
@@ -861,6 +988,8 @@ export class UI {
 
   render(force         )       {
     if (!force && (this.interactionLock || this.purchaseConfirm)) return;
+    this.noticeState = navNoticeState(this.g.sim);
+    this.renderRails();
     this.renderTop();
     this.renderLeft();
     this.renderRight();
@@ -883,29 +1012,12 @@ export class UI {
       document.documentElement.style.setProperty('--world-tint', world.visuals?.atmosphere?.tint || '#F3B84B');
     }
     this.setPanelHTML(this.top, `
-      <button data-act="worldcard" data-v="${htmlText(world.id)}" class="world-title" title="当前驻留世界，点击查看世界卡">${htmlText(world.icon)} ${htmlText(world.name)}</button>
-      <span class="sep"></span>第 ${e.day} 天
-      <span class="dim">${SEASON_NAMES[s.seasonIndex()]}</span>
-      <span>${s.dayActive ? `<span class="hi">营业中·${this.phase()}</span> <span class="bar" style="display:inline-block;width:90px"><i style="width:${timePct}%;background:#F3B84B"></i></span>` : '<span class="dim">收盘规划</span>'}</span>
-      <span class="sep"></span>
-      <button data-act="pause" class="${g.paused ? 'on' : ''}">${g.paused ? '▶ 继续' : '⏸ 暂停'}</button>
-      ${[1, 2, 4].map((n) => `<button data-act="speed" data-v="${n}" class="${g.speed === n && !g.paused ? 'on' : ''}">${n}×</button>`).join('')}
-      <span class="sep"></span>
-      <span class="hi"><img class="tic" src="assets/ic-econ.png" alt="币">${Math.round(e.coins)}</span>
-      <span>声望 <span class="star">${'★'.repeat(stars)}</span><span class="dim">${'☆'.repeat(5 - stars)}</span> ${Math.round(e.rep)}/${nextTh}</span>
-      ${stars < 5 && e.rep >= nextTh ? `<span class="hi">待完成 ★${stars + 1} 经营认证</span>` : ''}
-      ${s.endingSeen ? '<span class="good">🏆 五星认证</span>' : ''}
-      ${e.strikes ? `<span class="bad">封印警告 ${e.strikes}/3</span>` : ''}
-      ${lowStock.length ? `<span class="bad">缺料：${lowStock.map((k) => ING_LABEL[k]).join('/')}</span>` : ''}
-      ${this.dynamicAIStatus?.state === 'loading' ? `<span class="hi">✦ ${htmlText(this.dynamicAIStatus.text)}</span><button data-act="aicanceldynamic">取消</button>` : this.dynamicAIStatus?.state === 'error' ? `<span class="bad">${htmlText(this.dynamicAIStatus.text)}</span><button data-act="airetrydynamic">重试</button>` : ''}
-      <span style="flex:1"></span>
-      <button data-act="home">回店</button>
-      ${s.dayActive ? '' : '<button data-act="readiness">营业准备</button><button data-act="open">开门营业</button>'}
-      ${tutorial.started && !tutorial.completed && !tutorial.skipped && !this.tutorialActive ? `<button data-act="tutorialresume" class="hi">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>` : ''}
-      <button data-act="savemenu">💾 档位 ${this.g.currentSlot}</button>
-      <button data-act="help">帮助</button>
-      <button data-act="prompts">提示词</button>
-      <button data-act="settings">⚙ 设置</button>`);
+      <div class="top-group top-identity"><button data-act="worldcard" data-v="${htmlText(world.id)}" class="world-title" title="当前驻留世界，点击查看世界卡">${htmlText(world.icon)} ${htmlText(world.name)}</button></div>
+      <div class="top-group top-date"><span>第 ${e.day} 天</span><span class="dim">${SEASON_NAMES[s.seasonIndex()]}</span><span class="top-day-state">${s.dayActive ? `<span class="hi">营业中·${this.phase()}</span><span class="bar" style="display:inline-block;width:72px"><i style="width:${timePct}%;background:var(--warning)"></i></span>` : '<span class="dim">收盘规划</span>'}</span></div>
+      <div class="top-group top-speed"><button data-act="pause" class="${g.paused ? 'on' : ''}" aria-label="${g.paused ? '继续' : '暂停'}">${g.paused ? '▶' : 'Ⅱ'}</button>${[1, 2, 4].map((n) => `<button data-act="speed" data-v="${n}" class="${g.speed === n && !g.paused ? 'on' : ''}">${n}×</button>`).join('')}</div>
+      <div class="top-group top-economy"><span class="hi">${uiIcon('econ', '界币')} ${Math.round(e.coins)}</span><span>声望 <span class="star">${'★'.repeat(stars)}</span><span class="dim">${'☆'.repeat(5 - stars)}</span> ${Math.round(e.rep)}/${nextTh}</span></div>
+      <div class="top-group top-status">${stars < 5 && e.rep >= nextTh ? `<span class="hi">待完成 ★${stars + 1} 经营认证</span>` : ''}${s.endingSeen ? '<span class="good">五星认证</span>' : ''}${e.strikes ? `<span class="bad">封印警告 ${e.strikes}/3</span>` : ''}${lowStock.length ? `<span class="bad">缺料：${lowStock.map((k) => ING_LABEL[k]).join('/')}</span>` : ''}${this.dynamicAIStatus?.state === 'loading' ? `<span class="hi">✦ ${htmlText(this.dynamicAIStatus.text)}</span><button data-act="aicanceldynamic">取消</button>` : this.dynamicAIStatus?.state === 'error' ? `<span class="bad">${htmlText(this.dynamicAIStatus.text)}</span><button data-act="airetrydynamic">重试</button>` : ''}</div>
+      <div class="top-group top-actions"><button data-act="home">回店</button>${s.dayActive ? '' : '<button data-act="readiness">营业准备</button><button data-act="open" class="primary-action">开门营业</button>'}${tutorial.started && !tutorial.completed && !tutorial.skipped && !this.tutorialActive ? `<button data-act="tutorialresume">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>` : ''}<span class="top-tools"><button data-act="savemenu">档位 ${this.g.currentSlot}</button><button data-act="help">帮助</button><button data-act="prompts">提示词</button><button data-act="settings">设置</button></span></div>`);
   }
 
           phase()         {
@@ -997,7 +1109,7 @@ export class UI {
            <div class="row">${['off', 'clean', 'traffic'].map((h) => `<button data-act="heat" data-v="${h}" class="${g.heat === h ? 'on' : ''}">${h === 'off' ? '关闭' : h === 'clean' ? '卫生' : '拥堵'}</button>`).join('')}</div>`;
     }
     this.setPanelHTML(this.left, `<div class="tabs">
-      ${[['room', '房间', 'ic-room'], ['furn', '家具', 'ic-furn'], ['menu', '菜单', 'ic-menu'], ['econ', '经营', 'ic-econ']].map(([k, n, ic]) => `<button data-act="ltab" data-v="${k}" class="${this.leftTab === k ? 'on' : ''}"><img class="tic" src="assets/${ic}.png" alt="">${n}</button>`).join('')}<button class="fold" data-act="collapse" data-v="left" title="收起左栏">❮</button>
+      ${[['room', '房间', 'room'], ['furn', '家具', 'furn'], ['menu', '菜单', 'menu'], ['econ', '经营', 'econ']].map(([k, n, icon]) => `<button data-act="ltab" data-v="${k}" class="${this.leftTab === k ? 'on' : ''}">${uiIcon(icon)}${n}${noticeDot(!!this.noticeState[k], `${n}有待处理事项`)}</button>`).join('')}<button class="fold" data-act="collapse" data-v="left" title="收起左栏" aria-label="收起左侧面板"><span class="panel-collapse-mark left"></span></button>
       </div>${body}
       ${g.buildBp || g.buildFurn ? `<div class="row" style="margin-top:6px"><button data-act="rotate">R 旋转</button><button data-act="cancelbuild" class="warn">取消</button></div>` : ''}`);
   }
@@ -1067,14 +1179,51 @@ export class UI {
       <div class="dim">绿色候选人为当前岗位缺口的最佳匹配；可勾选最多 3 人并排比较。</div></div>`;
   }
 
-  candidateComparison() {
-    const chosen = this.allRecruitmentCandidates().filter((person) => this.candidateCompareIds.has(person.id)).slice(0, 3);
-    if (chosen.length < 2) return '';
+  candidateComparisonPeople() {
+    const candidates = this.allRecruitmentCandidates();
+    const validIds = new Set(candidates.map((person) => person.id));
+    for (const id of this.candidateCompareIds) if (!validIds.has(id)) this.candidateCompareIds.delete(id);
+    return candidates.filter((person) => this.candidateCompareIds.has(person.id)).slice(0, 3);
+  }
+
+  candidateComparisonTray() {
+    if (!this.allRecruitmentCandidates().length) return '';
+    const chosen = this.candidateComparisonPeople();
+    return `<div class="compare-tray"><div class="row"><span><b>候选人并排比较</b><span class="dim"> · 已选 ${chosen.length}/3</span></span><button data-act="candcompareopen" ${chosen.length < 2 ? 'disabled title="至少选择两名候选人"' : ''}>打开比较</button></div></div>`;
+  }
+
+  candidateAnalysisSentence(person, analysis, gap) {
+    const strengths = analysis.strengths.map((item) => SKILL_LABEL[item.key]).join('、');
+    const weakness = SKILL_LABEL[analysis.weaknesses[0]?.key] || '暂无明显短板';
+    return `擅长${strengths}，推荐${JOB_LABEL[analysis.recommendedJob]}；${JOB_LABEL[gap.job]}缺口匹配 ${this.candidateRoleScore(person, gap.job)}，需留意${weakness}。`;
+  }
+
+  openCandidateComparison() {
+    const chosen = this.candidateComparisonPeople();
+    if (chosen.length < 2) { this.g.sim.toast('至少选择 2 名候选人才能比较'); return; }
+    if (!chosen.some((person) => person.id === this.candidateCompareFocusId)) this.candidateCompareFocusId = chosen[0].id;
     const gap = this.recruitmentGap();
-    return `<div class="card" style="border-left-color:#7A4BE0"><div class="row"><b>候选人并排比较</b><span class="dim">当前缺口：${JOB_LABEL[gap.job]}</span></div><div class="compare-grid">${chosen.map((person) => {
+    const gapSkill = jobFocusSkill(gap.job);
+    const tabs = `<div class="compare-person-tabs">${chosen.map((person) => `<button data-act="candcomparefocus" data-v="${person.id}" class="${person.id === this.candidateCompareFocusId ? 'on' : ''}">${htmlText(person.name)}</button>`).join('')}</div>`;
+    const columns = chosen.map((person) => {
       const analysis = staffAnalysis(person);
-      return `<div class="card"><b>${htmlText(person.name)}</b><div>${htmlText(person.originWorldName || '未知')} · 日薪 ${person.wage}</div><div class="hi">缺口匹配 ${this.candidateRoleScore(person, gap.job)} · 综合 ${analysis.score}</div><div class="dim">${analysis.strengths.map((item) => `${SKILL_LABEL[item.key]} ${item.value}`).join(' · ')}</div><button data-act="candcompare" data-v="${person.id}">移出比较</button></div>`;
-    }).join('')}</div></div>`;
+      const focused = person.id === this.candidateCompareFocusId;
+      const background = person.background;
+      const skills = SKILL_KEYS.map((key) => metricRow({
+        icon: key, label: SKILL_LABEL[key], value: person.skills[key], color: 'var(--info)', showLabel: true, compactValue: true,
+        className: this.candidateGapHighlight && key === gapSkill ? 'gap-focus' : '',
+      })).join('');
+      return `<section class="compare-column ${focused ? 'focused' : ''}" data-candidate-id="${person.id}">
+        <div class="compare-portrait">${portraitFrame(person.app, 'compare', person.name)}</div>
+        <div class="compare-identity"><h4>${htmlText(person.name)}</h4><div>${htmlText(person.originWorldName || '未知世界')} · 日薪 ${person.wage}</div><div class="dim">推荐岗位：${JOB_LABEL[analysis.recommendedJob]} · 综合 ${analysis.score}</div></div>
+        <div class="compare-analysis">${htmlText(this.candidateAnalysisSentence(person, analysis, gap))}</div>
+        <div class="compare-skills">${skills}</div>
+        ${background ? `<details><summary aria-expanded="false">背景与求职动机</summary><div class="dim">${htmlText(this.candidateBackgroundSummary(background))}</div><div>${htmlText(background.aspiration || background.background || '')}</div>${background.quirk ? `<div class="dim">习惯：${htmlText(background.quirk)}</div>` : ''}</details>` : ''}
+        <div class="compare-column-actions"><button data-act="candcomparefocus" data-v="${person.id}" class="${focused ? 'on' : ''}">${focused ? '已选为雇用对象' : '选为雇用对象'}</button><button data-act="candcompare" data-v="${person.id}">移出比较</button></div>
+      </section>`;
+    }).join('');
+    const focus = chosen.find((person) => person.id === this.candidateCompareFocusId) || chosen[0];
+    this.showModal(`<h3>候选人并排比较</h3><section class="candidate-compare-modal"><div class="candidate-compare-head"><span>当前缺口：<b>${JOB_LABEL[gap.job]}</b> · 主能力 ${SKILL_LABEL[gapSkill]}</span><span class="spacer"></span><button data-act="candgaphighlight" class="${this.candidateGapHighlight ? 'on' : ''}">固定高亮当前缺口：${this.candidateGapHighlight ? '开' : '关'}</button></div>${tabs}<div class="compare-grid" style="--compare-count:${chosen.length}">${columns}</div><div class="compare-footer"><span class="dim">选中候选人后仍需再次确认入职费</span><button class="compare-hire" data-act="hire" data-v="${focus.id}">雇用「${htmlText(focus.name)}」</button></div></section>`, true, false, { variant: 'important' });
   }
 
   candidateBackgroundSummary(background) {
@@ -1132,7 +1281,7 @@ export class UI {
       body += `<div class="card" style="border-left-color:#8A74B8"><div class="row"><b>定向招募 · 员工 DIY</b><span class="${directUnlocked ? 'good' : 'dim'}">${directUnlocked ? '四星已解锁' : '需要 ★★★★'}</span></div>
         <div class="dim">自行决定员工的姓名、外貌、性格与岗位能力；确认后按生成工资支付正常入职费。</div>
         <div class="row"><button data-act="directrecruit" ${directUnlocked && s.staff.length < s.maxStaff() ? '' : 'disabled'}>${s.staff.length >= s.maxStaff() ? '先准备空卧室' : directUnlocked ? '创建定向员工' : '四星后开放'}</button></div></div>`;
-      if (this.allRecruitmentCandidates().length) body += this.candidateDecisionControls() + this.candidateComparison();
+      if (this.allRecruitmentCandidates().length) body += this.candidateDecisionControls();
       const bestGapId = this.bestGapCandidateId();
       body += '<h3>招募广告（3 个广告位）</h3>' + s.ads.map((ad, i) => {
         if (!ad.spec) {
@@ -1149,7 +1298,7 @@ export class UI {
         if (ad.spec.bias) req.push(SKILL_LABEL[ad.spec.bias           ] + '偏向');
         const unseen = s.econ.recruitmentSeen?.[i] !== this.recruitmentToken(ad);
         const candidates = this.filteredSortedCandidates(ad.cands);
-        return `<div class="card"><div class="row"><b>广告位 ${i + 1}·${t.name}${unseen ? '<span class="new-dot">● 新</span>' : ''}</b><span class="dim">第${ad.day}天发布</span></div>
+        return `<div class="card"><div class="row"><b>广告位 ${i + 1}·${t.name}${noticeDot(unseen, '有未读候选人')}</b><span class="dim">第${ad.day}天发布</span></div>
           <div class="dim">要求：${req.length ? req.join('·') : '不限'}｜候选 ${ad.cands.length} 人</div>
           ${candidates.length ? candidates.map((p) => this.candCard(p, bestGapId)).join('') : '<div class="filter-empty">此广告没有符合当前筛选条件的候选人</div>'}
           <div class="row">${unseen ? `<button data-act="adseen" data-v="${i}">标记已读</button>` : ''}<button data-act="adopen" data-v="${i}">重发广告</button>
@@ -1159,6 +1308,7 @@ export class UI {
         const pool = this.filteredSortedCandidates(s.pool);
         body += `<h3>自来应聘（${s.pool.length}）</h3>` + (pool.length ? pool.map((p) => this.candCard(p, bestGapId)).join('') : '<div class="filter-empty">没有符合当前筛选条件的自来应聘者</div>');
       }
+      body += this.candidateComparisonTray();
     } else if (this.rightTab === 'guest') {
       body = s.groups.length ? s.groups.map((gr) => {
         const pct = Math.round((gr.patience / gr.maxPatience) * 100);
@@ -1197,7 +1347,7 @@ export class UI {
         const unseen = info.level > (Number(s.econ.worldSeenLevels?.[world.id]) || 0);
         if (world.unlockStars > s.stars()) return `<div class="card"><div class="row"><b>未接通的位面</b><span class="dim">需要 ★${world.unlockStars}</span></div></div>`;
         if (!info.level) return `<div class="card"><div class="row"><b>${world.icon} 尚未到访</b><span class="dim">航路已接通</span></div><div class="dim">等待第一批旅客穿过位面门。</div></div>`;
-        return `<div class="card" data-act="worldcard" data-v="${htmlText(world.id)}" style="border-left-color:${world.id === current.id ? '#8DDB4A' : forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}${world.id === current.id ? ' · 当前' : ''}${unseen ? '<span class="new-dot">● 新资料</span>' : ''}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
+        return `<div class="card" data-act="worldcard" data-v="${htmlText(world.id)}" style="border-left-color:${world.id === current.id ? '#8DDB4A' : forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}${world.id === current.id ? ' · 当前' : ''}${noticeDot(unseen, '有未读世界资料')}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
           <div>${htmlText(world.identity.summary)}</div>
           <div class="dim">环境：${htmlText(world.identity.environment)}｜文明：${htmlText(world.identity.civilization)}</div>
           <div class="dim">常见居民：${world.population.slice(0, 4).map((resident) => `${RACE_NAMES[resident.raceId]}（${resident.role}）`).join('、')}｜地区：${world.regions.map((region) => region.name).join('、')}</div>
@@ -1219,7 +1369,7 @@ export class UI {
       body = s.log.length ? s.log.slice(0, 24).map((l) => `<div class="dim">· ${l}</div>`).join('') : '<div class="dim">暂无记录。</div>';
     }
     this.setPanelHTML(this.right, `<div class="tabs">
-      ${[['staff', '员工', 'ic-staff'], ['guest', '客人', 'ic-guest'], ['world', '万界', 'ic-room'], ['task', '工作', 'ic-econ'], ['log', '日志', 'ic-log']].map(([k, n, ic]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}"><img class="tic" src="assets/${ic}.png" alt="">${n}${k === 'staff' && this.hasNewRecruitment() || k === 'world' && this.hasNewWorldInfo() ? '<span class="new-dot">●</span>' : ''}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏">❯</button>
+      ${[['staff', '员工', 'staff'], ['guest', '客人', 'guest'], ['world', '万界', 'world'], ['task', '工作', 'task'], ['log', '日志', 'log']].map(([k, n, icon]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}">${uiIcon(icon)}${n}${noticeDot(!!this.noticeState[k], `${n}有新内容或待处理事项`)}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏" aria-label="收起右侧面板"><span class="panel-collapse-mark right"></span></button>
       </div>${body}`);
   }
 
@@ -1229,16 +1379,16 @@ export class UI {
     const gap = this.recruitmentGap();
     const selected = this.candidateCompareIds.has(p.id);
     const recommended = p.id === bestGapId;
-    return `<div class="card candidate-card ${recommended ? 'recommended' : ''}"><div class="row"><img class="portrait list" src="${portraitURL(p.app)}" width="42" height="56">
+    return `<div class="card candidate-card ${recommended ? 'recommended' : ''}"><div class="row">${portraitFrame(p.app, 'main', p.name)}
         <span style="flex:1"><b>${p.name}</b><div class="dim">${p.race}·${p.sex}·${p.age}岁</div><div class="hi">出生世界：${htmlText(p.originWorldName || '未知')}</div></span>
         <span class="hi">日薪${p.wage}</span></div>
       ${recommended ? `<div class="good"><b>★ 最适合当前缺口</b> · ${JOB_LABEL[gap.job]}匹配 ${this.candidateRoleScore(p, gap.job)}</div>` : ''}
       ${p.worldSpecialty ? `<div class="hi">世界专长：${htmlText(p.worldSpecialty.name)} · ${htmlText(p.worldSpecialty.note)}</div>` : ''}
-      <div class="dim">${SKILL_KEYS.map((k) => `${SKILL_LABEL[k]}${p.skills[k]}`).join(' ')}</div>
+      <div class="skill-inline">${SKILL_KEYS.map((k) => `<span title="${htmlText(SKILL_LABEL[k])}">${uiIcon(k)}<b>${p.skills[k]}</b></span>`).join('')}</div>
       <div class="row" style="align-items:flex-start"><b class="hi">综合 ${analysis.score}</b><span>推荐：${JOB_LABEL[analysis.recommendedJob]}</span></div>
       <div class="dim"><span class="good">优势 ${analysis.strengths.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span> · <span class="bad">短板 ${analysis.weaknesses.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span></div>
       <div class="row" style="justify-content:flex-start;flex-wrap:wrap">${p.traits.map((t) => this.traitTag(t)).join('')}<span class="dim" title="根据综合技能与性格自动规划">自动优先级 ${p.prio}</span></div>
-      ${bg ? `<div class="dim candidate-summary">${htmlText(this.candidateBackgroundSummary(bg))}</div><details class="candidate-details"><summary>展开背景与求职动机</summary><div class="dim">${htmlText(bg.role || '')}</div><div>${htmlText(bg.aspiration || bg.background || '')}</div>${bg.quirk ? `<div class="dim">习惯：${htmlText(bg.quirk)}</div>` : ''}</details>` : ''}
+      ${bg ? `<div class="dim candidate-summary">${htmlText(this.candidateBackgroundSummary(bg))}</div><details class="candidate-details"><summary aria-expanded="false">展开背景与求职动机</summary><div class="dim">${htmlText(bg.role || '')}</div><div>${htmlText(bg.aspiration || bg.background || '')}</div>${bg.quirk ? `<div class="dim">习惯：${htmlText(bg.quirk)}</div>` : ''}</details>` : ''}
       <div class="row"><button data-act="candcompare" data-v="${p.id}" class="${selected ? 'on' : ''}">${selected ? '✓ 比较中' : '加入比较'}</button><button data-act="hire" data-v="${p.id}">雇用（入职费${p.wage * 3}）</button>
         ${bg ? `<button data-act="viewbg" data-v="${p.id}">查看背景</button>` : aiConfigured() ? `<button data-act="aibg" data-v="${p.id}">AI 生成背景</button>` : ''}</div></div>`;
   }
@@ -1246,14 +1396,13 @@ export class UI {
   staffCard(st       )         {
     const sel = this.g.selection && this.g.selection.kind === 'staff' && this.g.selection.id === st.id;
     const room = st.roomId ? this.g.tavern.roomById(st.roomId) : null;
-    return `<div class="card ${sel ? 'sel' : ''}" data-act="selstaff" data-v="${st.id}">
-      <div class="row"><img class="portrait list" src="${portraitURL(st.app)}" width="42" height="56">
-        <span style="flex:1"><b>${st.name}</b>${st.isOwner ? '<span class="hi">（店主）</span>' : ''}
+    return `<div class="card staff-card ${sel ? 'sel' : ''}" data-act="selstaff" data-v="${st.id}">
+      <div class="row staff-card-head">${portraitFrame(st.app, 'main', st.name)}
+        <span class="staff-identity" style="flex:1"><b>${st.name}</b>${st.isOwner ? '<span class="hi">（店主）</span>' : ''}
           <div class="dim">${JOB_LABEL[st.job]}·${room ? `${st.roomMode === 'strict' ? '仅限' : '优先'} ${ROOM_LABEL[room.kind]}` : '全店机动'}</div></span>
       </div>
-      <div class="row"><span class="dim">体力</span>${bar(st.needs.stamina, 100, '#8DDB4A')}<span class="dim">士气</span>${bar(st.needs.morale, 100, '#39D7D2')}</div>
-      ${st.isOwner ? '' : `<div class="row"><span class="dim">好感</span>${bar(st.aff, 100, this.g.sim.affLevel(st.aff).color)}<span style="color:${this.g.sim.affLevel(st.aff).color}">${this.g.sim.affLevel(st.aff).name}</span></div>`}
-      <div class="row"><span class="dim" style="flex:1">${st.task ? '正在：' + st.task.label : st.free ? this.freeLabel(st.free.kind) : st.note || '待命'}</span><button data-act="detail" data-v="${st.id}">详情</button></div></div>`;
+      <div class="staff-metrics">${metricRow({ icon: 'stamina', label: '体力', value: st.needs.stamina, color: 'var(--positive)' })}${metricRow({ icon: 'morale', label: '士气', value: st.needs.morale, color: 'var(--info)' })}${st.isOwner ? '' : metricRow({ icon: 'affinity', label: '好感', value: st.aff, color: 'var(--rose)' })}</div>
+      <div class="row"><span class="dim staff-current" style="flex:1">${st.task ? '正在：' + st.task.label : st.free ? this.freeLabel(st.free.kind) : st.note || '待命'}</span><button class="staff-detail-action" data-act="detail" data-v="${st.id}">详情</button></div></div>`;
   }
 
   /** 休息室挂名：有住户显示「XX的卧室」 */
@@ -1274,9 +1423,10 @@ export class UI {
       flowers: '打烊偷闲：逛花坛', crystal: '打烊偷闲：对着水晶冥想', wine: '打烊偷闲：整理藏酒', cards: '打烊偷闲：桌边玩牌', sketch: '打烊偷闲：画店内速写' }[kind] || '打烊偷闲';
   }
 
-          renderBottom()       {
+  renderBottom()       {
     const g = this.g;
     const sel = g.selection;
+    this.bottom.classList.toggle('bottom-expanded', g.moveRoomId !== null || !!g.buildBp || !!g.buildFurn || !!sel);
     if (g.moveRoomId !== null) {
       const room = g.tavern.roomById(g.moveRoomId);
       this.setPanelHTML(this.bottom, `<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
@@ -1307,7 +1457,7 @@ export class UI {
       const gu = this.g.sim.guests.find((x) => x.id === sel.id);
       if (!gu) { this.setPanelHTML(this.bottom, '<div class="dim">客人已离店。</div>'); return; }
       const gr = this.g.sim.groups.find((x) => x.id === gu.groupId);
-      this.setPanelHTML(this.bottom, `<div class="row portrait-head"><img class="portrait compact" src="${portraitURL(gu.app)}" width="88" height="113">
+      this.setPanelHTML(this.bottom, `<div class="row portrait-head">${portraitFrame(gu.app, 'compact', gu.name)}
         <div style="flex:1"><b>${gu.name}</b> <span class="dim">${gu.race}</span>
         <div class="dim">${gr ? `同行 ${gr.size} 人 · 状态 ${gr.state} · 耐心 ${Math.round(gr.patience)}s · 预算 ${gr.budget}` : ''}</div>
         <div class="dim">口味偏好：${gr ? gr.taste.map((t) => g.sim.dishOf(t).name).join('、') : ''}${gr && gr.flavors && gr.flavors.length ? `（${gr.flavors.map((f) => FLAVOR_LABEL[f] || f).join('/')}党）` : ''}</div></div></div>`);
@@ -1327,7 +1477,7 @@ export class UI {
       cleaner: ['主责：清洁、整理', '可补位：设施收尾', '不会做：迎宾、烹饪'], porter: ['主责：搬运、收台', '可补位：设施服务', '不会做：迎宾、烹饪'], free: ['主责：依能力机动', '可补位：多数普通工作', '不会做：专业岗位优先任务'],
     }[st.job] || [];
     return `<div class="row" style="align-items:flex-start">
-      <img class="portrait compact" src="${portraitURL(st.app)}" width="88" height="113">
+      ${portraitFrame(st.app, 'compact', st.name)}
       <div style="flex:1">
         <div class="row"><b>${st.name}</b><span class="dim">${st.race}·${st.sex}·${st.age}岁·${st.ht}cm/${st.wt}kg·${HT_NAMES[st.app.ht]}${BD_NAMES[st.app.bd]}</span>
         <span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</span></div>
@@ -1480,7 +1630,7 @@ export class UI {
     const sim = this.g.sim; const world = sim.unlockedWorlds().find((row) => row.id === id);
     if (!world) return;
     const prices = ING_KEYS.map((key) => `${ING_LABEL[key]} ${Math.round((world.economy?.prices?.[key] || 1) * 100)}%`).join(' · ');
-    this.showModal(`<h3>确认穿越至 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card"><div>${htmlText(world.tagline || world.identity?.summary || '')}</div><div class="dim" style="margin-top:6px">抵达后客流以当地客为主；采购：${prices}</div><div class="dim">推荐设施：${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join('、') || '无特别限制'}</div></div><div class="card bad">将立即支付 ${worldSwitchCost(world)} 界币并开始穿越。动画结束后立即抵达目标世界，不再等待次日开门。</div><div class="row"><button data-act="worldswitchgo" data-v="${htmlText(world.id)}">确认穿越</button><button data-act="worldcard" data-v="${htmlText(world.id)}">返回世界卡</button></div>`);
+    this.showModal(`<h3>确认穿越至 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card"><div>${htmlText(world.tagline || world.identity?.summary || '')}</div><div class="dim" style="margin-top:6px">抵达后客流以当地客为主；采购：${prices}</div><div class="dim">推荐设施：${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join('、') || '无特别限制'}</div></div><div class="card bad">将立即支付 ${worldSwitchCost(world)} 界币并开始穿越。动画结束后立即抵达目标世界，不再等待次日开门。</div><div class="row"><button data-act="worldswitchgo" data-v="${htmlText(world.id)}">确认穿越</button><button data-act="worldcard" data-v="${htmlText(world.id)}">返回世界卡</button></div>`, true, false, { variant: 'important' });
   }
 
   customWorldFormData() {
@@ -1515,12 +1665,15 @@ export class UI {
         : `<div class="dim">这一页可提前填写审核底线和修复重点，不要求概念或编译阶段已经完成。</div>
           <label style="display:block;margin-top:7px"><b>禁止包含</b><textarea class="prompt-editor" data-custom-world="mustAvoid" maxlength="1200" placeholder="不希望出现的专有名词、题材、表达或玩法倾向。">${htmlText(draft.mustAvoid)}</textarea></label>
           <label style="display:block;margin-top:7px"><b>审核与修复重点</b><textarea class="prompt-editor" data-custom-world="reviewNotes" maxlength="1800" placeholder="例如：检查普通人的日常生活；避免只有宏观设定而缺少经营影响。">${htmlText(draft.reviewNotes)}</textarea></label>`;
-    const preview = result ? `<div class="card" style="border-left-color:${htmlText(result.visuals?.atmosphere?.tint || '#7A4BE0')}"><div class="row"><h3>${htmlText(result.icon)} ${htmlText(result.name)}</h3><b>${htmlText(result.genre)}</b></div><div>${htmlText(result.tagline)}</div>${result.source?.mode === 'existing_work' ? `<div class="hi">既有作品世界 · ${htmlText(result.source.workName)} · ${result.notableCharacters?.filter((character) => character.canonical && character.visitor).length || 0} 名著名角色可到店</div>` : '<div class="dim">原创世界</div>'}<div class="dim" style="margin-top:5px">${htmlText(result.identity?.summary || '')}</div><div class="dim" style="margin-top:5px">地区 ${result.regions?.length || 0} · 历史 ${result.history?.length || 0} · 势力 ${result.factions?.length || 0} · 标志人物 ${result.notableCharacters?.length || 0}</div></div>` : '';
-    const archived = econ.archivedWorlds?.length ? `<details><summary>已归档世界 ${econ.archivedWorlds.length}</summary>${econ.archivedWorlds.map((world) => `<div class="card"><div class="row"><b>${htmlText(world.icon || '◈')} ${htmlText(world.name)}</b><button data-act="worldrestore" data-v="${htmlText(world.id)}" ${econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>重新生成</button></div><div class="dim">${htmlText(world.summary || '')}</div></div>`).join('')}</details>` : '';
+    const previewDecision = result ? this.worldDecisionSummary(result) : null;
+    const preview = result ? `<div class="card" style="border-left-color:${htmlText(result.visuals?.atmosphere?.tint || '#7A4BE0')}"><div class="row"><h3>${htmlText(result.icon)} ${htmlText(result.name)}</h3><b>${htmlText(result.genre)}</b></div><div>${htmlText(result.tagline)}</div>${result.source?.mode === 'existing_work' ? `<div class="hi">既有作品世界 · ${htmlText(result.source.workName)} · ${result.notableCharacters?.filter((character) => character.canonical && character.visitor).length || 0} 名著名角色可到店</div>` : '<div class="dim">原创世界</div>'}<div class="dim" style="margin-top:5px">${htmlText(result.identity?.summary || '')}</div><div class="dim" style="margin-top:5px">地区 ${result.regions?.length || 0} · 历史 ${result.history?.length || 0} · 势力 ${result.factions?.length || 0} · 标志人物 ${result.notableCharacters?.length || 0}</div><div class="world-decision-grid"><div class="card"><b>优势</b><div>${htmlText(previewDecision.advantages)}</div></div><div class="card"><b>风险</b><div>${htmlText(previewDecision.risks)}</div></div><div class="card"><b>建议设施</b><div>${htmlText(previewDecision.facilities)}</div></div><div class="card"><b>建议库存</b><div>${htmlText(previewDecision.stock)}</div></div></div></div>` : '';
+    const archived = econ.archivedWorlds?.length ? `<details><summary aria-expanded="false">已归档世界 ${econ.archivedWorlds.length}</summary>${econ.archivedWorlds.map((world) => `<div class="card"><div class="row"><b>${htmlText(world.icon || '◈')} ${htmlText(world.name)}</b><button data-act="worldrestore" data-v="${htmlText(world.id)}" ${econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>重新生成</button></div><div class="dim">${htmlText(world.summary || '')}</div></div>`).join('')}</details>` : '';
     const generateLabel = this.customWorldBusy ? '生成中…' : draft.name.trim() ? '按名称填充全部世界内容' : result ? '重新生成完整世界' : '生成完整世界';
+    const previewNotice = !!result && this.customWorldResultNotice;
     this.showModal(`<h3>✦ AI 自定义世界</h3><div class="dim">三个标签可随时切换和输入，无需按顺序完成；生成时 AI 会一次读取三页内容。生成预览免费，确认保存时收费并占用一个世界槽。</div>${status ? `<div class="${isError ? 'bad' : 'good'}" style="margin-top:7px">${htmlText(status)}</div>` : ''}
       <div class="prompt-tabs world-builder-tabs" data-custom-world-tabs>${tabButtons}</div><div data-custom-world-pane="${activeTab}">${stageContent}</div>
-      ${preview}${archived}<div class="row" style="margin-top:10px"><button data-act="customworldgenerate" ${this.customWorldBusy || econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>${generateLabel}</button>${this.customWorldBusy ? '<button data-act="customworldcancelai">取消</button>' : ''}${result ? `<button data-act="customworldsave" ${econ.coins < fee ? 'disabled' : ''}>确认保存 · ${fee} 币</button>` : ''}<span style="flex:1"></span><span class="dim">槽位 ${econ.customWorlds.length}/${CUSTOM_WORLD_LIMIT}</span><button data-act="worldcard" data-v="${htmlText(econ.currentWorldId)}">返回航路</button></div>`);
+      ${preview}${archived}<div class="row" style="margin-top:10px"><button data-act="customworldgenerate" ${this.customWorldBusy || econ.customWorlds.length >= CUSTOM_WORLD_LIMIT ? 'disabled' : ''}>${generateLabel}</button>${this.customWorldBusy ? '<button data-act="customworldcancelai">取消</button>' : ''}${result ? `<button data-act="customworldsave" ${econ.coins < fee ? 'disabled' : ''}>确认保存 · ${fee} 币</button>` : ''}<span style="flex:1"></span><span class="dim">槽位 ${econ.customWorlds.length}/${CUSTOM_WORLD_LIMIT}</span><button data-act="worldcard" data-v="${htmlText(econ.currentWorldId)}">返回航路</button></div>`, true, false, { variant: result ? 'important' : 'plain', notice: previewNotice, noticeLabel: '新生成的世界预览' });
+    if (previewNotice) this.customWorldResultNotice = false;
   }
 
   async generateCustomWorld() {
@@ -1553,6 +1706,7 @@ export class UI {
       this.openCustomWorldBuilder('阶段 3/3：正在检查原创性、一致性和经营平衡…');
       const reviewed = await requestGameAI('world_review', { input, brief, candidate: compiled.world, fixedWorldNames: WORLD_PROFILES.map((world) => world.name), allowedRanges: { allMultipliers: [.85, 1.2], activeCustomWorldLimit: CUSTOM_WORLD_LIMIT } }, { signal: controller.signal, promptTasks: tasks });
       this.customWorldResult = normalizeCustomWorld({ ...reviewed.world, name: requestedName || reviewed.world.name, generationBrief: JSON.stringify(brief), generatedAt: Date.now() }, `custom_${Date.now().toString(36)}`);
+      this.customWorldResultNotice = true;
       this.customWorldBusy = false; this.customWorldController = null;
       this.openCustomWorldBuilder(`${requestedName ? `已根据“${requestedName}”` : '已'}填充全部世界内容；审核修复 ${reviewed.repairs?.length || 0} 项。保存前可先核对预览。`);
     } catch (error) {
@@ -1576,7 +1730,7 @@ export class UI {
   openWorldArchiveConfirm(id) {
     const sim = this.g.sim; const world = sim.econ.customWorlds.find((row) => row.id === id);
     if (!world || sim.dayActive || id === sim.econ.currentWorldId || id === sim.econ.pendingWorldSwitch?.worldId) return;
-    this.showModal(`<h3 class="bad">归档 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card">归档会保留名称、摘要和历史引用，但移除完整经营载荷并释放一个活动槽。恢复时需要重新生成并确认。</div><div class="row"><button data-act="worldarchivego" data-v="${htmlText(id)}" class="warn">确认归档</button><button data-act="worldcard" data-v="${htmlText(id)}">取消</button></div>`);
+    this.showModal(`<h3 class="bad">归档 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card">归档会保留名称、摘要和历史引用，但移除完整经营载荷并释放一个活动槽。恢复时需要重新生成并确认。</div><div class="row"><button data-act="worldarchivego" data-v="${htmlText(id)}" class="warn">确认归档</button><button data-act="worldcard" data-v="${htmlText(id)}">取消</button></div>`, true, false, { variant: 'danger' });
   }
 
   archiveCustomWorld(id) {
@@ -1623,16 +1777,18 @@ export class UI {
     this.showModal(`<h3>建造蓝图库</h3><div class="dim">房间蓝图会按当前品质、风格和家具重新购买；整店布局只调整现有同一批房间与家具的位置，不复制资产。</div><h3 style="margin-top:10px">房间蓝图</h3>${roomRows}<h3 style="margin-top:10px">整店布局</h3>${layoutRows}<div class="row" style="margin-top:10px"><button data-act="savelayout">保存当前整店布局</button><button data-act="closemodal">关闭</button></div>`);
   }
 
-          showModal(inner        , closable = true, preserveAIChat = false)              {
+          showModal(inner        , closable = true, preserveAIChat = false, options = {})              {
     if (this.tutorialActive) {
       this.tutorialActive = false;
       this.tutorialLayer.style.display = 'none';
       for (const node of document.querySelectorAll('.tutorial-target')) node.classList.remove('tutorial-target', 'tutorial-satisfied');
     }
     this.closeModal(preserveAIChat);
+    const variant = ['plain', 'important', 'danger'].includes(options?.variant) ? options.variant : 'plain';
     // 必经流程（捏脸）不给 ✕：关了就永远进不了店
     const x = closable ? '<button class="x" data-act="closemodal" title="关闭">✕</button>' : '';
-    const m = el(`<div class="modal"><div class="mbox">${x}${inner}</div></div>`);
+    const notice = variant !== 'danger' ? noticeDot(!!options?.notice, options?.noticeLabel || '有未读重要内容') : '';
+    const m = el(`<div class="modal modal-${variant}" role="presentation"><div class="mbox modal-${variant}" role="dialog" aria-modal="true">${x}${notice ? `<span class="modal-notice">${notice}</span>` : ''}${inner}</div></div>`);
     this.root.appendChild(m);
     this.modal = m;
     return m;
@@ -1705,7 +1861,7 @@ export class UI {
       <div class="row" style="margin-top:8px;justify-content:flex-end"><button data-act="eventcustom">使用 AI 推演</button></div></div>` : '';
     const sourceBadge = card.challengeFallback ? '<span class="hi">◆ 客人挑战 · 补救检定</span>' : card.aiGenerated ? '<span class="hi">✦ AI 当日事件</span>' : card.worldEvent ? `<span class="hi">◆ ${card.chainId ? `世界长期委托：${htmlText(card.chainName)} ${Number(card.chainStage) + 1}/3` : '世界专属营业事故'} · ${htmlText(card.factionName || '当地势力')}</span>` : card.chainId ? `<span class="hi">◆ 长期事件链：${htmlText(card.chainName)} ${Number(card.chainStage) + 1}/3</span>` : '';
     this.showModal(`<h3>⚡ ${card.title}</h3>${sourceBadge}<div style="max-width:520px;margin-top:5px">${card.text}</div>${choices}${custom}
-      <div class="dim">暂停中仍可拖动镜头查看酒馆。</div>`);
+      <div class="dim">暂停中仍可拖动镜头查看酒馆。</div>`, true, false, { variant: card.chainId ? 'important' : 'plain' });
   }
 
   async runDiceEvent(index) {
@@ -1912,7 +2068,7 @@ export class UI {
       this.aiStaffChatSession = { id, exchanges: 0, lastReply: '' };
     }
     const history = (st.aiChatLog || []).slice(0, 6).reverse();
-    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(st.app)}" width="112" height="144">
+    this.showModal(`<div class="row portrait-head">${portraitFrame(st.app, 'detail', st.name)}
         <div style="flex:1"><h3 style="margin:0">和 ${htmlText(st.name)} 聊聊</h3><div class="dim">${htmlText(st.race)}·${JOB_LABEL[st.job]}｜${this.g.sim.affLevel(st.aff).name} ${Math.round(st.aff)}</div></div></div>
       <div style="max-width:680px;max-height:260px;overflow:auto;margin-top:8px">
         ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${htmlText(st.name)}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有 AI 对话记录。说点什么吧。</div>'}
@@ -1998,7 +2154,7 @@ export class UI {
     }
     const history = (guest.aiChatLog || []).slice(0, 12).reverse();
     const affinity = this.guestAffinityFacts(guest, group);
-    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(guest.app)}" width="112" height="144">
+    this.showModal(`<div class="row portrait-head">${portraitFrame(guest.app, 'detail', guest.name)}
         <div style="flex:1"><h3 style="margin:0">和 ${htmlText(guest.name)} 聊聊</h3><div class="dim">${htmlText(guest.race)}·${guest.regularId ? '常客' : '住店客'}｜${htmlText(affinity.level)} ${affinity.value}</div></div></div>
       ${guest.relationshipSummary ? `<div class="card"><b>长久记忆</b><div class="dim">${htmlText(guest.relationshipSummary)}</div></div>` : ''}
       <div style="max-width:680px;max-height:300px;overflow:auto;margin-top:8px">
@@ -2081,7 +2237,7 @@ export class UI {
     const person = this.personById(id);
     if (!person) return;
     const bg = person.background;
-    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(person.app)}" width="112" height="144"><div style="flex:1"><h3 style="margin:0">${htmlText(person.name)}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div><div class="hi">出生世界：${htmlText(person.originWorldName || '未记录')}</div></div></div>
+    this.showModal(`<div class="row portrait-head">${portraitFrame(person.app, 'detail', person.name)}<div style="flex:1"><h3 style="margin:0">${htmlText(person.name)}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div><div class="hi">出生世界：${htmlText(person.originWorldName || '未记录')}</div></div></div>
       ${bg ? `<div class="card" style="margin-top:9px"><b>来店之前</b><div style="white-space:pre-wrap;line-height:1.65">${htmlText(bg.background)}</div></div>
         <div class="row"><span class="dim">个人目标</span><span>${htmlText(bg.aspiration)}</span></div>
         <div class="row"><span class="dim">日常习惯</span><span>${htmlText(bg.quirk)}</span></div>` : '<div class="dim" style="margin-top:9px">尚未生成人物背景。</div>'}
@@ -2257,7 +2413,7 @@ export class UI {
         }).join('') : ''}
         ${st.chatLog.length ? `<h3 style="margin:8px 0 2px">互动记录</h3>${st.chatLog.map((l) => `<div class="dim">· ${l}</div>`).join('')}` : ''}`;
     }
-    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(st.app)}" width="112" height="144">
+    this.showModal(`<div class="row portrait-head">${portraitFrame(st.app, 'detail', st.name)}
         <div style="flex:1"><h3 style="margin:0">${st.name}${st.isOwner ? '<span class="hi">（店主）</span>' : ''}</h3>
           <div class="dim">${st.race}·${JOB_LABEL[st.job]}${st.isOwner ? '' : `｜<span style="color:${lv.color}">${lv.name}</span>`}</div></div></div>
       <div class="tabs">${tabs.map(([k, n]) => `<button data-act="dtab" data-v="${k}" class="${this.detailTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
@@ -2292,7 +2448,7 @@ export class UI {
       if (st.aff >= 45) acts.push(['dreams', '谈谈理想']);
       if (st.aff >= 65) acts.push(['secret', '交换秘密']);
       if (sameRoom && nightInteractionAction(sim, 'staff', own, st) === 'romance') acts.push(['romance', '邀请共度春宵']);
-      this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(st.app)}" width="112" height="144">
+      this.showModal(`<div class="row portrait-head">${portraitFrame(st.app, 'detail', st.name)}
           <div style="flex:1"><h3 style="margin:0">${st.name}</h3>
             <div class="dim">${st.race}·${JOB_LABEL[st.job]}｜<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>
             <div class="dim">${st.task ? '正在：' + st.task.label : '待命中'}｜压力 ${Math.round(st.needs.stress)}｜体力 ${Math.round(st.needs.stamina)}</div></div></div>
@@ -2324,7 +2480,7 @@ export class UI {
     if (regular?.visits >= 2) acts.push(['revisit', '聊起上次来访']);
     if (regular?.offer && !gr.offerAccepted) acts.push(['commission', '接受专属委托']);
     if (sameRoom && nightInteractionAction(sim, 'guest', own, gu, gr) === 'raid') acts.push(['raid', '夜袭']);
-    this.showModal(`<div class="row portrait-head"><img class="portrait" src="${portraitURL(gu.app)}" width="112" height="144">
+    this.showModal(`<div class="row portrait-head">${portraitFrame(gu.app, 'detail', gu.name)}
         <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
           <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}${regular ? `｜常客·第 ${regular.visits} 次来访·好感 ${Math.round(regular.aff)}` : ''}</div>
           <div class="hi">${origin.icon} ${origin.name} · ${htmlText(gu.homeRegion || gr.homeRegion || '')}</div>
@@ -2452,7 +2608,7 @@ export class UI {
     const ctx = this.nightStoryContext;
     if (!ctx) return null;
     const result = state.result || ctx.result;
-    const history = ctx.turns.length > 1 ? `<details class="card" style="margin-top:8px"><summary>前情摘要（${ctx.turns.length - 1} 段）</summary>${ctx.turns.slice(0, -1).map((turn) => `<div class="dim" style="margin-top:5px">${htmlText(turn.summary)}</div>`).join('')}</details>` : '';
+    const history = ctx.turns.length > 1 ? `<details class="card" style="margin-top:8px"><summary aria-expanded="false">前情摘要（${ctx.turns.length - 1} 段）</summary>${ctx.turns.slice(0, -1).map((turn) => `<div class="dim" style="margin-top:5px">${htmlText(turn.summary)}</div>`).join('')}</details>` : '';
     const body = state.loading ? '<div class="card hi">AI 正在推演下一段剧情，请稍候…</div>'
       : state.error ? `<div class="card"><div class="bad">AI 剧情生成失败：${htmlText(state.error)}</div><button data-act="nightretry">重试本段</button></div>`
         : result ? `<div class="card" style="border-left-color:#7A4BE0"><h3>📖 ${htmlText(result.title)}</h3><div style="white-space:pre-wrap;line-height:1.85;max-width:760px">${htmlText(result.narrative)}</div></div>${history}
@@ -2726,7 +2882,7 @@ export class UI {
       <div class="row" style="margin-top:12px">
         <button data-act="firego" data-v="${st.id}" style="border-color:#B33C4E" ${this.g.sim.dayActive ? 'disabled' : ''}>确认解雇</button>
         <button data-act="closemodal">取消</button>
-      </div>`);
+      </div>`, true, false, { variant: 'danger' });
   }
 
   openSaveManager()       {
@@ -2974,7 +3130,7 @@ export class UI {
       <div class="row" style="margin-top:12px">
         <button data-act="newgame" style="border-color:#B33C4E">确认重来</button>
         <button data-act="settings">返回设置</button>
-      </div>`);
+      </div>`, true, false, { variant: 'danger' });
   }
 
   settlementAIStat                 = null;
@@ -3150,7 +3306,7 @@ export class UI {
         <div class="row"><span>最终声望</span><b>${Math.round(s.econ.rep)} · ★★★★★</b></div>
       </div>
       <div class="dim" style="margin-top:8px">主线经营目标已经完成。五星招牌家具的品质 III 现已开放，之后可以继续无限经营和扩建。</div>
-      <div class="row" style="margin-top:12px"><button data-act="closemodal">继续无限经营</button><button data-act="confirmnew">另开新店</button></div>`);
+      <div class="row" style="margin-top:12px"><button data-act="closemodal">继续无限经营</button><button data-act="confirmnew">另开新店</button></div>`, true, false, { variant: 'important' });
   }
 
   // ---------- 捏脸 / 换装 ----------
@@ -3276,7 +3432,7 @@ export class UI {
       <div class="creator-presets">${PRESETS.map((ps) => `<button data-preset="${ps.id}">${ps.name}</button>`).join('')}</div>
       <div class="creator-layout">
         <section class="creator-preview">
-          <div class="creator-preview-art"><canvas class="prev" width="256" height="144"></canvas><img class="portrait big" src="${portraitURL(app)}" width="112" height="144"></div>
+          <div class="creator-preview-art"><canvas class="prev" width="256" height="144"></canvas>${portraitFrame(app, 'creator', name)}</div>
           <div class="row creator-pose"><span class="dim">正面 / 背面</span><span>${['idle', 'walk', 'work'].map((p) => `<button data-pose="${p}" class="${pose === p ? 'on' : ''}">${p === 'idle' ? '待机' : p === 'walk' ? '行走' : '工作'}</button>`).join('')}</span></div>
           ${dressOnly ? '' : `<div class="creator-identity"><label><span>姓名</span><input id="crname" value="${htmlText(name)}" maxlength="20"></label><div>性别 ${['女', '男'].map((s) => `<button data-sex="${s}" class="${sex === s ? 'on' : ''}">${s}</button>`).join('')}</div></div>
           <div class="creator-personality"><label><span class="dim">年龄</span><input id="crage" type="number" min="18" max="${AGE_MAX[app.race] || 100}" value="${age}"></label>

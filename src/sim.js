@@ -532,6 +532,16 @@ const JOB_SKILL_WEIGHTS = {
   attendant: { carry: .35, clean: .3, calm: .35 }, porter: { carry: .65, clean: .2, calm: .15 },
 };
 
+const JOB_FOCUS_SKILLS = Object.freeze({
+  front: 'serve', greeter: 'looks', server: 'serve', cook: 'cook', bartender: 'mix',
+  cleaner: 'clean', attendant: 'calm', porter: 'carry',
+});
+
+/** UI 与经营提示共用的岗位主能力；只读查询，不参与或改变现有招聘评分。 */
+export function jobFocusSkill(job) {
+  return JOB_FOCUS_SKILLS[job] || 'serve';
+}
+
 export function staffAnalysis(staff) {
   const skills = normalizedSkills(staff?.skills);
   const roles = Object.entries(JOB_SKILL_WEIGHTS).map(([job, weights]) => ({
