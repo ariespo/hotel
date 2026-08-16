@@ -1,10 +1,11 @@
 // 高分辨率模块化立绘：B 式清晰赛璐璐结构 + A 式柔和面部过渡。
-// 与地图小人共用 Appearance 编号；正式分层资源加载期间保持空白，不再闪现旧临时立绘。
+// 与地图小人共用 Appearance 编号；正式分层资源加载期间先显示现有程序化立绘。
 import { ACCS, EYES, FACES, FRINGES, LENGTHS } from './face.js';
 import {
   ACCENT_COLORS, appKey, CLOTH_COLORS, EYE_COLORS, HAIR_COLORS, SKINS,
 } from './chargen.js';
 import { mix, shade } from './pix.js';
+import { portraitURL as proceduralPortraitURL } from './portrait.js';
 
 export const PORTRAIT_V2_SPEC = Object.freeze({
   version: 2,
@@ -423,13 +424,30 @@ export function drawIllustratedPortrait(a) {
 
 const layerImages = new Map();
 const tintedLayers = new Map();
-const LOADING_PORTRAIT_URL = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs=';
+const STATIC_PORTRAIT_FALLBACK = 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 3 4"%3E%3Crect width="3" height="4" fill="%23242342"/%3E%3Ccircle cx="1.5" cy="1.35" r=".65" fill="%23d9c2aa"/%3E%3Cpath d="M.45 4V2.6Q1.5 1.8 2.55 2.6V4" fill="%238c5160"/%3E%3C/svg%3E';
+let portraitAssetRefreshQueued = false;
+function announcePortraitAssetsChanged() {
+  if (portraitAssetRefreshQueued || typeof window === 'undefined') return;
+  portraitAssetRefreshQueued = true;
+  window.requestAnimationFrame(() => {
+    portraitAssetRefreshQueued = false;
+    window.dispatchEvent(new Event('portrait-v2-assets-changed'));
+  });
+}
 function requestLayer(src) {
   if (typeof Image === 'undefined') return null;
   const known = layerImages.get(src);
   if (known) return known.complete && known.naturalWidth ? known : null;
-  const image = new Image(); image.decoding = 'async'; image.src = src; layerImages.set(src, image);
+  const image = new Image(); image.decoding = 'async';
+  image.addEventListener('load', announcePortraitAssetsChanged, { once: true });
+  image.addEventListener('error', announcePortraitAssetsChanged, { once: true });
+  image.src = src; layerImages.set(src, image);
   return null;
+}
+
+function fallbackPortraitURL(a) {
+  if (typeof document === 'undefined') return STATIC_PORTRAIT_FALLBACK;
+  try { return proceduralPortraitURL(a); } catch (error) { return STATIC_PORTRAIT_FALLBACK; }
 }
 
 export function preloadFormalPortraitAssets() {
@@ -536,9 +554,9 @@ export function portraitURL(a) {
       if (cache.size > 240) cache.clear();
       return url;
     }
-    return LOADING_PORTRAIT_URL;
+    return fallbackPortraitURL(a);
   } catch (err) {
     console.warn('illustrated portrait unavailable', err);
-    return LOADING_PORTRAIT_URL;
+    return fallbackPortraitURL(a);
   }
 }

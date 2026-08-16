@@ -2,6 +2,14 @@ import { mix, Rng } from './pix.js';
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
+export function skyBandColor(colors, index, total, fallback) {
+  if (!colors.length) return fallback;
+  if (colors.length === 1 || total <= 1) return colors[0];
+  const position = clamp(index / (total - 1), 0, 1) * (colors.length - 1);
+  const from = Math.floor(position), to = Math.min(colors.length - 1, from + 1);
+  return mix(colors[from], colors[to], position - from);
+}
+
 /**
  * Build a deterministic, resolution-aware pixel sky plan. Keeping generation
  * separate from Pixi makes resize behaviour stable and regression-testable.

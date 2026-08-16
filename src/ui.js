@@ -244,6 +244,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 
 /* 商业版 UI 基础设计系统：集中覆盖旧样式，避免并行维护第二套组件。 */
 #ui{--paper:#f2e7d2;--paper-clean:#fbf6eb;--paper-deep:#e4d3b6;--walnut:#24170f;--walnut-2:#3a2518;--ink:#39291f;--ink-muted:#786552;--brass:#9a763f;--brass-soft:#c2a36b;--oxblood:#7c241f;--positive:#5f8f42;--info:#3f8992;--rose:#c25d71;--warning:#c47a2c;--danger:#a64037;--line:#b9a17d;--portrait-face-y:14%;font-family:"Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC",sans-serif;color:var(--ink);font-variant-numeric:tabular-nums}
+#ui:after{content:"";position:absolute;inset:0;z-index:19;pointer-events:none;border:10px solid transparent;border-image:url('assets/ui-frame-ornament.webp') 32 / 10px stretch}
 #ui h1,#ui h2,#ui h3,#ui .ui-title{font-family:"SimSun","Songti SC","Noto Serif CJK SC",serif;letter-spacing:.04em}
 #ui button{border-width:1px;border-color:var(--line);border-radius:4px;background:linear-gradient(#fff9ed,#e9dbc2);color:var(--ink);box-shadow:0 1px 0 #fff8 inset,0 1px 1px #2d1d1022;transition:background-color .12s,border-color .12s,transform .08s,box-shadow .12s}
 #ui button:hover{filter:none;border-color:var(--brass);background:linear-gradient(#fffdf6,#ead7b7)}
@@ -266,13 +267,14 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui .pane{border:1px solid var(--brass);border-radius:3px;background-color:var(--paper);background-image:linear-gradient(#ffffff18,#8d74400a),url('assets/ui-paper-commercial.webp');background-size:auto,320px;box-shadow:0 3px 12px #170d0840,inset 0 0 0 1px #fff8df99}
 #top{height:48px;min-height:48px;box-sizing:border-box;padding:0 8px;gap:0;border-radius:0;background:var(--paper) url('assets/ui-paper-commercial.webp');background-size:320px;border-color:var(--brass);box-shadow:0 2px 8px #160d0744;overflow-x:auto}
 #top .top-group{display:flex;align-items:center;align-self:stretch;gap:6px;padding:0 10px;border-right:1px solid #bba783;flex:0 0 auto}
-#top .top-identity{padding-left:4px}.top-identity .world-title{font-family:"SimSun","Songti SC",serif;font-size:16px}.top-date{font-weight:600}.top-day-state{display:flex;align-items:center;gap:5px}.top-speed button{min-width:36px;height:32px;padding:2px 8px}.top-economy{font-variant-numeric:tabular-nums}.top-economy .ui-icon{width:16px;height:16px;color:#a97820}.top-status{display:flex;gap:7px;align-items:center}.top-actions{margin-left:auto;border-right:0!important}.top-tools{display:flex;gap:4px;align-items:center}.primary-action{background:var(--oxblood)!important;border-color:#571713!important;color:#fff9ec!important;font-weight:700;min-width:92px;box-shadow:inset 0 1px #ffffff2b,0 1px 2px #2b100d44!important}.primary-action:hover{background:#912f28!important}
+#top .top-identity{padding-left:10px}.top-identity .brand-title{border:0;background:transparent;box-shadow:none;padding:0 8px;font-family:"SimSun","Songti SC",serif;font-size:18px;font-weight:700;color:var(--oxblood);letter-spacing:.08em}.top-identity .brand-title:hover{background:#7c241f0b;border-color:transparent}.top-date{font-weight:600}.top-day-state{display:flex;align-items:center;gap:5px}.top-speed button{min-width:36px;height:32px;padding:2px 8px}.top-economy{font-variant-numeric:tabular-nums}.top-economy .ui-icon{width:16px;height:16px;color:#a97820}.top-status{display:flex;gap:7px;align-items:center}.top-actions{margin-left:auto;border-right:0!important}.top-tools{display:flex;gap:4px;align-items:center}.primary-action{background:var(--oxblood)!important;border-color:#571713!important;color:#fff9ec!important;font-weight:700;min-width:92px;box-shadow:inset 0 1px #ffffff2b,0 1px 2px #2b100d44!important}.primary-action:hover{background:#912f28!important}
 #left,#right{top:56px;bottom:60px;max-height:none;box-sizing:border-box;padding:10px;overflow:auto}#left{width:232px}#right{width:clamp(320px,24vw,400px)}
-#bottom{height:44px;min-height:44px;left:8px;right:8px;bottom:8px;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;overflow:hidden;transition:height .14s,max-height .14s}#bottom.bottom-expanded{height:auto;min-height:76px;max-height:32vh;align-items:flex-start;padding:10px 12px;overflow:auto}#bottom>*{width:100%}
+#bottom{height:44px;min-height:44px;left:8px;right:8px;bottom:8px;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;overflow:hidden;transition:height .14s,max-height .14s}#bottom.bottom-expanded{height:auto;min-height:76px;max-height:32vh;align-items:flex-start;padding:10px 12px;overflow:auto}#bottom>*{width:100%}.bottom-shell{display:grid;grid-template-columns:24px minmax(0,1fr) 36px;align-items:center;gap:8px;min-height:42px}.bottom-info{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#6a4a2e;color:#fff8e7;font-family:serif;font-weight:700}.bottom-content{min-width:0}.bottom-toggle{width:36px;height:32px;padding:0!important}.bottom-panel-mark{display:inline-block;width:16px;height:12px;border:1.5px solid currentColor;border-radius:2px;box-shadow:inset 0 3px currentColor;opacity:.8}#bottom.bottom-collapsed .bottom-content{display:none}#bottom.bottom-collapsed .bottom-shell{grid-template-columns:24px 1fr 36px}
 #left>.tabs,#right>.tabs{position:sticky;top:-10px;z-index:4;margin:-10px -10px 10px;padding:8px 8px 7px;background:color-mix(in srgb,var(--paper) 96%,transparent);border-bottom:1px solid var(--line)}
 .tabs button{min-height:34px;display:flex;align-items:center;justify-content:center;gap:4px}.tabs .ui-icon{width:16px;height:16px}.tabs button.fold{flex:0 0 36px;width:36px;height:36px;padding:0}.panel-collapse-mark{display:inline-block;position:relative;width:17px;height:14px;border:1.5px solid currentColor;border-radius:2px}.panel-collapse-mark:before{content:"";position:absolute;top:1px;bottom:1px;width:4px;background:currentColor;opacity:.55}.panel-collapse-mark.left:before{left:1px}.panel-collapse-mark.right:before{right:1px}
-.rail{top:56px;gap:8px}#ui .rail button{width:46px;height:46px;padding:11px;border:1px solid #8b693b;border-radius:3px;background-color:var(--walnut-2);background-image:linear-gradient(#ffffff0d,#00000018),url('assets/ui-walnut-commercial.webp');background-size:auto,180px;color:var(--brass-soft);box-shadow:0 2px 6px #0c070555}#ui .rail button:hover{border-color:var(--brass-soft);background:#49301f}#ui .rail button .ui-icon{width:22px;height:22px}.rail .notice-dot{position:absolute;right:-4px;top:-4px}
-.staff-card{padding:10px}.staff-card-head{align-items:flex-start}.staff-card-head>span:last-child{min-width:0}.staff-metrics{margin:8px 0;padding:7px 0;border-top:1px solid #ded1ba;border-bottom:1px solid #ded1ba}.staff-current{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.staff-detail-action{flex:0 0 auto}
+.rail{top:56px;bottom:60px;gap:8px;padding:6px 5px;border:1px solid #5d432b;background:var(--walnut) url('assets/ui-walnut-commercial.webp');background-size:180px;box-shadow:0 2px 8px #0c070577}#ui .rail button{width:46px;height:46px;padding:11px;border:1px solid #8b693b;border-radius:3px;background-color:var(--walnut-2);background-image:linear-gradient(#ffffff0d,#00000018),url('assets/ui-walnut-commercial.webp');background-size:auto,180px;color:var(--brass-soft);box-shadow:0 2px 6px #0c070555}#ui .rail button:hover{border-color:var(--brass-soft);background:#49301f}#ui .rail button .ui-icon{width:22px;height:22px}.rail .notice-dot{position:absolute;right:-4px;top:-4px}
+.staff-recruit-entry{width:100%;min-height:48px;font-family:"SimSun","Songti SC",serif;font-size:16px}.recruitment-head{position:sticky;top:43px;z-index:3;display:flex;align-items:center;gap:8px;margin:0 -2px 10px;padding:6px 2px;background:color-mix(in srgb,var(--paper) 96%,transparent);border-bottom:1px solid var(--line)}.recruitment-head h3{flex:1;margin:0;text-align:center}
+.staff-card{padding:10px}.staff-card-grid{display:grid;grid-template-columns:88px minmax(0,1fr);gap:14px;align-items:start}.staff-card-main{min-width:0}.staff-card-head{display:flex;align-items:flex-start;gap:8px;min-height:36px}.staff-identity{min-width:0}.staff-identity b{font-family:"SimSun","Songti SC",serif;font-size:17px}.staff-role-tag{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:3px;background:var(--paper-deep);color:var(--ink-muted);font-size:11px;font-weight:400}.staff-metrics{margin:8px 0 6px;padding:7px 0 0;border-top:1px solid #ded1ba}.staff-current{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.staff-detail-action{position:relative;flex:0 0 36px;width:36px;height:36px;padding:0!important}.staff-detail-mark{position:absolute;left:12px;top:10px;width:9px;height:9px;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:rotate(-45deg)}
 .sr-only{position:absolute!important;width:1px!important;height:1px!important;padding:0!important;margin:-1px!important;overflow:hidden!important;clip:rect(0,0,0,0)!important;white-space:nowrap!important;border:0!important}.notice-dot{display:inline-block;position:relative;flex:0 0 auto;width:12px;height:12px;margin-left:4px;border:1px solid #7c1e19;border-radius:50%;background:radial-gradient(circle at 35% 30%,#e65442 0 18%,#b72c25 22% 64%,#7d1c18 68%);box-shadow:0 1px 1px #2c0d0a66,inset 0 0 0 1px #f28a7355;vertical-align:middle}.tabs button>.notice-dot{position:absolute;right:2px;top:2px;margin:0}.rail button>.notice-dot{position:absolute;right:-4px;top:-4px;margin:0}.modal-notice{position:absolute;z-index:3;right:46px;top:12px}
 .mbox.modal-plain{border:1px solid var(--line);border-radius:5px;background:var(--paper-clean) url('assets/ui-paper-commercial.webp');background-size:360px;box-shadow:0 10px 28px #170e0966}.mbox.modal-important{border:2px solid var(--brass);border-radius:4px;background:var(--paper-clean) url('assets/ui-paper-commercial.webp');background-size:360px;box-shadow:0 14px 36px #120a066e,0 0 0 3px #2d1d13}.mbox.modal-important>h3:first-of-type{margin:-14px -14px 14px;padding:11px 48px 10px 14px;border:0;border-bottom:2px solid var(--brass);background-color:var(--walnut);background-image:linear-gradient(90deg,#1d120ccc,#382319dd),url('assets/ui-walnut-commercial.webp');background-size:auto,360px;color:#f4dfb8}.mbox.modal-danger{border:2px solid var(--danger);border-radius:4px;background:#fff5eb url('assets/ui-paper-commercial.webp');background-size:360px;box-shadow:0 14px 36px #2d0b0866}.mbox.modal-danger>h3:first-of-type{color:var(--danger);border-bottom-color:#d5a19a}
 .metric-row.with-label{grid-template-columns:18px 38px 34px minmax(48px,1fr) 22px}.metric-label{font-size:12px;white-space:nowrap}.metric-row.with-label .metric-value{font-weight:700}
@@ -313,13 +315,13 @@ export function noticeDot(active, label = '有新内容或待处理事项') {
   return active ? `<span class="notice-dot" role="status" aria-label="${htmlText(label)}" title="${htmlText(label)}"><span class="sr-only">${htmlText(label)}</span></span>` : '';
 }
 
-export function metricRow({ icon, label, value, max = 100, color = 'var(--info)', polarity = 'positive', showLabel = false, compactValue = false, className = '' }) {
+export function metricRow({ icon, label, value, max = 100, color = 'var(--info)', polarity = 'positive', showLabel = false, compactValue = false, padValue = 0, className = '' }) {
   const safeMax = Math.max(1, Number(max) || 100);
   const safeValue = Math.max(0, Math.min(safeMax, Number(value) || 0));
   const pct = Math.round(safeValue / safeMax * 1000) / 10;
   const level = metricLevel(safeValue, safeMax, polarity);
   const fullValue = `${Math.round(safeValue)}/${Math.round(safeMax)}`;
-  const textValue = compactValue ? String(Math.round(safeValue)).padStart(2, '0') : fullValue;
+  const textValue = compactValue ? String(Math.round(safeValue)).padStart(2, '0') : padValue ? `${String(Math.round(safeValue)).padStart(padValue, '0')}/${Math.round(safeMax)}` : fullValue;
   const safeClass = String(className || '').replace(/[^a-z0-9_-]+/gi, ' ').trim();
   return `<div class="metric-row metric-${level.band}${showLabel ? ' with-label' : ''}${safeClass ? ` ${safeClass}` : ''}" aria-label="${htmlText(label)} ${fullValue}，${level.label}"><span class="metric-icon" title="${htmlText(label)}">${uiIcon(icon)}</span>${showLabel ? `<span class="metric-label">${htmlText(label)}</span>` : ''}<span class="metric-value">${textValue}</span><span class="metric-track" aria-hidden="true"><i style="width:${pct}%;--metric-color:${htmlText(color)}"></i></span><span class="metric-band ${level.tone}">${level.label}</span></div>`;
 }
@@ -417,6 +419,8 @@ export class UI {
   candidateCompareIds = new Set();
   candidateCompareFocusId = 0;
   candidateGapHighlight = true;
+  staffView = 'list';
+  bottomCollapsed = false;
   worldFilter = 'all';
   noticeState = { staff: false, world: false, task: false, econ: false, menu: false, room: false, furn: false };
           panelHTML = new WeakMap();
@@ -476,6 +480,7 @@ export class UI {
     };
     window.addEventListener('pointerup', releaseInteraction, true);
     window.addEventListener('pointercancel', releaseInteraction, true);
+    window.addEventListener('portrait-v2-assets-changed', () => this.render(true));
     this.root.addEventListener('click', (e) => this.onClick(e));
     this.root.addEventListener('change', (e) => this.onChange(e));
     this.root.addEventListener('toggle', (e) => {
@@ -495,6 +500,10 @@ export class UI {
     node.innerHTML = html;
     node.scrollTop = top; node.scrollLeft = left;
     this.panelHTML.set(node, html);
+  }
+
+  setBottomHTML(html        )       {
+    this.setPanelHTML(this.bottom, `<div class="bottom-shell"><span class="bottom-info" aria-hidden="true">i</span><div class="bottom-content">${html}</div><button class="bottom-toggle" data-act="bottomtoggle" aria-label="${this.bottomCollapsed ? '展开底部信息栏' : '收起底部信息栏'}" aria-expanded="${!this.bottomCollapsed}"><span class="bottom-panel-mark" aria-hidden="true"></span></button></div>`);
   }
 
   purchaseKey(t       , act        )         {
@@ -586,14 +595,18 @@ export class UI {
       if (side === 'left') this.leftTab = v; else this.rightTab = v;
       this.render(true);
     }
-    else if (act === 'rtab') { this.rightTab = v; this.render(true); }
+    else if (act === 'rtab') { this.rightTab = v; if (v !== 'staff') this.staffView = 'list'; this.render(true); }
+    else if (act === 'staffrecruit') { this.staffView = 'recruit'; this.render(true); }
+    else if (act === 'staffback') { this.staffView = 'list'; this.render(true); }
+    else if (act === 'bottomtoggle') { this.bottomCollapsed = !this.bottomCollapsed; this.renderBottom(); }
     else if (act === 'bp') g.startBuildRoom(v);
     else if (act === 'furn') g.startBuildFurn(v, parseInt(t.dataset.q || '1', 10));
     else if (act === 'cancelbuild') g.cancelBuild();
     else if (act === 'rotate') g.rotateBuild();
     else if (act === 'open') g.openDay();
     else if (act === 'readiness') this.openReadiness();
-    else if (act === 'home') { const e = g.tavern.entrance(); g.focusOn(e.x, e.y + 2); }
+    else if (act === 'home') g.focusHome();
+    else if (act === 'fullview') g.fitView();
     else if (act === 'worldcard') this.openWorldCard(v || g.sim.econ.currentWorldId);
     else if (act === 'worldcardtab') this.openWorldCard(t.dataset.id || g.sim.econ.currentWorldId, v);
     else if (act === 'worldfilter') { this.worldFilter = v; this.render(true); }
@@ -1012,12 +1025,12 @@ export class UI {
       document.documentElement.style.setProperty('--world-tint', world.visuals?.atmosphere?.tint || '#F3B84B');
     }
     this.setPanelHTML(this.top, `
-      <div class="top-group top-identity"><button data-act="worldcard" data-v="${htmlText(world.id)}" class="world-title" title="当前驻留世界，点击查看世界卡">${htmlText(world.icon)} ${htmlText(world.name)}</button></div>
+      <div class="top-group top-identity"><button data-act="worldcard" data-v="${htmlText(world.id)}" class="brand-title" title="万界旅店账簿 · 当前驻留：${htmlText(world.name)}，点击查看世界卡">万界旅店账簿</button></div>
       <div class="top-group top-date"><span>第 ${e.day} 天</span><span class="dim">${SEASON_NAMES[s.seasonIndex()]}</span><span class="top-day-state">${s.dayActive ? `<span class="hi">营业中·${this.phase()}</span><span class="bar" style="display:inline-block;width:72px"><i style="width:${timePct}%;background:var(--warning)"></i></span>` : '<span class="dim">收盘规划</span>'}</span></div>
       <div class="top-group top-speed"><button data-act="pause" class="${g.paused ? 'on' : ''}" aria-label="${g.paused ? '继续' : '暂停'}">${g.paused ? '▶' : 'Ⅱ'}</button>${[1, 2, 4].map((n) => `<button data-act="speed" data-v="${n}" class="${g.speed === n && !g.paused ? 'on' : ''}">${n}×</button>`).join('')}</div>
       <div class="top-group top-economy"><span class="hi">${uiIcon('econ', '界币')} ${Math.round(e.coins)}</span><span>声望 <span class="star">${'★'.repeat(stars)}</span><span class="dim">${'☆'.repeat(5 - stars)}</span> ${Math.round(e.rep)}/${nextTh}</span></div>
       <div class="top-group top-status">${stars < 5 && e.rep >= nextTh ? `<span class="hi">待完成 ★${stars + 1} 经营认证</span>` : ''}${s.endingSeen ? '<span class="good">五星认证</span>' : ''}${e.strikes ? `<span class="bad">封印警告 ${e.strikes}/3</span>` : ''}${lowStock.length ? `<span class="bad">缺料：${lowStock.map((k) => ING_LABEL[k]).join('/')}</span>` : ''}${this.dynamicAIStatus?.state === 'loading' ? `<span class="hi">✦ ${htmlText(this.dynamicAIStatus.text)}</span><button data-act="aicanceldynamic">取消</button>` : this.dynamicAIStatus?.state === 'error' ? `<span class="bad">${htmlText(this.dynamicAIStatus.text)}</span><button data-act="airetrydynamic">重试</button>` : ''}</div>
-      <div class="top-group top-actions"><button data-act="home">回店</button>${s.dayActive ? '' : '<button data-act="readiness">营业准备</button><button data-act="open" class="primary-action">开门营业</button>'}${tutorial.started && !tutorial.completed && !tutorial.skipped && !this.tutorialActive ? `<button data-act="tutorialresume">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>` : ''}<span class="top-tools"><button data-act="savemenu">档位 ${this.g.currentSlot}</button><button data-act="help">帮助</button><button data-act="prompts">提示词</button><button data-act="settings">设置</button></span></div>`);
+      <div class="top-group top-actions"><button data-act="home">回店</button><button data-act="fullview" title="容纳全部房间">全店视图</button>${s.dayActive ? '' : '<button data-act="readiness">营业准备</button><button data-act="open" class="primary-action">开门营业</button>'}${tutorial.started && !tutorial.completed && !tutorial.skipped && !this.tutorialActive ? `<button data-act="tutorialresume">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>` : ''}<span class="top-tools"><button data-act="savemenu">档位 ${this.g.currentSlot}</button><button data-act="help">帮助</button><button data-act="prompts">提示词</button><button data-act="settings">设置</button></span></div>`);
   }
 
           phase()         {
@@ -1275,9 +1288,13 @@ export class UI {
     const g = this.g; const s = g.sim;
     let body = '';
     if (this.rightTab === 'staff') {
-      body = `<div class="dim" style="margin-bottom:4px">员工 ${s.staff.length}/${s.maxStaff()}　1 人 1 间卧室（休息室）</div>`;
-      body += s.staff.map((st) => this.staffCard(st)).join('');
-      const directUnlocked = s.stars() >= 4;
+      if (this.staffView === 'list') {
+        body = `<div class="dim" style="margin-bottom:8px">员工 ${s.staff.length}/${s.maxStaff()}　1 人 1 间卧室（休息室）</div>`;
+        body += s.staff.map((st) => this.staffCard(st)).join('');
+        body += `<button class="staff-recruit-entry" data-act="staffrecruit">＋　新增员工</button>`;
+      } else {
+        body = `<div class="recruitment-head"><button data-act="staffback">返回员工</button><h3>招聘中心</h3><span style="width:72px"></span></div>`;
+        const directUnlocked = s.stars() >= 4;
       body += `<div class="card" style="border-left-color:#8A74B8"><div class="row"><b>定向招募 · 员工 DIY</b><span class="${directUnlocked ? 'good' : 'dim'}">${directUnlocked ? '四星已解锁' : '需要 ★★★★'}</span></div>
         <div class="dim">自行决定员工的姓名、外貌、性格与岗位能力；确认后按生成工资支付正常入职费。</div>
         <div class="row"><button data-act="directrecruit" ${directUnlocked && s.staff.length < s.maxStaff() ? '' : 'disabled'}>${s.staff.length >= s.maxStaff() ? '先准备空卧室' : directUnlocked ? '创建定向员工' : '四星后开放'}</button></div></div>`;
@@ -1309,6 +1326,7 @@ export class UI {
         body += `<h3>自来应聘（${s.pool.length}）</h3>` + (pool.length ? pool.map((p) => this.candCard(p, bestGapId)).join('') : '<div class="filter-empty">没有符合当前筛选条件的自来应聘者</div>');
       }
       body += this.candidateComparisonTray();
+      }
     } else if (this.rightTab === 'guest') {
       body = s.groups.length ? s.groups.map((gr) => {
         const pct = Math.round((gr.patience / gr.maxPatience) * 100);
@@ -1397,12 +1415,12 @@ export class UI {
     const sel = this.g.selection && this.g.selection.kind === 'staff' && this.g.selection.id === st.id;
     const room = st.roomId ? this.g.tavern.roomById(st.roomId) : null;
     return `<div class="card staff-card ${sel ? 'sel' : ''}" data-act="selstaff" data-v="${st.id}">
-      <div class="row staff-card-head">${portraitFrame(st.app, 'main', st.name)}
-        <span class="staff-identity" style="flex:1"><b>${st.name}</b>${st.isOwner ? '<span class="hi">（店主）</span>' : ''}
-          <div class="dim">${JOB_LABEL[st.job]}·${room ? `${st.roomMode === 'strict' ? '仅限' : '优先'} ${ROOM_LABEL[room.kind]}` : '全店机动'}</div></span>
-      </div>
-      <div class="staff-metrics">${metricRow({ icon: 'stamina', label: '体力', value: st.needs.stamina, color: 'var(--positive)' })}${metricRow({ icon: 'morale', label: '士气', value: st.needs.morale, color: 'var(--info)' })}${st.isOwner ? '' : metricRow({ icon: 'affinity', label: '好感', value: st.aff, color: 'var(--rose)' })}</div>
-      <div class="row"><span class="dim staff-current" style="flex:1">${st.task ? '正在：' + st.task.label : st.free ? this.freeLabel(st.free.kind) : st.note || '待命'}</span><button class="staff-detail-action" data-act="detail" data-v="${st.id}">详情</button></div></div>`;
+      <div class="staff-card-grid">${portraitFrame(st.app, 'main', st.name)}
+        <div class="staff-card-main"><div class="staff-card-head"><span class="staff-identity" style="flex:1"><b>${st.name}</b><span class="staff-role-tag">${st.isOwner ? '店主' : JOB_LABEL[st.job]}</span>
+          <div class="dim">${JOB_LABEL[st.job]} · ${room ? `${st.roomMode === 'strict' ? '仅限' : '优先'} ${ROOM_LABEL[room.kind]}` : '全店机动'}</div></span><button class="staff-detail-action" data-act="detail" data-v="${st.id}" aria-label="查看${htmlText(st.name)}详情"><span class="staff-detail-mark" aria-hidden="true"></span></button></div>
+          <span class="dim staff-current">${st.task ? '正在：' + st.task.label : st.free ? this.freeLabel(st.free.kind) : st.note || '待命'}</span>
+          <div class="staff-metrics">${metricRow({ icon: 'stamina', label: '体力', value: st.needs.stamina, color: 'var(--positive)', padValue: 3 })}${metricRow({ icon: 'morale', label: '士气', value: st.needs.morale, color: 'var(--info)', padValue: 3 })}${metricRow({ icon: 'affinity', label: '好感', value: st.aff, color: 'var(--rose)', padValue: 3 })}</div>
+        </div></div></div>`;
   }
 
   /** 休息室挂名：有住户显示「XX的卧室」 */
@@ -1426,38 +1444,39 @@ export class UI {
   renderBottom()       {
     const g = this.g;
     const sel = g.selection;
-    this.bottom.classList.toggle('bottom-expanded', g.moveRoomId !== null || !!g.buildBp || !!g.buildFurn || !!sel);
+    this.bottom.classList.toggle('bottom-collapsed', this.bottomCollapsed);
+    this.bottom.classList.toggle('bottom-expanded', !this.bottomCollapsed && (g.moveRoomId !== null || !!g.buildBp || !!g.buildFurn || !!sel));
     if (g.moveRoomId !== null) {
       const room = g.tavern.roomById(g.moveRoomId);
-      this.setPanelHTML(this.bottom, `<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
+      this.setBottomHTML(`<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
         <div class="dim">R 旋转 ${g.buildRot * 90}°；房间、家具、污渍与房内角色会整体转向。放下后按新共享墙的可用空间居中开门，不沿用旧门；绿色=可放，红色=重叠或无法形成连通门洞。</div>
         <div class="row"><button data-act="rotate">R 旋转</button><button data-act="moveroom" data-v="${g.moveRoomId}" class="warn">取消移动</button></div>`);
       return;
     }
     if (g.buildBp) {
       const b = BLUEPRINTS.find((x) => x.id === g.buildBp);
-      this.setPanelHTML(this.bottom, `<b class="hi">建造：${b?.name}</b> ${b?.w}×${b?.h}（旋转 ${g.buildRot ? '是' : '否'}）
+      this.setBottomHTML(`<b class="hi">建造：${b?.name}</b> ${b?.w}×${b?.h}（旋转 ${g.buildRot ? '是' : '否'}）
         <div class="dim">绿色=可建，红色=不可建。必须与已有房间贴边，系统会在共享边中点自动开门。</div>`);
       return;
     }
     if (g.buildFurn) {
       const d = furnDef(g.buildFurn);
-      this.setPanelHTML(this.bottom, `<b class="hi">放置：${d.name} ${'I'.repeat(g.buildQuality)}</b> ${d.note}
+      this.setBottomHTML(`<b class="hi">放置：${d.name} ${'I'.repeat(g.buildQuality)}</b> ${d.note}
         <div class="dim">R 旋转朝向（黄色箭头=使用面，必须留出通道）。椅子必须朝向餐桌。</div>`);
       return;
     }
     if (!sel) {
-      this.setPanelHTML(this.bottom, `<div class="dim">左键选择房间/家具/角色；中键或 WASD 平移，滚轮缩放，空格暂停，B 建造，R 旋转，Delete 拆除。</div>`);
+      this.setBottomHTML(`<div class="dim">左键选择房间/家具/角色；中键或 WASD 平移，滚轮缩放，空格暂停，B 建造，R 旋转，Delete 拆除。</div>`);
       return;
     }
-    if (sel.kind === 'staff') { this.setPanelHTML(this.bottom, this.staffDetail(sel.id)); return; }
-    if (sel.kind === 'room') { this.setPanelHTML(this.bottom, this.roomDetail(sel.id)); return; }
-    if (sel.kind === 'furn') { this.setPanelHTML(this.bottom, this.furnDetail(sel.id)); return; }
+    if (sel.kind === 'staff') { this.setBottomHTML(this.staffDetail(sel.id)); return; }
+    if (sel.kind === 'room') { this.setBottomHTML(this.roomDetail(sel.id)); return; }
+    if (sel.kind === 'furn') { this.setBottomHTML(this.furnDetail(sel.id)); return; }
     if (sel.kind === 'guest') {
       const gu = this.g.sim.guests.find((x) => x.id === sel.id);
-      if (!gu) { this.setPanelHTML(this.bottom, '<div class="dim">客人已离店。</div>'); return; }
+      if (!gu) { this.setBottomHTML('<div class="dim">客人已离店。</div>'); return; }
       const gr = this.g.sim.groups.find((x) => x.id === gu.groupId);
-      this.setPanelHTML(this.bottom, `<div class="row portrait-head">${portraitFrame(gu.app, 'compact', gu.name)}
+      this.setBottomHTML(`<div class="row portrait-head">${portraitFrame(gu.app, 'compact', gu.name)}
         <div style="flex:1"><b>${gu.name}</b> <span class="dim">${gu.race}</span>
         <div class="dim">${gr ? `同行 ${gr.size} 人 · 状态 ${gr.state} · 耐心 ${Math.round(gr.patience)}s · 预算 ${gr.budget}` : ''}</div>
         <div class="dim">口味偏好：${gr ? gr.taste.map((t) => g.sim.dishOf(t).name).join('、') : ''}${gr && gr.flavors && gr.flavors.length ? `（${gr.flavors.map((f) => FLAVOR_LABEL[f] || f).join('/')}党）` : ''}</div></div></div>`);

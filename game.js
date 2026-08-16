@@ -13,9 +13,9 @@ import { canPersistSim } from './src/save-policy.js';
 import { bedDisplayPlacement, bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern } from './src/world.js';
 import {               UI } from './src/ui.js';
 import { TitleScreen, validGameSave } from './src/title.js';
-import { createSkyPlan } from './src/sky.js';
+import { createSkyPlan, skyBandColor } from './src/sky.js';
 import { resetPlayerProfile, savePlayerProfile } from './src/player-profile.js';
-import { clampZoom } from './src/camera.js';
+import { clampZoom, usableViewport } from './src/camera.js';
 import { parseAndMigrateGameSave, SAVE_SCHEMA_VERSION, stringifyGameSave } from './src/save-schema.js';
 
 const SAVE_KEY = 'wjbdy.save.v1';
@@ -819,16 +819,51 @@ class Game                    {
 
   setZoom(z        )       { this.zoom = clampZoom(z); }
 
-  /** 小屏竖屏：把整个酒馆收进视野 */
-  fitView()       {
-    const rs = this.tavern.rooms;
+  mapViewportRect()       {
+    const canvas = this.app.canvas.getBoundingClientRect();
+    const sx = this.app.renderer.width / Math.max(1, canvas.width);
+    const sy = this.app.renderer.height / Math.max(1, canvas.height);
+    const visible = (node) => node && getComputedStyle(node).display !== 'none' && node.getBoundingClientRect().width > 0;
+    const leftNode = this.ui.compact ? null : this.collapsedPanelNode('left');
+    const rightNode = this.ui.compact ? null : this.collapsedPanelNode('right');
+    const edge = (node, side) => {
+      if (!visible(node)) return 0;
+      const rect = node.getBoundingClientRect();
+      if (side === 'left') return Math.max(0, rect.right - canvas.left) * sx;
+      if (side === 'right') return Math.max(0, canvas.right - rect.left) * sx;
+      if (side === 'top') return Math.max(0, rect.bottom - canvas.top) * sy;
+      return Math.max(0, canvas.bottom - rect.top) * sy;
+    };
+    return usableViewport(this.app.renderer.width, this.app.renderer.height, {
+      left: edge(leftNode, 'left'), right: edge(rightNode, 'right'),
+      top: edge(this.ui.top, 'top'), bottom: edge(this.ui.bottom, 'bottom'),
+    });
+  }
+
+  collapsedPanelNode(side)       {
+    if (side === 'left') return this.ui.collapsed.left ? this.ui.railL : this.ui.left;
+    return this.ui.collapsed.right ? this.ui.railR : this.ui.right;
+  }
+
+  frameRooms(rs, maxZoom = 1, padX = 60, padY = 150)       {
     if (!rs.length) return;
     let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
     for (const r of rs) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
-    const wPx = (x1 - x0) * T + 60, hPx = (y1 - y0) * T + 150;
-    const vw = this.app.screen.width, vh = this.app.screen.height;
-    this.setZoom(Math.min(1, vw / wPx, vh / hPx));
+    const wPx = (x1 - x0) * T + padX, hPx = (y1 - y0) * T + padY;
+    const view = this.mapViewportRect();
+    this.setZoom(Math.min(maxZoom, view.width / wPx, view.height / hPx));
     this.cam = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 - 1 };
+  }
+
+  /** 把全部房间收进当前面板之外的地图视野。 */
+  fitView()       { this.frameRooms(this.tavern.rooms); }
+
+  /** 回到门厅周边的核心营业区，远端客房和休息室留给全店视图。 */
+  focusHome()       {
+    const entrance = this.tavern.entrance();
+    const core = this.tavern.rooms.filter((room) => !['guestroom', 'lounge', 'corridor'].includes(room.kind)
+      && Math.hypot(room.x + room.w / 2 - entrance.x, room.y + room.h / 2 - entrance.y) <= 18);
+    this.frameRooms(core.length ? core : this.tavern.rooms, 1.25, 96, 112);
   }
 
   click(x        , y        , right         )       {
@@ -1826,7 +1861,7 @@ class Game                    {
     const skyColors = atmosphere?.sky || [];
     for (let i = 0; i < sky.bands.length; i++) {
       const band = sky.bands[i];
-      const color = skyColors.length ? skyColors[Math.min(skyColors.length - 1, Math.floor(i * skyColors.length / sky.bands.length))] : band.color;
+      const color = skyBandColor(skyColors, i, sky.bands.length, band.color);
       g.rect(0, band.y, w, band.height).fill(hexToNum(color));
     }
     for (const cloud of sky.nebula) {
@@ -1864,8 +1899,9 @@ class Game                    {
       this.drawStars();
     }
     this.world.scale.set(zoom);
-    this.world.x = Math.round(this.app.renderer.width / 2 - this.cam.x * T * zoom);
-    this.world.y = Math.round(this.app.renderer.height / 2 - this.cam.y * T * zoom);
+    const view = this.mapViewportRect();
+    this.world.x = Math.round(view.centerX - this.cam.x * T * zoom);
+    this.world.y = Math.round(view.centerY - this.cam.y * T * zoom);
     const skyTime = performance.now() * 0.001;
     this.starGlintsA.alpha = 0.48 + Math.sin(skyTime * 1.35) * 0.22;
     this.starGlintsB.alpha = 0.52 + Math.sin(skyTime * 1.07 + 2.1) * 0.2;
