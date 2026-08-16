@@ -321,6 +321,7 @@ class Game                    {
   staticVersion = -1;
   dirtVersion = -1;
   keys = new Set        ();
+  manualInput = { x: 0, y: 0 };
           lastTap                                             = null;
   drag                                                                                          = null;
   pointers = new Map                                  ();
@@ -660,11 +661,17 @@ class Game                    {
 
   setManualOwner(v         )       {
     this.sim.manualOwner = v;
+    this.manualInput.x = 0; this.manualInput.y = 0;
     this.sim.manualVec.x = 0; this.sim.manualVec.y = 0;
     try { localStorage.setItem(Game.MANUAL_KEY, v ? '1' : '0'); } catch (e) { /* 隐私模式下忽略 */ }
     const own = this.sim.staff.find((x) => x.isOwner);
     if (own) { own.task = null; own.path = []; own.bubble = { text: v ? '听你指挥！' : '我自己忙去', t: 1.6 }; }
-    this.sim.toast(v ? '已开启直控：WASD / 方向键 移动店主' : '已关闭直控：店主恢复自动干活，WASD 平移镜头');
+    this.sim.toast(v ? `已开启直控：${this.ui.compact ? '拖动屏下摇杆' : 'WASD / 方向键'}移动店主` : '已关闭直控：店主恢复自动干活，WASD 平移镜头');
+  }
+
+  setManualInput(x        , y        )       {
+    this.manualInput.x = Math.max(-1, Math.min(1, x));
+    this.manualInput.y = Math.max(-1, Math.min(1, y));
   }
 
   manualPref()          {
@@ -1689,8 +1696,8 @@ class Game                    {
     const right = this.keys.has('d') || this.keys.has('arrowright');
     if (this.sim.manualOwner) {
       // 直控店主：按键给方向，镜头缓动跟随
-      this.sim.manualVec.x = (right ? 1 : 0) - (left ? 1 : 0);
-      this.sim.manualVec.y = (down ? 1 : 0) - (up ? 1 : 0);
+      this.sim.manualVec.x = Math.max(-1, Math.min(1, (right ? 1 : 0) - (left ? 1 : 0) + this.manualInput.x));
+      this.sim.manualVec.y = Math.max(-1, Math.min(1, (down ? 1 : 0) - (up ? 1 : 0) + this.manualInput.y));
       const own = this.sim.staff.find((x) => x.isOwner);
       if (own) { this.cam.x += (own.x - this.cam.x) * Math.min(1, dt * 6); this.cam.y += (own.y - this.cam.y) * Math.min(1, dt * 6); }
     } else {
