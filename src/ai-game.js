@@ -216,7 +216,7 @@ const DEFINITIONS = Object.freeze({
     },
     rules: [
       '只能使用 facts 中给出的员工、课程、能力变化、性格与背景；不得改写数值或额外赠送奖励。',
-      '必须遵守 facts.destinationWorld 的文化、礼仪和 facts.localScenario 的地点与导师，并忠实演绎玩家选择的 selectedRoute。',
+      '必须遵守 facts.destinationWorld 的文化、礼仪和 facts.localScenario 的地点与导师，并忠实演绎玩家选择的 selectedRoute。destinationWorld 就是旅店当前驻留世界，不得改写成其他世界。',
       '剧情发生在本次打烊期间，必须写出与课程和能力类别相关的实际练习，而不是泛泛而谈。',
       '保持多元旅店的世界观与员工既有人设，reflection 应像该员工本人说的话。',
     ],

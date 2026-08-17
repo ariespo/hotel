@@ -3615,24 +3615,9 @@ export class Sim {
     }
   }
 
-  trainingWorldFor(staff, skill) {
-    const unlocked = worldsForStars(this.stars());
-    const affinity = TRAINING_WORLD_AFFINITY[skill] || [];
-    const traitWorlds = {
-      diligent: ['iron_hive', 'hearth_coast'], lazy: ['evernight', 'inverted_dreamsea'], cheerful: ['honey_sky', 'mask_realm'],
-      grumpy: ['magma_ridge', 'ash_dragoncourt'], perfectionist: ['iron_hive', 'ash_dragoncourt'], fast: ['neon_ring', 'iron_hive'],
-      clean_freak: ['verdant_court', 'moonsea'], gourmet: ['hearth_coast', 'moonsea'], stoic: ['evernight', 'iron_hive'],
-      clumsy: ['magma_ridge', 'inverted_dreamsea'], chatty: ['mask_realm', 'honey_sky'], careful: ['verdant_court', 'iron_hive'],
-      creative: ['inverted_dreamsea', 'mask_realm'], sociable: ['honey_sky', 'hearth_coast'], organized: ['iron_hive', 'neon_ring'], decisive: ['magma_ridge', 'ash_dragoncourt'],
-    };
-    const candidates = affinity.map((id) => unlocked.find((world) => world.id === id)).filter(Boolean);
-    const suitable = candidates.length ? candidates : unlocked;
-    const favoredIds = new Set((staff.traits || []).flatMap((trait) => traitWorlds[trait] || []));
-    const characterFit = suitable.filter((world) => favoredIds.has(world.id));
-    const pool = characterFit.length ? characterFit : suitable.slice(0, Math.min(3, suitable.length));
-    const forecastFit = pool.filter((world) => (this.econ.worldForecast || []).includes(world.id));
-    const finalPool = forecastFit.length && stableHash(`${staff.id}:${skill}:tide`) % 3 === 0 ? forecastFit : pool;
-    return finalPool[stableHash(`${this.econ.seed}:${this.econ.day}:${staff.id}:${skill}:world`) % finalPool.length] || WORLD_PROFILES[0];
+  trainingWorldFor(_staff, _skill) {
+    // 进修发生在旅店当前驻留世界；开局 newEcon 已固定为艾泽普利斯（hearth_coast）。
+    return this.currentWorld() || WORLD_PROFILES[0];
   }
 
   trainingGains(staff, priorities, budget) {
@@ -3682,7 +3667,7 @@ export class Sim {
       staffId: staff.id, skill, course: TRAINING_PROGRAMS[skill], cost: Math.round(90 + staff.skills[skill] * 2.2),
       world: { id: world.id, name: world.name, icon: world.icon, lore: world.identity.summary, etiquette: world.culture.etiquette },
       region, mentor, venue: scene.venue,
-      intro: `${staff.name}前往${world.name}的${region}，在${scene.venue}参加“${TRAINING_PROGRAMS[skill]}”。${world.identity.summary}${scene.method}。当地尤其讲究：${world.culture.etiquette}`,
+      intro: `${staff.name}在当前驻留的${world.name}，前往${region}的${scene.venue}参加“${TRAINING_PROGRAMS[skill]}”。${world.identity.summary}${scene.method}。当地尤其讲究：${world.culture.etiquette}`,
       characterNote: `${mentor}注意到${staff.name}具有${traitNames.join('、') || '独特'}的性格，因此给出了三条不同的练习路线。每条路线总成长均为 ${budget} 点。`,
       choices,
     };

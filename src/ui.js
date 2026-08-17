@@ -2516,30 +2516,31 @@ export class UI {
     if (!staff || !SKILL_KEYS.includes(skill)) return;
     if (!this.g.trainStaff(id, skill, choiceId)) { this.detailTab = 'growth'; this.openStaffDetail(id); return; }
     this.detailTab = 'growth';
-    const result = sim.lastTrainingResult;
-    if (!result) { this.openStaffDetail(id); return; }
-    if (!aiConfigured()) { this.localTrainingResult(result); return; }
-    this.showModal(`<h3>📚 ${htmlText(staff.name)}外出进修</h3><div class="card"><b>${htmlText(result.world.name)} · ${htmlText(result.course)}</b>
-      <div class="dim">${htmlText(result.choice.gainText)} · 总成长 ${result.choice.total} · 支出 ${result.cost} 界币</div></div>
+    const training = sim.lastTrainingResult;
+    if (!training) { this.openStaffDetail(id); return; }
+    if (!aiConfigured()) { this.localTrainingResult(training); return; }
+    this.showModal(`<h3>📚 ${htmlText(staff.name)}外出进修</h3><div class="card"><b>${htmlText(training.world.name)} · ${htmlText(training.course)}</b>
+      <div class="dim">${htmlText(training.choice.gainText)} · 总成长 ${training.choice.total} · 支出 ${training.cost} 界币</div></div>
       <div class="hi" style="margin-top:10px">AI 正在生成本次打烊期间的进修经历……</div>`);
     const startedModal = this.modal;
     try {
-      const result = await requestGameAI('training_story', {
-        day: sim.econ.day, venue: '位于万界交汇处的多元旅店', destinationWorld: result.world,
+      const story = await requestGameAI('training_story', {
+        day: sim.econ.day, venue: '位于万界交汇处的多元旅店', destinationWorld: training.world,
+        hostedWorld: { id: sim.econ.currentWorldId, name: sim.currentWorld().name },
         employee: { name: staff.name, race: staff.race, age: staff.age, job: JOB_LABEL[staff.job], traits: staff.traits, background: staff.background || null },
-        course: result.course, selectedRoute: { label: result.choice.label, approach: result.choice.approach, gains: result.choice.gains },
-        localScenario: { region: result.region, venue: result.venue, intro: result.intro, mentor: result.mentor },
-        before: result.before, after: result.after, cost: result.cost,
+        course: training.course, selectedRoute: { label: training.choice.label, approach: training.choice.approach, gains: training.choice.gains },
+        localScenario: { region: training.region, venue: training.venue, intro: training.intro, mentor: training.mentor },
+        before: training.before, after: training.after, cost: training.cost,
       });
       if (this.modal !== startedModal) return;
-      this.showModal(`<h3>📚 ${htmlText(result.title)}</h3>
-        <div style="max-width:620px;white-space:pre-wrap;line-height:1.75">${htmlText(result.narrative)}</div>
-        <div class="card" style="margin-top:10px"><b>${htmlText(staff.name)}</b><div>“${htmlText(result.reflection)}”</div>
-        <div class="dim">${htmlText(sim.lastTrainingResult.choice.gainText)} · 总成长 ${sim.lastTrainingResult.choice.total} · 支出 ${sim.lastTrainingResult.cost} 界币</div></div>
+      this.showModal(`<h3>📚 ${htmlText(story.title)}</h3>
+        <div style="max-width:620px;white-space:pre-wrap;line-height:1.75">${htmlText(story.narrative)}</div>
+        <div class="card" style="margin-top:10px"><b>${htmlText(staff.name)}</b><div>“${htmlText(story.reflection)}”</div>
+        <div class="dim">${htmlText(training.choice.gainText)} · 总成长 ${training.choice.total} · 支出 ${training.cost} 界币</div></div>
         <div class="row" style="margin-top:10px"><button data-act="detail" data-v="${staff.id}">返回员工详情</button><button data-act="closemodal">关闭</button></div>`);
     } catch (err) {
       if (this.modal !== startedModal) return;
-      this.localTrainingResult(result);
+      this.localTrainingResult(training);
       const warning = this.modal?.querySelector('.card');
       if (warning) warning.insertAdjacentHTML('beforeend', `<div class="dim" style="margin-top:7px">AI 演绎暂不可用，已显示本地世界剧情：${htmlText(err?.message || '未知错误')}</div>`);
     }
