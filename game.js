@@ -2101,7 +2101,7 @@ class Game                    {
           }
           const warmth = tileWarmth(x, y, lights) * edgeOcclusion(this.tavern, x, y);
           const lit = hdLight ? warmth : 0.42 + warmth * 0.38;
-          const lightTint = floorLightTint(lit, sp.tint || 0xFFFFFF);
+          const lightTint = floorLightTint(lit, sp.tint || 0xFFFFFF, hdLight ? 1.25 : 1);
           if (lightTint !== 0xFFFFFF) sp.tint = lightTint;
           this.floorLayer.addChild(sp);
         }
@@ -2141,10 +2141,10 @@ class Game                    {
       pool.blendMode = 'add';
       pool.alpha = light.alpha;
       this.lightLayer.addChild(pool);
-      const prof = light.kind === 'fireplace' ? { base: 0.46, amp: 0.16, speed: 6.2 }
-        : light.kind === 'stove' ? { base: 0.14, amp: 0.22, speed: 8.4 }
-        : light.kind === 'sconce' ? { base: 0.4, amp: 0.08, speed: 2.0 }
-        : { base: light.alpha, amp: 0.08, speed: 2.1 };
+      const prof = light.kind === 'fireplace' ? { base: 0.28, amp: 0.1, speed: 6.2 }
+        : light.kind === 'stove' ? { base: 0.08, amp: 0.13, speed: 8.4 }
+        : light.kind === 'sconce' ? { base: 0.24, amp: 0.05, speed: 2.0 }
+        : { base: light.alpha, amp: 0.05, speed: 2.1 };
       this.glowAnims.push({ sp: pool, ...prof, phase: (light.x * 7.1 + light.y * 3.3) % 6.28, furn: light.furn || 0 });
     }
     // 墙体贴图化：外墙 8px（壁纸+踢脚线），内墙 5px，门口铺门框；墙脚再压两层地面投影
@@ -2167,7 +2167,21 @@ class Game                    {
       if (!tex) { tex = texFromCanvas(doorPix(horiz).canvas); this.pixTex.set(key, tex); }
       return tex;
     };
-    const beamTex = (x, y) => materialFrame('wall', x + y, 0);
+    const beamStrip = (x) => {
+      const base = this.worldMaterials.get('wall');
+      if (!base) return null;
+      const fx = ((x % WORLD_ART_SCALE) + WORLD_ART_SCALE) % WORLD_ART_SCALE;
+      const key = `beamstrip|${fx}`;
+      let tex = this.pixTex.get(key);
+      if (!tex) {
+        tex = new PIXI.Texture({
+          source: base.source,
+          frame: new PIXI.Rectangle(fx * (T * WORLD_ART_SCALE), 0, T * WORLD_ART_SCALE, 32),
+        });
+        this.pixTex.set(key, tex);
+      }
+      return tex;
+    };
     for (const r of this.tavern.rooms) {
       for (let x = r.x; x < r.x + r.w; x++) for (let y = r.y; y < r.y + r.h; y++) {
         const sides                             = [[0, 0, -1], [1, 0, 1], [2, -1, 0], [3, 1, 0]];
@@ -2198,8 +2212,7 @@ class Game                    {
           else if (side === 1) { sp.x = x * T; sp.y = (y + 1) * T; sp.scale.y = -1; }
           else if (side === 2) { sp.x = x * T; sp.y = y * T; }
           else { sp.x = (x + 1) * T; sp.y = y * T; sp.scale.x = -1; }
-          this.wallSprites.addChild(sp);
-          const beam = this.materialPack === 'hd' ? beamTex(x, y) : null;
+          const beam = this.materialPack === 'hd' ? beamStrip(x) : null;
           if (beam) {
             const trim = new PIXI.Sprite(beam);
             trim.anchor.set(0.5); trim.width = T; trim.height = th;
@@ -2209,6 +2222,8 @@ class Game                    {
             const beamStyle = styleById(this.tavern.roomStyle(r));
             if (beamStyle.id !== 'rustic') trim.tint = hexToNum(mix('#FFFFFF', beamStyle.trim || beamStyle.accent, 0.55));
             this.wallSprites.addChild(trim);
+          } else {
+            this.wallSprites.addChild(sp);
           }
           if (!nb && ((x * 5 + y * 3 + side) % 4 === 0)) {
             const pick = WALL_DECO[r.kind] || WALL_DECO.dining;
@@ -2224,10 +2239,10 @@ class Game                    {
             else { d.x = (x + 1) * T - 4; d.y = y * T + T / 2; d.scale.x *= -1; }
             this.decoSprites.addChild(d);
             if (kindDeco === 'sconce') {
-              const gl = new PIXI.Sprite(glowTex(28, '#F3B84B'));
+              const gl = new PIXI.Sprite(glowTex(40, '#F3B84B'));
               gl.anchor.set(0.5);
               gl.blendMode = 'add';
-              gl.alpha = 0.58;
+              gl.alpha = 0.35;
               gl.x = side === 2 ? x * T + 10 : side === 3 ? (x + 1) * T - 10 : x * T + T / 2;
               gl.y = side === 0 ? y * T + 10 : side === 1 ? (y + 1) * T - 10 : y * T + T / 2;
               this.decoSprites.addChild(gl);
@@ -2313,18 +2328,18 @@ class Game                    {
       if (f.kind === 'lamp' || f.kind === 'fireplace' || f.kind === 'lightbar' || f.kind === 'lightcol' || f.kind === 'stove') {
         const warm = f.kind === 'fireplace' ? '#E4732C' : f.kind === 'stove' ? '#E4732C'
           : (f.kind === 'lightbar' || f.kind === 'lightcol') ? fstyle.accent : fstyle.glow;
-        const rad = f.kind === 'fireplace' ? 48 : f.kind === 'stove' ? 36 : f.kind === 'lightbar' ? 34 + f.quality * 6 : 32 + f.quality * 5;
+        const rad = f.kind === 'fireplace' ? 68 : f.kind === 'stove' ? 50 : f.kind === 'lightbar' ? 48 + f.quality * 8 : 45 + f.quality * 7;
         const gl = new PIXI.Sprite(glowTex(rad, warm));
         gl.anchor.set(0.5);
         gl.x = (f.x + fw / 2) * T;
         gl.y = (f.y + fh / 2) * T;
         gl.blendMode = 'add';
-        gl.alpha = 0.58;
+        gl.alpha = 0.35;
         this.decoSprites.addChild(gl);
         // 火苗类闪得快而猛，灯带只是呼吸；灶台没人用时只留一点余烬
-        const prof = f.kind === 'fireplace' ? { base: 0.5, amp: 0.3, speed: 7 }
-          : f.kind === 'stove' ? { base: 0.12, amp: 0.38, speed: 9 }
-          : f.kind === 'lamp' ? { base: 0.5, amp: 0.15, speed: 2.2 }
+        const prof = f.kind === 'fireplace' ? { base: 0.3, amp: 0.18, speed: 7 }
+          : f.kind === 'stove' ? { base: 0.07, amp: 0.23, speed: 9 }
+          : f.kind === 'lamp' ? { base: 0.3, amp: 0.09, speed: 2.2 }
           : { base: 0.45, amp: 0.18, speed: 1.4 };
         this.glowAnims.push({ sp: gl, ...prof, phase: (f.id * 1.618) % 6.28, furn: f.kind === 'stove' ? f.id : 0 });
       }

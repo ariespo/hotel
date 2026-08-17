@@ -20,12 +20,12 @@ export function mulRgb(a, b) {
 
 export function lightProfile(kind, quality = 1, color = '#F3B84B') {
   const q = Math.max(1, quality || 1);
-  if (kind === 'fireplace') return { kind, radius: 3.6, strength: 1, color: color || '#E4732C', bloom: 58, alpha: 0.5 };
-  if (kind === 'stove') return { kind, radius: 2.5, strength: 0.86, color: color || '#E4732C', bloom: 40, alpha: 0.42 };
-  if (kind === 'lightbar') return { kind, radius: 2.5 + q * 0.32, strength: 0.78, color, bloom: 34 + q * 7, alpha: 0.4 };
-  if (kind === 'lightcol') return { kind, radius: 2.8 + q * 0.28, strength: 0.86, color, bloom: 36 + q * 6, alpha: 0.44 };
-  if (kind === 'sconce') return { kind, radius: 2.9, strength: 0.94, color: color || '#F3B84B', bloom: 50, alpha: 0.48 };
-  return { kind: kind || 'lamp', radius: 2.7 + q * 0.22, strength: 0.9, color: color || '#F3B84B', bloom: 42 + q * 5, alpha: 0.46 };
+  if (kind === 'fireplace') return { kind, radius: 5.2, strength: 0.6, color: color || '#E4732C', bloom: 80, alpha: 0.3 };
+  if (kind === 'stove') return { kind, radius: 3.6, strength: 0.52, color: color || '#E4732C', bloom: 56, alpha: 0.25 };
+  if (kind === 'lightbar') return { kind, radius: 3.6 + q * 0.46, strength: 0.47, color, bloom: 48 + q * 10, alpha: 0.24 };
+  if (kind === 'lightcol') return { kind, radius: 4.0 + q * 0.4, strength: 0.52, color, bloom: 50 + q * 8, alpha: 0.26 };
+  if (kind === 'sconce') return { kind, radius: 4.2, strength: 0.56, color: color || '#F3B84B', bloom: 70, alpha: 0.29 };
+  return { kind: kind || 'lamp', radius: 3.9 + q * 0.32, strength: 0.54, color: color || '#F3B84B', bloom: 59 + q * 7, alpha: 0.28 };
 }
 
 export function makeLight(kind, x, y, quality = 1, color = '#F3B84B') {
@@ -62,12 +62,12 @@ export function worldLights(tavern, wallDeco = {}, glowOf = () => '#F3B84B') {
 }
 
 export function tileWarmth(tx, ty, lights) {
-  let warmth = 0.22;
+  let warmth = 0.38;
   for (const light of lights) {
     const dist = Math.hypot(tx + 0.5 - light.x, ty + 0.5 - light.y);
     if (dist >= light.radius) continue;
-    const fall = (1 - dist / light.radius) ** 1.4;
-    warmth = Math.max(warmth, 0.22 + fall * light.strength * 0.78);
+    const fall = (1 - dist / light.radius) ** 1.25;
+    warmth = Math.max(warmth, 0.38 + fall * light.strength * 0.62);
   }
   return Math.min(1, warmth);
 }
@@ -76,20 +76,22 @@ export function edgeOcclusion(tavern, tx, ty) {
   const room = tavern.roomAt(tx, ty);
   if (!room) return 1;
   let occ = 1;
-  if (!tavern.roomAt(tx, ty - 1) || tavern.roomAt(tx, ty - 1).id !== room.id) occ *= 0.86;
-  if (!tavern.roomAt(tx, ty + 1) || tavern.roomAt(tx, ty + 1).id !== room.id) occ *= 0.86;
-  if (!tavern.roomAt(tx - 1, ty) || tavern.roomAt(tx - 1, ty).id !== room.id) occ *= 0.86;
-  if (!tavern.roomAt(tx + 1, ty) || tavern.roomAt(tx + 1, ty).id !== room.id) occ *= 0.86;
+  if (!tavern.roomAt(tx, ty - 1) || tavern.roomAt(tx, ty - 1).id !== room.id) occ *= 0.93;
+  if (!tavern.roomAt(tx, ty + 1) || tavern.roomAt(tx, ty + 1).id !== room.id) occ *= 0.93;
+  if (!tavern.roomAt(tx - 1, ty) || tavern.roomAt(tx - 1, ty).id !== room.id) occ *= 0.93;
+  if (!tavern.roomAt(tx + 1, ty) || tavern.roomAt(tx + 1, ty).id !== room.id) occ *= 0.93;
   return occ;
 }
 
-export function floorLightTint(warmth, base = 0xFFFFFF) {
+export function floorLightTint(warmth, base = 0xFFFFFF, lift = 1) {
   const t = Math.max(0, Math.min(1, warmth));
-  const cool = 0xB08968;
-  const mid = 0xE8C89A;
-  const hot = 0xFFE7B4;
+  const cool = 0xC9A57C;
+  const mid = 0xF0D6A8;
+  const hot = 0xFFEBC0;
   const lit = t < 0.5 ? mixRgb(cool, mid, t * 2) : mixRgb(mid, hot, (t - 0.5) * 2);
-  return mulRgb(base, lit);
+  let color = mulRgb(base, lit);
+  if (lift > 1) color = mixRgb(color, 0xFFF4DC, Math.min(0.4, lift - 1));
+  return color;
 }
 
 export function contactShadow(kind, fw, fh, tile = 32) {
@@ -103,5 +105,5 @@ export function contactShadow(kind, fw, fh, tile = 32) {
 }
 
 export function nightShadeAlpha(dayActive) {
-  return dayActive ? 0.06 : 0.16;
+  return dayActive ? 0.03 : 0.08;
 }
