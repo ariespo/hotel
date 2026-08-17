@@ -861,6 +861,9 @@ export class UI {
     else if (act === 'aidishname') this.generateAIDishName(false);
     else if (act === 'aidishconcept') this.generateAIDishName(true);
     else if (act === 'dress') this.openWardrobe(parseInt(v, 10));
+    else if (act === 'bgmtrack') { g.audio.unlock(); g.audio.setBgmPref(v); this.openSettings(); }
+    else if (act === 'bgmplay') { g.audio.unlock(); g.audio.resumeMusic(); this.openSettings(); }
+    else if (act === 'bgmpause') { g.audio.pauseMusic(); this.openSettings(); }
     else if (act === 'event') { g.resolveEvent(parseInt(v, 10)); }
     else if (act === 'eventroll') this.runDiceEvent(parseInt(v, 10));
     else if (act === 'eventcustom') this.runCustomEvent();
@@ -2075,6 +2078,7 @@ export class UI {
     const narrative = sim.resolveEvent(index);
     this.g.save();
     const result = sim.lastEventResolution;
+    this.g.audio.playOutcome(result?.success);
     const effectParts = [];
     if (result.effects.coins) effectParts.push(`界币 ${result.effects.coins > 0 ? '+' : ''}${result.effects.coins}`);
     if (result.effects.guestAffinity) effectParts.push(`客人好感 ${result.effects.guestAffinity > 0 ? '+' : ''}${result.effects.guestAffinity}`);
@@ -2154,6 +2158,7 @@ export class UI {
       if (this.modal !== startedModal) return;
       const resolved = s.resolveCustomEvent(action, plan);
       if (!resolved) { this.openEvent(); return; }
+      this.g.audio.playOutcome(resolved.success);
       this.g.save();
       this.eventCustomContext = null;
       const verdict = resolved.success ? '行动成功' : '行动失败';
@@ -2167,6 +2172,7 @@ export class UI {
         <div class="row" style="margin-top:10px"><button data-act="closemodal">继续营业</button></div>`);
     } catch (err) {
       if (this.modal !== startedModal) return;
+      this.g.audio.play('error');
       this.showModal(`<h3>自定义事件推演失败</h3><div class="card"><b>玩家行动</b><div>${htmlText(action)}</div></div>
         <div class="bad" style="margin-top:8px">${htmlText(err?.message || '未知错误')}</div>
         <div class="row" style="margin-top:10px"><button data-act="eventcustomretry">重试 AI</button><button data-act="eventback">返回默认选项</button></div>`);
@@ -3297,6 +3303,17 @@ export class UI {
         <button data-act="materialpack" data-v="classic" class="${this.g.materialPack === 'classic' ? 'on' : ''}">经典材质</button>
       </div>
       <div class="dim">同步切换房间地板、地毯、墙门、壁灯、家具与界面框体；只保存在当前浏览器，不改动游戏存档。</div>
+      <h3 style="margin:14px 0 6px">背景音乐</h3>
+      <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
+        <button data-act="bgmtrack" data-v="auto" class="${vols.bgm === 'auto' ? 'on' : ''}">跟随阶段</button>
+        ${(this.g.audio.tracks?.() || []).map((track) => `<button data-act="bgmtrack" data-v="${htmlText(track.id)}" class="${vols.bgm === track.id ? 'on' : ''}" title="${htmlText(track.note)}">${htmlText(track.name)}</button>`).join('')}
+      </div>
+      <div class="row" style="margin-top:6px">
+        <button data-act="bgmplay" class="${!vols.paused ? 'on' : ''}">▶ 播放</button>
+        <button data-act="bgmpause" class="${vols.paused ? 'on' : ''}">Ⅱ 暂停</button>
+        <span class="dim">${vols.paused ? '已暂停' : vols.bgm === 'auto' ? '正在跟随营业/规划/结算自动换曲' : `正在播放：${htmlText((this.g.audio.tracks?.() || []).find((track) => track.id === vols.bgm)?.name || '背景乐')}`}</span>
+      </div>
+      <div class="dim">跟随阶段：营业用炉火营业，打烊规划用收盘规划，日结用位面夜航。点某一首会锁定，直到改回跟随或换曲。</div>
       <div class="row" style="margin-top:10px"><span style="width:56px">音乐</span><input data-act="volm" type="range" min="0" max="1" step="0.05" value="${vols.m}" style="flex:1"></div>
       <div class="row"><span style="width:56px">音效</span><input data-act="vols" type="range" min="0" max="1" step="0.05" value="${vols.s}" style="flex:1"></div>
       <div class="row" style="margin-top:10px"><span>操作</span><span class="dim">空格暂停 · 1/2/3 变速 · R 旋转 · F 聚焦 · E 与身边的伙计/客人搭话 · 点角色开互动菜单 · 双击伙计看详情 · 鼠标拖拽平移 · 滚轮缩放</span></div>

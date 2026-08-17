@@ -101,9 +101,12 @@ const WORLD_BACKGROUND_MOTION = {
   timeless_bazaar: { x: 9, y: 6, xSpeed: 0.07, ySpeed: 0.19, alpha: 0.36, farAlpha: 1 },
 };
 const cloneData = (value) => JSON.parse(JSON.stringify(value));
-// 只列出 assets/ 里确实存在的音轨：抓不到的文件会在控制台刷 CORS/404 噪音。
-// 补上 bgm-tavern / bgm-plan / bgm-night 后，把对应行加回来即可分阶段切换。
-const BGM_MANIFEST                     = [];
+const BGM_TRACKS = [
+  { id: 'bgm', file: 'assets/bgm-tavern.wav', name: '炉火营业', note: '营业时的暖色酒馆曲' },
+  { id: 'bgm-plan', file: 'assets/bgm-plan.wav', name: '收盘规划', note: '打烊后的安静小调' },
+  { id: 'bgm-night', file: 'assets/bgm-night.wav', name: '位面夜航', note: '结算与深夜的低回旋律' },
+];
+const BGM_MANIFEST = BGM_TRACKS.map((track) => [track.id, track.file]);
 
 // ---------- 纹理缓存 ----------
 const actorTex = new Map                      ();
@@ -233,6 +236,8 @@ class Audio2 {
   last = new Map                ();
   unlocked = false;
 
+  constructor() { this.loadPrefs(); }
+
   async unlock()                {
     if (this.unlocked) return;
     this.unlocked = true;
@@ -241,7 +246,7 @@ class Audio2 {
     const C = W.AudioContext || W.webkitAudioContext;
     if (!C) return;
     this.ctx = new C();
-    try { const p = JSON.parse(localStorage.getItem('wjbdy.vol.v1') || 'null'); if (p && typeof p.mv === 'number') { this.musicVol = p.mv; this.sfxVol = p.sv; } } catch (err) { /* 忽略 */ }
+    this.loadPrefs();
     this.gain = this.ctx.createGain();
     this.gain.gain.value = this.sfxVol;
     this.gain.connect(this.ctx.destination);
@@ -269,7 +274,7 @@ class Audio2 {
         this.buffers.set(k, await (this.ctx                ).decodeAudioData(buf));
       } catch (e) { /* 资源缺失时静音降级 */ }
     }
-    this.playTrack(this.wantTrack);
+    this.applyMusic();
     this.playAmb(this.wantAmb);
   }
 
@@ -299,23 +304,64 @@ class Audio2 {
     this.ambGain.gain.setTargetAtTime(name === 'amb' ? 0.34 : 0.22, this.ctx.currentTime, 0.6);
   }
 
-  /** 分阶段 BGM：营业=bgm / 规划=bgm-plan / 结算=bgm-night，缺失时退回已有的那首 */
+  /** 分阶段 BGM：营业=bgm / 规划=bgm-plan / 结算=bgm-night；设置里可锁定或暂停。 */
   wantTrack = 'bgm-plan';
-          curTrack = '';
-  playTrack(name        )       {
-    this.wantTrack = name;
+  curTrack = '';
+  musicPref = 'auto';
+  musicPaused = false;
+
+  tracks() { return BGM_TRACKS; }
+
+  resolveTrack(name = this.wantTrack) {
+    const requested = this.musicPref !== 'auto' ? this.musicPref : name;
+    if (this.buffers.has(requested)) return requested;
+    if (this.buffers.has('bgm')) return 'bgm';
+    return BGM_TRACKS.map((track) => track.id).find((id) => this.buffers.has(id)) || '';
+  }
+
+  stopMusic() {
+    if (this.music) { try { this.music.stop(); } catch (e) { /* 已停止 */ } this.music = null; }
+    this.curTrack = '';
+  }
+
+  applyMusic() {
+    if (this.musicPaused) { this.stopMusic(); return; }
     if (!this.ctx || !this.musicGain) return;
-    const key = this.buffers.has(name) ? name : this.buffers.has('bgm') ? 'bgm' : '';
+    const key = this.resolveTrack(this.wantTrack);
     if (!key || key === this.curTrack) return;
     const b = this.buffers.get(key);
     if (!b) return;
-    if (this.music) { try { this.music.stop(); } catch (e) { /* 已停止 */ } this.music = null; }
+    this.stopMusic();
     const s = this.ctx.createBufferSource();
     s.buffer = b; s.loop = true;
     s.connect(this.musicGain);
     s.start();
     this.music = s;
     this.curTrack = key;
+  }
+
+  playTrack(name        )       {
+    this.wantTrack = name;
+    this.applyMusic();
+  }
+
+  setBgmPref(id) {
+    this.musicPref = id === 'auto' || BGM_TRACKS.some((track) => track.id === id) ? id : 'auto';
+    this.saveVols();
+    this.applyMusic();
+  }
+
+  pauseMusic() {
+    this.musicPaused = true;
+    this.saveVols();
+    this.stopMusic();
+  }
+
+  resumeMusic() {
+    this.musicPaused = false;
+    this.saveVols();
+    this.unlock();
+    this.applyMusic();
   }
 
   /** 游戏内部的阶段基准音量（营业/规划/结算），与玩家音量偏好相乘 */
@@ -342,11 +388,30 @@ class Audio2 {
   }
 
           saveVols()       {
-    try { localStorage.setItem('wjbdy.vol.v1', JSON.stringify({ mv: this.musicVol, sv: this.sfxVol })); } catch (err) { /* 忽略 */ }
+    try {
+      localStorage.setItem('wjbdy.vol.v1', JSON.stringify({
+        mv: this.musicVol, sv: this.sfxVol, bgm: this.musicPref, paused: this.musicPaused,
+      }));
+    } catch (err) { /* 忽略 */ }
+  }
+
+  loadPrefs() {
+    try {
+      const p = JSON.parse(localStorage.getItem('wjbdy.vol.v1') || 'null');
+      if (!p || typeof p !== 'object') return;
+      if (typeof p.mv === 'number') this.musicVol = p.mv;
+      if (typeof p.sv === 'number') this.sfxVol = p.sv;
+      if (p.bgm === 'auto' || BGM_TRACKS.some((track) => track.id === p.bgm)) this.musicPref = p.bgm;
+      this.musicPaused = !!p.paused;
+    } catch (err) { /* 忽略 */ }
   }
 
   curVolumes()                           {
-    return { m: this.musicVol, s: this.sfxVol };
+    return { m: this.musicVol, s: this.sfxVol, bgm: this.musicPref, paused: this.musicPaused, playing: !!this.music, current: this.curTrack };
+  }
+
+  playOutcome(success, vol = 0.85) {
+    this.play(success ? 'happy' : 'error', vol);
   }
 
   play(name        , vol = 1)       {
@@ -1930,6 +1995,7 @@ class Game                    {
   setMarkup(v        )       { this.sim.econ.markup = v; this.save(); }
   resolveEvent(i        )       {
     const text = this.sim.resolveEvent(i);
+    this.audio.playOutcome(this.sim.lastEventResolution?.success);
     this.ui.openEventResult(text, this.sim.lastEventResolution);
     this.save();
   }
