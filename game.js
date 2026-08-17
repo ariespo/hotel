@@ -385,6 +385,8 @@ class Game                    {
   itemLayer = new PIXI.Container();
   actorLayer = new PIXI.Container();
   overlay = new PIXI.Graphics();
+  upgradeFxLayer = new PIXI.Container();
+  upgradeFx = [];
   labelLayer = new PIXI.Container();
   speechLayer = new PIXI.Graphics();
   stars = new PIXI.Graphics();
@@ -486,7 +488,7 @@ class Game                    {
     }
     this.app.stage.addChild(this.stars, this.worldBackgroundFar, this.worldBackgroundMid, this.worldBackgroundMask, this.starGlintsA, this.starGlintsB, this.worldBackgroundWeather, this.worldTravelLayer, this.world, this.labelLayer);
     this.worldBackgroundMask.renderable = false;
-    this.world.addChild(this.floorLayer, this.lightLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.overlay);
+    this.world.addChild(this.floorLayer, this.lightLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.upgradeFxLayer, this.overlay);
     this.actorLayer.sortableChildren = true;
     this.labelLayer.addChild(this.speechLayer);
     for (let i = 0; i < 32; i++) {
@@ -1715,8 +1717,24 @@ class Game                    {
     r.quality++;
     r.maint = 100;
     this.tavern.version++;   // 触发静态层重建，否则新外观不刷新
+    this.playUpgradeFx({
+      type: 'room',
+      x: (r.x + r.w / 2) * T,
+      y: (r.y + r.h / 2) * T,
+      w: r.w * T,
+      h: r.h * T,
+      quality: r.quality,
+    });
+    for (let i = 0; i < 16; i++) {
+      this.sim.fx.push({
+        x: r.x + Math.random() * r.w,
+        y: r.y + Math.random() * r.h,
+        t: 0.35 + Math.random() * 0.28,
+        kind: 'spark',
+      });
+    }
     this.sim.toast(`${ROOM_LABEL[r.kind]}升级到品质 ${'I'.repeat(r.quality)}`);
-    this.audio.play('build');
+    this.audio.play('upgrade');
     this.recordBuildState('升级房间');
     this.save();
   }
@@ -1764,9 +1782,32 @@ class Game                    {
     const cost = def.cost[f.quality] - def.cost[f.quality - 1];
     if (this.sim.econ.coins < cost) { this.sim.toast('界币不足'); this.audio.play('error'); return; }
     this.sim.econ.coins -= cost;
+    const fstyle = styleById(this.tavern.roomStyle(room));
+    const atlas = this.materialPack === 'hd' ? this.worldMaterials.get('furniture') : null;
+    const oldTex = furnTexture(f.kind, f.quality, fstyle.accent, atlas);
+    const [fw, fh] = furnFootprint(f.kind, f.dir);
+    const [sourceW, sourceH] = furnFootprint(f.kind, 0);
     f.quality++;
     this.tavern.version++;    // 触发静态层重建，否则新外观不刷新
-    this.audio.play('place');
+    this.playUpgradeFx({
+      type: 'furn',
+      x: (f.x + fw / 2) * T,
+      y: (f.y + fh / 2) * T,
+      w: sourceW * T,
+      h: sourceH * T,
+      rot: f.dir * (Math.PI / 2),
+      oldTex,
+      quality: f.quality,
+    });
+    for (let i = 0; i < 8; i++) {
+      this.sim.fx.push({
+        x: f.x + Math.random() * fw,
+        y: f.y + Math.random() * fh,
+        t: 0.28 + Math.random() * 0.22,
+        kind: 'spark',
+      });
+    }
+    this.audio.play('upgrade');
     this.recordBuildState('升级家具');
     this.save();
   }
@@ -1779,6 +1820,72 @@ class Game                    {
     this.selection = null;
     this.recordBuildState('拆除家具');
     this.save();
+  }
+  playUpgradeFx({ type, x, y, w, h, rot = 0, oldTex = null, quality = 2 }) {
+    const root = new PIXI.Container();
+    root.x = x;
+    root.y = y;
+    this.upgradeFxLayer.addChild(root);
+    let ghost = null;
+    if (oldTex) {
+      ghost = new PIXI.Sprite(oldTex);
+      ghost.anchor.set(0.5);
+      ghost.width = w;
+      ghost.height = h;
+      ghost.rotation = rot;
+      root.addChild(ghost);
+    }
+    const flash = new PIXI.Graphics();
+    flash.blendMode = 'add';
+    root.addChild(flash);
+    const ring = new PIXI.Graphics();
+    ring.blendMode = 'add';
+    root.addChild(ring);
+    const wash = type === 'room' ? new PIXI.Graphics() : null;
+    if (wash) {
+      wash.blendMode = 'add';
+      root.addChildAt(wash, 0);
+    }
+    this.upgradeFx.push({
+      type, root, ghost, flash, ring, wash,
+      t: 0, dur: type === 'room' ? 0.55 : 0.42,
+      w, h, quality,
+    });
+  }
+  tickUpgradeFx(dt) {
+    const gold = 0xF3D98A;
+    const brass = 0xE8B44A;
+    for (const fx of this.upgradeFx) {
+      fx.t += dt;
+      const u = Math.min(1, fx.t / fx.dur);
+      const out = 1 - (1 - u) * (1 - u);
+      const col = fx.quality >= 3 ? gold : brass;
+      if (fx.ghost) {
+        fx.ghost.alpha = 1 - out;
+        const grow = 1 + out * 0.1;
+        fx.ghost.width = fx.w * grow;
+        fx.ghost.height = fx.h * grow;
+      }
+      const flashR = Math.max(12, Math.max(fx.w, fx.h) * (0.28 + out * 0.5));
+      fx.flash.clear();
+      fx.flash.circle(0, 0, flashR).fill({ color: col, alpha: 0.55 * (1 - u) * (1 - u) });
+      const ringR = 6 + out * Math.max(fx.w, fx.h) * 0.62;
+      fx.ring.clear();
+      fx.ring.circle(0, 0, ringR).stroke({
+        width: fx.type === 'room' ? 3 : 2,
+        color: col,
+        alpha: 0.9 * (1 - u),
+      });
+      if (fx.wash) {
+        fx.wash.clear();
+        fx.wash.rect(-fx.w / 2, -fx.h / 2, fx.w, fx.h).fill({ color: col, alpha: 0.22 * (1 - out) });
+      }
+      if (u >= 1) {
+        fx.root.destroy({ children: true });
+        fx.done = true;
+      }
+    }
+    this.upgradeFx = this.upgradeFx.filter((fx) => !fx.done);
   }
   rotateFurn(id        )       {
     const f = this.tavern.furnById(id);
@@ -1870,6 +1977,7 @@ class Game                    {
       a.sp.texture = a.frames[Math.floor(a.phase * 7) % a.frames.length];
       a.sp.visible = a.always || !!(this.tavern.furnById(a.furn) || {}).busyBy;
     }
+    this.tickUpgradeFx(dt);
     for (const s of this.sim.sounds) this.audio.play(s, s === 'portal' ? 0.5 : 0.8);
     this.sim.sounds.length = 0;
 
