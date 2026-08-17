@@ -168,6 +168,8 @@ const FURNITURE_ATLAS_FRAMES = {
   banner: [512, 640, 128, 128], banner2: [1024, 1408, 128, 128], banner3: [1152, 1408, 128, 128],
   arcadem: [640, 640, 128, 128], arcadem2: [1280, 1408, 128, 128], arcadem3: [1408, 1408, 128, 128],
   crystal: [768, 640, 128, 128], crystal2: [1536, 1408, 128, 128], crystal3: [1664, 1408, 128, 128],
+  painting: [1792, 1408, 128, 128], pans: [1920, 1408, 128, 128],
+  bottles: [1536, 1664, 128, 128], crate: [1664, 1664, 128, 128],
   lightbar: [896, 640, 256, 128], lightbar2: [0, 1536, 256, 128], lightbar3: [256, 1536, 256, 128],
   fireplace: [1152, 640, 256, 128], fireplace2: [0, 1152, 256, 128], fireplace3: [256, 1152, 256, 128],
   icebox: [1408, 640, 256, 128], icebox2: [512, 1280, 256, 128], icebox3: [768, 1280, 256, 128],
@@ -2407,9 +2409,9 @@ class Game                    {
           if (!nb && ((x * 5 + y * 3 + side) % 4 === 0)) {
             const pick = WALL_DECO[r.kind] || WALL_DECO.dining;
             const kindDeco = pick[(x + y + side) % pick.length];
-            const hdSconce = kindDeco === 'sconce' && this.materialPack === 'hd' ? furnitureAtlasTexture('sconce', this.worldMaterials.get('furniture')) : null;
-            const d = new PIXI.Sprite(hdSconce || decoTex(kindDeco, horiz));
-            if (hdSconce) { d.width = 24; d.height = 24; d.rotation = horiz ? 0 : Math.PI / 2; }
+            const hdDeco = this.materialPack === 'hd' ? furnitureAtlasTexture(kindDeco, this.worldMaterials.get('furniture')) : null;
+            const d = new PIXI.Sprite(hdDeco || decoTex(kindDeco, horiz));
+            if (hdDeco) { d.width = 24; d.height = 24; d.rotation = horiz ? 0 : Math.PI / 2; }
             else d.tint = hexToNum(styleById(this.tavern.roomStyle(r)).furnTint);
             d.anchor.set(0.5);
             if (side === 0) { d.x = x * T + T / 2; d.y = y * T + 4; }
