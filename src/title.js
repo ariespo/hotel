@@ -1,5 +1,5 @@
 const TITLE_CSS = `
-#game-title-screen{position:fixed;inset:0;z-index:1000;overflow:hidden;background:#171321;color:#F7E9CD;font-family:FusionPixel,"Microsoft YaHei",monospace;isolation:isolate}
+#game-title-screen{position:fixed;inset:0;z-index:1000;overflow:hidden;background:#171321;color:#F7E9CD;font-family:"Z Labs RoundPix 12px M CN",FusionPixel,"Microsoft YaHei",monospace;isolation:isolate}
 #game-title-screen *{box-sizing:border-box}
 .title-sky{position:absolute;inset:0;background:radial-gradient(circle at 50% 42%,#664060 0 5%,#34233F 24%,#171321 65%,#0D0C14 100%)}
 .title-sky:before{content:"";position:absolute;inset:0;opacity:.55;background-image:radial-gradient(circle,#FFF2B8 0 1px,transparent 1.5px),radial-gradient(circle,#86E3DE 0 1px,transparent 1.5px);background-size:83px 83px,127px 127px;background-position:17px 23px,41px 69px;animation:titleStars 5s steps(2,end) infinite}
