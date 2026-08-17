@@ -39,6 +39,9 @@ const WORLD_MATERIALS = {
   'floor-astral': 'assets/world-materials/floor-astral-v3.webp',
   'floor-forge': 'assets/world-materials/floor-forge-v3.webp',
   'floor-frost': 'assets/world-materials/floor-frost-v3.webp',
+  'floor-onsen': 'assets/world-materials/floor-onsen-v3.webp',
+  'floor-parquet': 'assets/world-materials/floor-parquet-v3.webp',
+  'floor-garden': 'assets/world-materials/floor-garden-v3.webp',
   furniture: 'assets/world-materials/furniture-target-v3.webp',
 };
 const saveKeyFor = (slot        ) => slot === 1 ? SAVE_KEY : `wjbdy.save.v2.slot.${slot}`;
@@ -116,6 +119,15 @@ const FURNITURE_ATLAS_FRAMES = {
   sink: [0, 256, 256, 128], pass: [256, 256, 256, 128], shelf: [512, 256, 256, 128], bed: [768, 256, 256, 128],
   lamp: [0, 384, 128, 128], couch: [128, 384, 256, 128], bunk: [384, 384, 256, 128],
   bookshelf: [640, 384, 256, 128], teatable: [896, 384, 128, 128], vanity: [0, 512, 128, 128],
+  keg: [0, 640, 128, 128], lightcol: [128, 640, 128, 128], statue: [256, 640, 128, 128],
+  clock: [384, 640, 128, 128], banner: [512, 640, 128, 128], arcadem: [640, 640, 128, 128],
+  crystal: [768, 640, 128, 128], lightbar: [896, 640, 256, 128], fireplace: [1152, 640, 256, 128],
+  icebox: [1408, 640, 256, 128], bench: [1664, 640, 256, 128],
+  billiardtable: [0, 768, 256, 128], piano: [256, 768, 256, 128], screen: [512, 768, 256, 128],
+  aquarium: [768, 768, 256, 128], winecabinet: [1024, 768, 256, 128], flowerbed: [1280, 768, 256, 128],
+  telescope: [1536, 768, 256, 128], cauldron: [1792, 768, 256, 128],
+  doublebed: [0, 896, 256, 256], pool: [256, 896, 256, 256], fountain: [512, 896, 256, 256],
+  kingbed: [768, 896, 384, 256],
 };
 function furnitureAtlasTexture(kind, atlas) {
   const frame = FURNITURE_ATLAS_FRAMES[kind];
