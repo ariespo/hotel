@@ -1463,6 +1463,26 @@ export class Sim {
     this.toast(`第 ${this.econ.day} 天开门营业`);
   }
 
+  resetClosingHousekeeping() {
+    this.tavern.dirt = [];
+    const occupied = new Set();
+    for (const g of this.groups) if (g.overnight && g.facId) occupied.add(g.facId);
+    for (const [furnId] of this.facOwner) occupied.add(furnId);
+    for (const f of this.tavern.furns) {
+      if (occupied.has(f.id)) continue;
+      if (f.dirty) f.dirty = 0;
+      if (f.plates) f.plates = 0;
+    }
+    this.orders = [];
+    this.facilityChallenges = [];
+    this.challengeEventQueue = [];
+    this.queuedDynamicEvent = null;
+    this.pendingEvent = null;
+    this.stationOwner.clear();
+    this.pendingFacilityReset.clear();
+    for (const r of this.tavern.rooms) r.clean = 100;
+  }
+
   closeDay()          {
     this.dayActive = false;
     this.running = false;
@@ -1474,6 +1494,7 @@ export class Sim {
     for (const g of [...this.groups]) if (!g.overnight) this.leave(g, '');
     // 打烊：手上活儿全部放下，进入自由时间
     for (const s of this.staff) { s.task = null; s.path = []; s.carry = null; s.free = null; }
+    this.resetClosingHousekeeping();
     const wages = this.staff.filter((s) => !s.isOwner).reduce((a, s) => a + s.wage, 0);
     const maintenance = maintenanceCost(this.tavern);
     let restock = 0;
