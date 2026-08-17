@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { ACC_NAMES,                  appKey, avatarURL, defaultAppearance, drawAvatar, drawSprite, normalizeApp,            PRESETS, randomAppearance, THEMES } from './src/chargen.js';
-import { furnPix, dirtPix, doorPix, equipAnimPix, platePix, ROOM_WALL, T, wallPix } from './src/furniture.js';
+import { furnPix, dirtPix, doorPix, equipAnimPix, hdQualityHardware, platePix, ROOM_WALL, T, wallPix } from './src/furniture.js';
 
 const ACTOR_S = 0.5;          // 世界里的小人按 50% 画（美术画布 64×72 → 场内 32×36）
 import { FLOOR_VARIANTS, floorVariant, glowPix, lightPoolPix, rugTile, wallDecoPix } from './src/floor.js';
@@ -2095,7 +2095,9 @@ class Game                    {
             sp.x = x * T; sp.y = y * T;
             // 房间品质换材质：II 提亮、III 暖金光泽（与厨房棋盘格做通道叠加）
             let tint = (name === 'floor-kitchen' && ((x + y) & 1)) ? 0xE4EAF0 : 0xFFFFFF;
-            const qt = r.quality >= 3 ? 0xFFF0D2 : r.quality >= 2 ? 0xFBF6EA : 0xFFFFFF;
+            const qt = this.materialPack === 'hd'
+              ? (r.quality >= 3 ? 0xFFD890 : r.quality >= 2 ? 0xFFE8C4 : 0xFFFFFF)
+              : (r.quality >= 3 ? 0xFFF0D2 : r.quality >= 2 ? 0xFBF6EA : 0xFFFFFF);
             tint = (((tint >> 16 & 255) * (qt >> 16 & 255) / 255) << 16) | (((tint >> 8 & 255) * (qt >> 8 & 255) / 255) << 8) | Math.round((tint & 255) * (qt & 255) / 255);
             if (tint !== 0xFFFFFF) sp.tint = tint;
           }
@@ -2220,7 +2222,10 @@ class Game                    {
             trim.x = side === 2 ? x * T + th / 2 : side === 3 ? (x + 1) * T - th / 2 : x * T + T / 2;
             trim.y = side === 0 ? y * T + th / 2 : side === 1 ? (y + 1) * T - th / 2 : y * T + T / 2;
             const beamStyle = styleById(this.tavern.roomStyle(r));
-            if (beamStyle.id !== 'rustic') trim.tint = hexToNum(mix('#FFFFFF', beamStyle.trim || beamStyle.accent, 0.55));
+            let beamHex = r.quality >= 3 ? mix('#FFFFFF', '#E8B44A', 0.52)
+              : r.quality >= 2 ? mix('#FFFFFF', '#C9922F', 0.3) : '#FFFFFF';
+            if (beamStyle.id !== 'rustic') beamHex = mix(beamHex, beamStyle.trim || beamStyle.accent, 0.45);
+            if (beamHex !== '#FFFFFF') trim.tint = hexToNum(beamHex);
             this.wallSprites.addChild(trim);
           } else {
             this.wallSprites.addChild(sp);
@@ -2256,11 +2261,11 @@ class Game                    {
           wall.rect(s2[0], s2[1], s2[2], s2[3]).fill({ color: 0x0a0710, alpha: nb ? 0.05 : 0.09 });
         }
       }
-      // 房间升级外观：II 级起沿内墙加护墙线条，III 级金色并带角柱（门口留断口）
-      if (r.quality >= 2) {
+      // 房间升级：经典用像素金线；高清把同一条木踢脚镀成黄铜，并在 III 加角饰。
+      const gap = (x        , y        , dx        , dy        )          => isDoor(x, y, x + dx, y + dy);
+      if (r.quality >= 2 && this.materialPack !== 'hd') {
         const col = r.quality >= 3 ? 0xC9922F : 0x8A5A38;
         const hi = r.quality >= 3 ? 0xF3D98A : 0xB5763F;
-        const gap = (x        , y        , dx        , dy        )          => isDoor(x, y, x + dx, y + dy);
         for (let x = r.x; x < r.x + r.w; x++) {
           if (!this.tavern.roomAt(x, r.y - 1) || gap(x, r.y, 0, -1)) { if (!gap(x, r.y, 0, -1)) { wall.rect(x * T + 2, r.y * T + 9, T - 4, 2).fill(col); wall.rect(x * T + 2, r.y * T + 9, T - 4, 1).fill(hi); } }
           if (!this.tavern.roomAt(x, r.y + r.h) || gap(x, r.y + r.h - 1, 0, 1)) { if (!gap(x, r.y + r.h - 1, 0, 1)) { wall.rect(x * T + 2, (r.y + r.h) * T - 11, T - 4, 2).fill(col); wall.rect(x * T + 2, (r.y + r.h) * T - 10, T - 4, 1).fill(hi); } }
@@ -2272,6 +2277,35 @@ class Game                    {
         if (r.quality >= 3) for (const [cx, cy] of [[r.x, r.y], [r.x + r.w - 1, r.y], [r.x, r.y + r.h - 1], [r.x + r.w - 1, r.y + r.h - 1]]              ) {
           wall.rect(cx * T + 7, cy * T + 7, 5, 5).fill(0x8A5A38);
           wall.rect(cx * T + 8, cy * T + 8, 3, 3).fill(0xF3D98A);
+        }
+      }
+      if (r.quality >= 2 && this.materialPack === 'hd') {
+        const rail = beamStrip(r.x + r.y);
+        const gold = r.quality >= 3 ? 0xF3D98A : 0xC9922F;
+        const placeRail = (x, y, rot, len = T) => {
+          if (!rail) return;
+          const trim = new PIXI.Sprite(rail);
+          trim.anchor.set(0.5); trim.width = len; trim.height = r.quality >= 3 ? 4 : 3;
+          trim.rotation = rot; trim.x = x; trim.y = y; trim.tint = gold;
+          this.wallSprites.addChild(trim);
+        };
+        for (let x = r.x; x < r.x + r.w; x++) {
+          if ((!this.tavern.roomAt(x, r.y - 1) || gap(x, r.y, 0, -1)) && !gap(x, r.y, 0, -1)) placeRail(x * T + T / 2, r.y * T + 10, 0);
+          if ((!this.tavern.roomAt(x, r.y + r.h) || gap(x, r.y + r.h - 1, 0, 1)) && !gap(x, r.y + r.h - 1, 0, 1)) placeRail(x * T + T / 2, (r.y + r.h) * T - 10, 0);
+        }
+        for (let y = r.y; y < r.y + r.h; y++) {
+          if ((!this.tavern.roomAt(r.x - 1, y) || gap(r.x, y, -1, 0)) && !gap(r.x, y, -1, 0)) placeRail(r.x * T + 10, y * T + T / 2, Math.PI / 2);
+          if ((!this.tavern.roomAt(r.x + r.w, y) || gap(r.x + r.w - 1, y, 1, 0)) && !gap(r.x + r.w - 1, y, 1, 0)) placeRail((r.x + r.w) * T - 10, y * T + T / 2, Math.PI / 2);
+        }
+        if (r.quality >= 3) {
+          const boss = glowTex(7, '#F3D98A');
+          for (const [cx, cy] of [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]]) {
+            const med = new PIXI.Sprite(boss);
+            med.anchor.set(0.5); med.alpha = 0.9;
+            med.x = cx * T + (cx === r.x ? 10 : -10);
+            med.y = cy * T + (cy === r.y ? 10 : -10);
+            this.wallSprites.addChild(med);
+          }
         }
       }
     }
@@ -2287,7 +2321,7 @@ class Game                    {
       this.wallSprites.addChild(sp);
     }
     // 家具：和角色同层，按底边 y 排序 —— 站在家具上方（更小的 y）的角色会被家具挡住
-    for (const sp of this.furnSprites) sp.destroy();
+    for (const sp of this.furnSprites) sp.destroy({ children: true });
     this.furnSprites.length = 0;
     for (const f of this.tavern.furns) {
       const fstyle = styleById(this.tavern.roomStyle(this.tavern.roomOfFurn(f)));
@@ -2298,7 +2332,10 @@ class Game                    {
       const jit = [0xFFFFFF, 0xF7EEE0, 0xFFF6E4, 0xEFF2F4][((f.id * 2654435761) >>> 0) % 4];
       const base = hexToNum(fstyle.furnTint);
       if (hdFurniture) {
-        if (fstyle.id !== 'rustic') sp.tint = hexToNum(mix('#FFFFFF', fstyle.furnTint, 0.58));
+        const qHex = f.quality >= 3 ? '#E8C070' : f.quality >= 2 ? '#F2D9A0' : '#FFFFFF';
+        const styleHex = fstyle.id !== 'rustic' ? mix('#FFFFFF', fstyle.furnTint, 0.58) : '#FFFFFF';
+        const merged = mix(styleHex, qHex, f.quality >= 2 ? 0.55 : 0);
+        if (merged !== '#FFFFFF') sp.tint = hexToNum(merged);
       } else {
         sp.tint = (((base >> 16 & 255) * (jit >> 16 & 255) / 255) << 16) | (((base >> 8 & 255) * (jit >> 8 & 255) / 255) << 8) | Math.round((base & 255) * (jit & 255) / 255);
       }
@@ -2313,6 +2350,21 @@ class Game                    {
       sp.zIndex = Math.round((f.y + fh) * 100) - 5;
       this.actorLayer.addChild(sp);
       this.furnSprites.push(sp);
+      if (hdFurniture && f.quality >= 2) {
+        const hwKey = `hdq|${sourceW}|${sourceH}|${f.quality}`;
+        let hwTex = this.pixTex.get(hwKey);
+        if (!hwTex) {
+          hwTex = texFromCanvas(hdQualityHardware(sourceW, sourceH, f.quality).canvas);
+          this.pixTex.set(hwKey, hwTex);
+        }
+        const hw = new PIXI.Sprite(hwTex);
+        hw.anchor.set(0.5);
+        hw.x = sp.x; hw.y = sp.y; hw.rotation = sp.rotation;
+        hw.width = sourceW * T; hw.height = sourceH * T;
+        hw.zIndex = sp.zIndex + 1;
+        this.actorLayer.addChild(hw);
+        this.furnSprites.push(hw);
+      }
       const shadow = contactShadow(f.kind, fw, fh, T);
       if (shadow) {
         const cs = new PIXI.Sprite(glowTex(18, '#1A1016'));
