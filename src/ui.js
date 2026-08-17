@@ -13,7 +13,7 @@ import { canPersistSim } from './save-policy.js';
 import { advanceTutorialState, loadTutorialState, resetTutorialState, retreatTutorialState, saveTutorialState, TUTORIAL_STEPS, tutorialActionMatches } from './tutorial.js';
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, DUTIES, DUTY_LABEL, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, SEASON_NAMES, STYLES,
-  ROOM_LABEL, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
+  NEED_HELP, ROOM_LABEL, SKILL_HELP, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
   WORLD_PROFILES, worldById,
 } from './data.js';
 import { AGE_MAX, fairWageRange, jobFocusSkill, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
@@ -170,6 +170,7 @@ const CSS = `
 .dim{color:#A08064}
 .good{color:#6FA05C}.bad{color:#D96A57}.hi{color:#C97F2B}
 #ui button.traitTag{padding:1px 6px;border-width:1px;border-radius:999px;font-size:12px;color:#A55D16;background:#FFF3D5;box-shadow:none}
+.metric-row[data-act]{cursor:pointer}
 .bar{height:8px;background:#EBD9BC;border-radius:5px;position:relative;overflow:hidden}
 .bar i{display:block;height:100%;border-radius:5px;background:#5BB5AB}
 img.av{image-rendering:pixelated;border:2px solid #C9A176;border-radius:8px;background:#F0E2C8;object-fit:cover;object-position:50% 0}
@@ -377,7 +378,7 @@ export function idleMapHint(touch = isCoarsePointer()) {
     : '左键选择房间/家具/角色；中键或 WASD 平移，滚轮缩放，空格暂停，B 建造，R 旋转，Delete 拆除。';
 }
 
-export function metricRow({ icon, label, value, max = 100, color = 'var(--info)', polarity = 'positive', showLabel = false, compactValue = false, padValue = 0, className = '' }) {
+export function metricRow({ icon, label, value, max = 100, color = 'var(--info)', polarity = 'positive', showLabel = false, compactValue = false, padValue = 0, className = '', act = '', actValue = '', id = 0 }) {
   const safeMax = Math.max(1, Number(max) || 100);
   const safeValue = Math.max(0, Math.min(safeMax, Number(value) || 0));
   const pct = Math.round(safeValue / safeMax * 1000) / 10;
@@ -385,7 +386,8 @@ export function metricRow({ icon, label, value, max = 100, color = 'var(--info)'
   const fullValue = `${Math.round(safeValue)}/${Math.round(safeMax)}`;
   const textValue = compactValue ? String(Math.round(safeValue)).padStart(2, '0') : padValue ? `${String(Math.round(safeValue)).padStart(padValue, '0')}/${Math.round(safeMax)}` : fullValue;
   const safeClass = String(className || '').replace(/[^a-z0-9_-]+/gi, ' ').trim();
-  return `<div class="metric-row metric-${level.band}${showLabel ? ' with-label' : ''}${safeClass ? ` ${safeClass}` : ''}" aria-label="${htmlText(label)} ${fullValue}，${level.label}"><span class="metric-icon" title="${htmlText(label)}">${uiIcon(icon)}</span>${showLabel ? `<span class="metric-label">${htmlText(label)}</span>` : ''}<span class="metric-value">${textValue}</span><span class="metric-track" aria-hidden="true"><i style="width:${pct}%;--metric-color:${htmlText(color)}"></i></span><span class="metric-band ${level.tone}">${level.label}</span></div>`;
+  const trigger = act ? ` data-act="${htmlText(act)}" data-v="${htmlText(actValue || icon)}" data-id="${Number(id) || 0}" role="button" tabindex="0"` : '';
+  return `<div class="metric-row metric-${level.band}${showLabel ? ' with-label' : ''}${safeClass ? ` ${safeClass}` : ''}" aria-label="${htmlText(label)} ${fullValue}，${level.label}"${trigger}><span class="metric-icon" title="${htmlText(label)}">${uiIcon(icon)}</span>${showLabel ? `<span class="metric-label">${htmlText(label)}</span>` : ''}<span class="metric-value">${textValue}</span><span class="metric-track" aria-hidden="true"><i style="width:${pct}%;--metric-color:${htmlText(color)}"></i></span><span class="metric-band ${level.tone}">${level.label}</span></div>`;
 }
 
 export function portraitFrame(app, size = 'main', alt = '') {
@@ -930,6 +932,8 @@ export class UI {
     }
     else if (act === 'detail') this.openStaffDetail(parseInt(v, 10));
     else if (act === 'traitinfo') this.openTraitInfo(v, parseInt(t.dataset.id || '0', 10));
+    else if (act === 'skillinfo') this.openSkillInfo(v, parseInt(t.dataset.id || '0', 10));
+    else if (act === 'needinfo') this.openNeedInfo(v, parseInt(t.dataset.id || '0', 10));
     else if (act === 'manage') { g.select('staff', parseInt(v, 10)); this.closeModal(); }
     else if (act === 'dtab') { this.detailTab = v          ; this.openStaffDetail(this.detailId); }
     else if (act === 'chat') {
@@ -1390,6 +1394,7 @@ export class UI {
       const skills = SKILL_KEYS.map((key) => metricRow({
         icon: key, label: SKILL_LABEL[key], value: person.skills[key], color: 'var(--info)', showLabel: true, compactValue: true,
         className: this.candidateGapHighlight && key === gapSkill ? 'gap-focus' : '',
+        act: 'skillinfo', actValue: key,
       })).join('');
       return `<section class="compare-column ${focused ? 'focused' : ''}" data-candidate-id="${person.id}">
         <div class="compare-portrait">${portraitFrame(person.app, 'compare', person.name)}</div>
@@ -1567,7 +1572,7 @@ export class UI {
         <span class="hi">日薪${p.wage}</span></div>
       ${recommended ? `<div class="good"><b>★ 最适合当前缺口</b> · ${JOB_LABEL[gap.job]}匹配 ${this.candidateRoleScore(p, gap.job)}</div>` : ''}
       ${p.worldSpecialty ? `<div class="hi">世界专长：${htmlText(p.worldSpecialty.name)} · ${htmlText(p.worldSpecialty.note)}</div>` : ''}
-      <div class="skill-inline">${SKILL_KEYS.map((k) => `<span title="${htmlText(SKILL_LABEL[k])}">${uiIcon(k)}<b>${p.skills[k]}</b></span>`).join('')}</div>
+      <div class="skill-inline">${SKILL_KEYS.map((k) => `<button class="traitTag" data-act="skillinfo" data-v="${k}" title="查看${htmlText(SKILL_LABEL[k])}说明">${uiIcon(k)}<b>${p.skills[k]}</b></button>`).join('')}</div>
       <div class="row" style="align-items:flex-start"><b class="hi">综合 ${analysis.score}</b><span>推荐：${JOB_LABEL[analysis.recommendedJob]}</span></div>
       <div class="dim"><span class="good">优势 ${analysis.strengths.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span> · <span class="bad">短板 ${analysis.weaknesses.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span></div>
       <div class="row" style="justify-content:flex-start;flex-wrap:wrap">${p.traits.map((t) => this.traitTag(t)).join('')}<span class="dim" title="根据综合技能与性格自动规划">自动优先级 ${p.prio}</span></div>
@@ -1584,7 +1589,7 @@ export class UI {
         <div class="staff-card-main"><div class="staff-card-head"><span class="staff-identity" style="flex:1"><b>${st.name}</b><span class="staff-role-tag">${st.isOwner ? '店主' : JOB_LABEL[st.job]}</span>
           <div class="dim">${JOB_LABEL[st.job]} · ${room ? `${st.roomMode === 'strict' ? '仅限' : '优先'} ${ROOM_LABEL[room.kind]}` : '全店机动'}</div></span><button class="staff-detail-action" data-act="detail" data-v="${st.id}" aria-label="查看${htmlText(st.name)}详情"><span class="staff-detail-mark" aria-hidden="true"></span></button></div>
           <span class="dim staff-current">${st.task ? '正在：' + st.task.label : st.free ? this.freeLabel(st.free.kind) : st.note || '待命'}</span>
-          <div class="staff-metrics">${metricRow({ icon: 'stamina', label: '体力', value: st.needs.stamina, color: 'var(--positive)', padValue: 3 })}${metricRow({ icon: 'morale', label: '士气', value: st.needs.morale, color: 'var(--info)', padValue: 3 })}${metricRow({ icon: 'affinity', label: '好感', value: st.aff, color: 'var(--rose)', padValue: 3 })}</div>
+          <div class="staff-metrics">${metricRow({ icon: 'stamina', label: '体力', value: st.needs.stamina, color: 'var(--positive)', padValue: 3, act: 'needinfo', actValue: 'stamina', id: st.id })}${metricRow({ icon: 'morale', label: '士气', value: st.needs.morale, color: 'var(--info)', padValue: 3, act: 'needinfo', actValue: 'morale', id: st.id })}${metricRow({ icon: 'affinity', label: '好感', value: st.aff, color: 'var(--rose)', padValue: 3, act: 'needinfo', actValue: 'aff', id: st.id })}</div>
         </div></div></div>`;
   }
 
@@ -1665,8 +1670,8 @@ export class UI {
       <div style="flex:1">
         <div class="row"><b>${st.name}</b><span class="dim">${st.race}·${st.sex}·${st.age}岁·${st.ht}cm/${st.wt}kg·${HT_NAMES[st.app.ht]}${BD_NAMES[st.app.bd]}</span>
         <span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</span></div>
-        <div class="row" style="flex-wrap:wrap">${SKILL_KEYS.map((k) => `<span>${SKILL_LABEL[k]} ${bar(st.skills[k], 100, '#F3B84B')} ${st.skills[k]}</span>`).join('')}</div>
-        <div class="row" style="flex-wrap:wrap"><span>体力${bar(st.needs.stamina, 100, '#8DDB4A')}</span><span>饥饿${bar(st.needs.hunger, 100, '#E45AD1')}</span><span>压力${bar(st.needs.stress, 100, '#FF6B5A')}</span><span>士气${bar(st.needs.morale, 100, '#39D7D2')}</span></div>
+        <div class="row" style="flex-wrap:wrap">${SKILL_KEYS.map((k) => `<span>${this.skillTag(k, st.id)} ${bar(st.skills[k], 100, '#F3B84B')} ${st.skills[k]}</span>`).join('')}</div>
+        <div class="row" style="flex-wrap:wrap"><span>${this.needTag('stamina', st.id)}${bar(st.needs.stamina, 100, '#8DDB4A')}</span><span>${this.needTag('hunger', st.id)}${bar(st.needs.hunger, 100, '#E45AD1')}</span><span>${this.needTag('stress', st.id)}${bar(st.needs.stress, 100, '#FF6B5A')}</span><span>${this.needTag('morale', st.id)}${bar(st.needs.morale, 100, '#39D7D2')}</span></div>
         <div class="row" style="flex-wrap:wrap">岗位 ${JOBS.map((j) => `<button data-act="job" data-id="${st.id}" data-v="${j}" class="${st.job === j ? 'on' : ''}">${JOB_LABEL[j]}</button>`).join('')}</div>
         <div class="dim">${roleGuide.join('｜')}</div>
         <div class="row" style="flex-wrap:wrap">职责模式
@@ -2461,6 +2466,18 @@ export class UI {
     return trait ? `<button class="traitTag" data-act="traitinfo" data-v="${trait.id}" data-id="${staffId}" title="查看性格说明">${trait.name}</button>` : `<span>${id}</span>`;
   }
 
+  skillTag(key, staffId = 0) {
+    const help = SKILL_HELP[key];
+    if (!help) return htmlText(SKILL_LABEL[key] || key);
+    return `<button class="traitTag" data-act="skillinfo" data-v="${key}" data-id="${staffId}" title="查看${help.name}说明">${help.name}</button>`;
+  }
+
+  needTag(key, staffId = 0) {
+    const help = NEED_HELP[key];
+    if (!help) return htmlText(key);
+    return `<button class="traitTag" data-act="needinfo" data-v="${key}" data-id="${staffId}" title="查看${help.name}说明">${help.name}</button>`;
+  }
+
   openTraitInfo(id        , staffId = 0)       {
     const trait = TRAITS.find((x) => x.id === id);
     if (!trait) return;
@@ -2482,6 +2499,37 @@ export class UI {
       <div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-top:7px"><span class="bad">对冲</span>${tags(bad)}</div>
       <div class="dim" style="margin-top:8px">遇到相同性格：${same > 0 ? '更容易合拍' : same < 0 ? '容易互相较劲' : '没有额外影响'}</div>
       <div class="row" style="margin-top:12px">${back}<button data-act="closemodal">关闭</button></div>`);
+  }
+
+  glossaryBack(staffId = 0) {
+    return staffId && this.g.sim.staff.some((s) => s.id === staffId)
+      ? `<button data-act="detail" data-v="${staffId}">返回员工</button>` : '';
+  }
+
+  openSkillInfo(key, staffId = 0) {
+    const help = SKILL_HELP[key];
+    if (!help) return;
+    const staff = staffId ? this.g.sim.staff.find((s) => s.id === staffId) : null;
+    const current = staff && Number.isFinite(Number(staff.skills?.[key]))
+      ? `<div class="hi" style="margin-top:8px">${htmlText(staff.name)}当前${help.name}：${Math.round(staff.skills[key])}</div>` : '';
+    this.showModal(`<h3>${htmlText(help.name)}</h3>
+      <div>${htmlText(help.summary)}</div>
+      <div class="card" style="margin-top:10px"><b>数值作用</b>${help.effects.map((line) => `<div style="margin-top:5px">${htmlText(line)}</div>`).join('')}</div>
+      <div class="dim" style="margin-top:8px">相关岗位：${htmlText(help.jobs)}</div>${current}
+      <div class="row" style="margin-top:12px">${this.glossaryBack(staffId)}<button data-act="closemodal">关闭</button></div>`);
+  }
+
+  openNeedInfo(key, staffId = 0) {
+    const help = NEED_HELP[key];
+    if (!help) return;
+    const staff = staffId ? this.g.sim.staff.find((s) => s.id === staffId) : null;
+    const raw = key === 'aff' ? staff?.aff : staff?.needs?.[key];
+    const current = staff && Number.isFinite(Number(raw))
+      ? `<div class="hi" style="margin-top:8px">${htmlText(staff.name)}当前${help.name}：${Math.round(raw)}</div>` : '';
+    this.showModal(`<h3>${htmlText(help.name)}</h3>
+      <div>${htmlText(help.summary)}</div>
+      <div class="card" style="margin-top:10px"><b>数值作用</b>${help.effects.map((line) => `<div style="margin-top:5px">${htmlText(line)}</div>`).join('')}</div>${current}
+      <div class="row" style="margin-top:12px">${this.glossaryBack(staffId)}<button data-act="closemodal">关闭</button></div>`);
   }
 
   openStaffTrainingPlan(id, skill) {
@@ -2571,13 +2619,13 @@ export class UI {
         <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><span class="dim">性格</span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</div>
         <div class="row"><span class="dim">岗位</span><span>${JOB_LABEL[st.job]}</span><span class="dim">负责</span><span>${room ? ROOM_LABEL[room.kind] : '全店'}</span><span class="dim">薪资</span><span class="${st.isOwner ? 'dim' : 'hi'}">${st.isOwner ? '店主不领取工资' : `日薪 ${st.wage}`}</span></div>
         <div class="row"><span class="dim">卧室</span><span>${st.isOwner ? '<span class="dim">店主守店</span>' : (() => { const br = sim.bedroomOf(st.id); return br ? `休息室 #${br.id}` : '<span class="bad">无（打地铺）</span>'; })()}</span></div>
-        <div class="row"><span class="dim">体力</span>${bar(st.needs.stamina, 100, '#8DDB4A')}<span class="dim">士气</span>${bar(st.needs.morale, 100, '#39D7D2')}</div>
-        <div class="row"><span class="dim">压力</span>${bar(st.needs.stress, 100, '#FF6B5A')}<span class="dim">饥饿</span>${bar(st.needs.hunger, 100, '#F3B84B')}</div>
+        <div class="row">${this.needTag('stamina', st.id)}${bar(st.needs.stamina, 100, '#8DDB4A')}${this.needTag('morale', st.id)}${bar(st.needs.morale, 100, '#39D7D2')}</div>
+        <div class="row">${this.needTag('stress', st.id)}${bar(st.needs.stress, 100, '#FF6B5A')}${this.needTag('hunger', st.id)}${bar(st.needs.hunger, 100, '#F3B84B')}</div>
         <div class="dim">${st.task ? '正在：' + st.task.label : st.note || '待命中'}</div>
         ${st.isOwner ? `<div class="card" style="margin-top:7px;border-left-color:#7A4BE0"><div class="row"><b>店主身份与背景</b><button data-act="ownerprofile">修改设定</button></div><div><span class="dim">身份定位：</span>${htmlText(playerProfile.role)}</div><div class="dim" style="margin-top:5px;white-space:pre-wrap">${playerProfile.background ? htmlText(playerProfile.background) : '尚未填写背景设定。'}</div></div>` : st.background ? `<div class="card" style="margin-top:7px"><b>人物背景</b>${st.background.role ? `<div><span class="dim">身份定位：</span>${htmlText(st.background.role)}</div>` : ''}<div class="dim">${htmlText(st.background.background)}</div><button data-act="viewbg" data-v="${st.id}">查看完整背景</button></div>` : aiConfigured() ? `<button data-act="aibg" data-v="${st.id}" style="margin-top:7px">AI 生成员工背景</button>` : ''}`;
     } else if (this.detailTab === 'skill') {
-      body = SKILL_KEYS.map((k) => `<div class="row"><span class="dim" style="width:52px">${SKILL_LABEL[k]}</span>${bar(st.skills[k], 100, '#F3B84B')}<span style="width:56px">${st.skills[k]}<span class="dim">+${Math.floor(st.exp[k] || 0)}</span></span></div>`).join('')
-        + `<div class="dim">干活会攒经验，熟练度越高上菜/翻台/清洁越快。好感加成：当前 +${Math.round(st.aff / 4)}% 动作速度。</div>`;
+      body = SKILL_KEYS.map((k) => `<div class="row">${this.skillTag(k, st.id)}${bar(st.skills[k], 100, '#F3B84B')}<span style="width:56px">${st.skills[k]}<span class="dim">+${Math.floor(st.exp[k] || 0)}</span></span></div>`).join('')
+        + `<div class="dim">点击词条可查看数值作用。干活会攒经验，熟练度越高上菜/翻台/清洁越快。好感加成：当前 +${Math.round(st.aff / 4)}% 动作速度。</div>`;
     } else if (this.detailTab === 'growth') {
       const trained = st.lastTrainingDay === sim.econ.day;
       body = `<div class="card"><div class="row"><b>外出进修</b><span class="${trained ? 'bad' : 'dim'}">${sim.dayActive ? '营业中不可外出' : trained ? '本次打烊已进修' : '本次打烊可选择一次'}</span></div>
@@ -2587,7 +2635,7 @@ export class UI {
         <div class="card"><b>职业技能</b><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_PERKS.map((perk) => `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${sim.dayActive || st.perks?.includes(perk.id) ? 'disabled' : ''} title="${perk.note}；要求 ${perk.need}">${st.perks?.includes(perk.id) ? '✓ ' : ''}${perk.name} · ${perk.cost} 币<br><span class="dim">${perk.note}</span></button>`).join('')}</div></div>`;
     } else {
       const rels = sim.relsOf(st.id);
-      body = `<div class="row"><span class="dim">好感度</span>${bar(st.aff, 100, lv.color)}<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>
+      body = `<div class="row">${this.needTag('aff', st.id)}${bar(st.aff, 100, lv.color)}<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>
         <div class="dim">已聊 ${st.chats} 次｜第 ${st.hireDay} 天入职｜${st.affCd > 0 ? `再等 ${Math.ceil(st.affCd)} 秒才想聊` : '现在愿意聊两句'}</div>
         <div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-top:6px"><span class="dim">性格</span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</div>
         <h3 style="margin:8px 0 2px">店内关系</h3>
@@ -3632,7 +3680,7 @@ export class UI {
           <div class="dim" style="margin-top:4px">${traits.map((id) => { const trait = TRAITS.find((item) => item.id === id); return trait ? `${trait.name}：${trait.note}` : id; }).join('　')}</div>
           <div style="margin-top:7px"><b>${employeeRecruit ? '岗位能力方向' : '店长基础能力'}</b><span class="dim"> · ${employeeRecruit ? '能力会决定工资与推荐岗位' : aiDesigned ? 'AI 角色设计不受平均 38 限制' : '手动预设平均值固定为 38'}</span></div>
           <div class="owner-skill-presets">${skillPresets.map((preset) => `<button data-skillpreset="${preset.id}" class="${!aiDesigned && ownerSkillPreset === preset.id ? 'on' : ''}"><b>${preset.name}</b><small>${preset.note}</small></button>`).join('')}</div>
-          <div class="${aiDesigned ? 'creator-ai-skills' : 'dim'}">${aiDesigned ? '<b>✦ AI 定制能力：</b>' : ''}${SKILL_KEYS.map((key) => `${SKILL_LABEL[key]} ${displayedSkills[key]}`).join(' · ')}</div>`}
+          <div class="${aiDesigned ? 'creator-ai-skills' : 'dim'}">${aiDesigned ? '<b>✦ AI 定制能力：</b>' : ''}${SKILL_KEYS.map((key) => `${this.skillTag(key)} ${displayedSkills[key]}`).join(' · ')}</div>`}
           <div class="creator-summary">${RACE_NAMES[app.race]} · ${dressOnly ? '' : `${age}岁 · ${traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name).join(' / ')} · `}${HT_NAMES[app.ht]}${BD_NAMES[app.bd]}<br><span class="dim">已锁定 ${locks.size} 项，随机外观时会保留</span></div>
           <div class="creator-actions"><button data-rand="1">随机外观</button>${THEMES.map((th) => `<button data-theme="${th.id}">${th.name}</button>`).join('')}</div>
         </section>
