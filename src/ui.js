@@ -2704,11 +2704,13 @@ export class UI {
       body = `<div class="row">${this.needTag('aff', st.id)}${bar(st.aff, 100, lv.color)}<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>
         <div class="dim">已聊 ${st.chats} 次｜第 ${st.hireDay} 天入职｜${st.affCd > 0 ? `再等 ${Math.ceil(st.affCd)} 秒才想聊` : '现在愿意聊两句'}</div>
         <div class="row" style="justify-content:flex-start;flex-wrap:wrap;margin-top:6px"><span class="dim">性格</span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</div>
+        ${!st.isOwner && sim.ownerAffCap(st) <= 40 ? '<div class="dim">与店长相性不合，对店长好感上限 40。</div>' : ''}
         <h3 style="margin:8px 0 2px">店内关系</h3>
         ${rels.length ? rels.map((r) => {
           const chem = sim.chemistry(st, r.mate);
           const tag = chem >= 3 ? '<span class="hi">·莫逆</span>' : chem >= 1 ? '<span class="dim">·合拍</span>' : chem <= -3 ? '<span class="bad">·犯冲</span>' : chem <= -1 ? '<span class="bad">·不合</span>' : '';
-          return `<div class="row"><span style="flex:1">${r.mate.name}<span class="dim">（${JOB_LABEL[r.mate.job]}）</span>${tag}</span><span class="${r.v >= 25 ? 'hi' : r.v <= -25 ? 'bad' : 'dim'}">${sim.relLabel(r.v)} ${Math.round(r.v)}</span></div>`;
+          const capNote = chem < 0 ? '<span class="dim"> ·上限40</span>' : '';
+          return `<div class="row"><span style="flex:1">${r.mate.name}<span class="dim">（${JOB_LABEL[r.mate.job]}）</span>${tag}</span><span class="${r.v >= 25 ? 'hi' : r.v <= -25 ? 'bad' : 'dim'}">${sim.relLabel(r.v)} ${Math.round(r.v)}${capNote}</span></div>`;
         }).join('') : ''}
         ${st.chatLog.length ? `<h3 style="margin:8px 0 2px">互动记录</h3>${st.chatLog.map((l) => `<div class="dim">· ${l}</div>`).join('')}` : ''}`;
     }

@@ -1307,7 +1307,7 @@ export class Sim {
     }
     const line = String(customLine || '').trim().slice(0, 180) || pools[lv][this.rng.int(pools[lv].length)];
     const gain = Math.max(0.8, 4.2 * (1 - s.aff / 115));
-    s.aff = clamp(s.aff + gain, 0, 100);
+    s.aff = clamp(s.aff + gain, 0, this.ownerAffCap(s));
     s.needs.morale = clamp(s.needs.morale + 6, 0, 100);
     s.needs.stress = clamp(s.needs.stress - 5, 0, 100);
     s.affCd = 40;
@@ -1379,8 +1379,30 @@ export class Sim {
   }
           relKey(a        , b        )         { return a < b ? `${a}-${b}` : `${b}-${a}`; }
   relOf(a        , b        )         { return this.rels[this.relKey(a, b)] || 0; }
+
+  /** 相性不合（性格犯冲）时，对店长或同事的好感上限为 40。 */
+  ownerAffCap(staff) {
+    const owner = this.staff.find((person) => person.isOwner);
+    if (!staff || staff.isOwner || !owner) return 100;
+    return this.chemistry(staff, owner) < 0 ? 40 : 100;
+  }
+
+  pairRelCap(a, b) {
+    if (!a || !b) return 70;
+    return this.chemistry(a, b) < 0 ? 40 : 70;
+  }
+
+  adjustOwnerAff(staff, delta) {
+    if (!staff || staff.isOwner) return staff?.aff || 0;
+    staff.aff = clamp((Number(staff.aff) || 0) + Number(delta || 0), 0, this.ownerAffCap(staff));
+    return staff.aff;
+  }
+
   addRel(a        , b        , d        )         {
-    const v = clamp(this.relOf(a, b) + d, -100, 70);   // 同事关系上限 70（挚友）
+    const left = this.staff.find((person) => person.id === a);
+    const right = this.staff.find((person) => person.id === b);
+    const cap = this.pairRelCap(left, right);
+    const v = clamp(this.relOf(a, b) + d, -100, cap);
     this.rels[this.relKey(a, b)] = v;
     return v;
   }
@@ -1773,13 +1795,20 @@ export class Sim {
       const fair = s.isOwner ? 0 : s.wage >= fairWageRange(s).min ? 6 : -7;
       s.needs.morale = clamp(s.needs.morale + fair - s.needs.stress * 0.08, 0, 100);
       if (!s.isOwner) {
-        // 日结好感：士气高就更亲近，长期压榨会掉
-        s.aff = clamp(s.aff + (s.needs.morale >= 65 ? 1.6 : s.needs.morale < 30 ? -2.4 : 0.4), 0, 100);
+        this.adjustOwnerAff(s, 5);
       }
       if (s.needs.morale < 18 && !s.isOwner && this.rng.chance(0.35 * (1 - s.aff / 130))) {
         this.toast(`${s.name}士气过低，提出辞职`);
         this.staff = this.staff.filter((x) => x.id !== s.id);
         for (const r of this.tavern.rooms) if (r.occupant === s.id) r.occupant = undefined;   // 腾出卧室
+      }
+    }
+    const coworkers = this.staff.filter((person) => !person.isOwner);
+    for (let i = 0; i < coworkers.length; i++) {
+      for (let j = i + 1; j < coworkers.length; j++) {
+        const cap = this.pairRelCap(coworkers[i], coworkers[j]);
+        const key = this.relKey(coworkers[i].id, coworkers[j].id);
+        if ((this.rels[key] || 0) > cap) this.rels[key] = cap;
       }
     }
     for (const r of this.tavern.rooms) r.maint = clamp(r.maint - 2, 30, 100);
@@ -2887,7 +2916,7 @@ export class Sim {
       return line;
     }
     const gain = Math.max(1.2, 5.4 * (1 - s.aff / 115));
-    s.aff = clamp(s.aff + gain, 0, 100);
+    s.aff = clamp(s.aff + gain, 0, this.ownerAffCap(s));
     s.needs.morale = clamp(s.needs.morale + 9, 0, 100);
     s.needs.stress = clamp(s.needs.stress - 8, 0, 100);
     s.boostT = Math.max(s.boostT || 0, 14);
@@ -3009,7 +3038,7 @@ export class Sim {
       secret: `${s.name}犹豫许久，终于告诉你一段从未写进入职档案的往事。你答应替其保守秘密。`,
     };
     const line = lines[kind];
-    s.aff = clamp(s.aff + (kind === 'care' ? 2.4 : 1.6), 0, 100);
+    s.aff = clamp(s.aff + (kind === 'care' ? 2.4 : 1.6), 0, this.ownerAffCap(s));
     s.needs.stress = clamp(s.needs.stress - (kind === 'care' ? 10 : 5), 0, 100);
     s.needs.morale = clamp(s.needs.morale + (kind === 'dreams' ? 9 : 5), 0, 100);
     if (kind === 'secret' && !s.background) s.background = `${s.name}曾在故乡卷入一场改变人生的事件，因此离开熟悉的世界，在多元便携旅店寻找重新开始的机会。`;
