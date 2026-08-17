@@ -200,7 +200,7 @@ h3 .dim{font-weight:normal}
 #left::-webkit-scrollbar-thumb:hover,#right::-webkit-scrollbar-thumb:hover,.mbox::-webkit-scrollbar-thumb:hover{background:#C97F2B}
 #left::-webkit-scrollbar-track,#right::-webkit-scrollbar-track,.mbox::-webkit-scrollbar-track{background:rgba(201,161,118,.18);border-radius:4px}
 canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A176;border-radius:8px}
-.toasts{position:absolute;left:50%;transform:translateX(-50%);top:44px;text-align:center}
+.toasts{position:absolute;left:50%;transform:translateX(-50%);top:44px;text-align:center;z-index:25;pointer-events:none}
 .toast{background:#F7E9CDEE;border:2px solid #B0895E;border-radius:12px;padding:3px 12px;margin-bottom:4px;display:inline-block;color:#6B4429;box-shadow:0 2px 6px rgba(90,64,51,.25), inset 0 1px 0 rgba(255,255,255,.5);animation:uiToastIn 200ms ease-out}
 #chatter{position:absolute;left:50%;transform:translateX(-50%);bottom:96px;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:3px;max-width:72vw}
 #chatter div{background:#F7E9CDD9;border:2px solid #B0895E;border-radius:12px;padding:2px 12px;color:#6B4429;font-size:13px;box-shadow:0 2px 6px rgba(90,64,51,.18)}
@@ -825,8 +825,18 @@ export class UI {
     else if (act === 'dutyprio') g.setDutyPriority(parseInt(t.dataset.id, 10), t.dataset.s, parseInt(v, 10));
     else if (act === 'stafftrain') this.openStaffTrainingPlan(parseInt(t.dataset.id, 10), v);
     else if (act === 'trainingchoice') this.runStaffTraining(parseInt(t.dataset.id, 10), t.dataset.s, v);
-    else if (act === 'staffequip') g.buyStaffEquipment(parseInt(t.dataset.id, 10), v);
-    else if (act === 'staffperk') g.learnStaffPerk(parseInt(t.dataset.id, 10), v);
+    else if (act === 'staffequip') {
+      const id = parseInt(t.dataset.id, 10);
+      g.buyStaffEquipment(id, v);
+      this.detailTab = 'growth';
+      this.openStaffDetail(id);
+    }
+    else if (act === 'staffperk') {
+      const id = parseInt(t.dataset.id, 10);
+      g.learnStaffPerk(id, v);
+      this.detailTab = 'growth';
+      this.openStaffDetail(id);
+    }
     else if (act === 'wage') g.setWage(parseInt(t.dataset.id          , 10), parseInt(v, 10));
     else if (act === 'sroom') g.setStaffRoom(parseInt(t.dataset.id          , 10), v === 'null' ? null : parseInt(v, 10));
     else if (act === 'roommode') g.setStaffRoomMode(parseInt(t.dataset.id, 10), v);
@@ -2637,8 +2647,18 @@ export class UI {
       body = `<div class="card"><div class="row"><b>外出进修</b><span class="${trained ? 'bad' : 'dim'}">${sim.dayActive ? '营业中不可外出' : trained ? '本次打烊已进修' : '本次打烊可选择一次'}</span></div>
         <div class="dim">同一名员工每次打烊期间只能选择一门课程；将根据员工性格和已接通世界生成研修事件。三条路线的成长分配不同，但总成长量相同。</div>
         <div class="row" style="flex-wrap:wrap;margin-top:7px">${SKILL_KEYS.map((skill) => { const cost = Math.round(90 + st.skills[skill] * 2.2); return `<button data-act="stafftrain" data-id="${st.id}" data-v="${skill}" ${sim.dayActive || trained || st.skills[skill] >= 100 ? 'disabled' : ''} title="${TRAINING_PROGRAMS[skill]}：能力 +3">${TRAINING_PROGRAMS[skill]}<br><span class="dim">${SKILL_LABEL[skill]} ${st.skills[skill]} → ${Math.min(100, st.skills[skill] + 3)} · ${cost} 币</span></button>`; }).join('')}</div></div>
-        <div class="card"><b>个人装备</b><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_EQUIPMENT.map((item) => `<button data-act="staffequip" data-id="${st.id}" data-v="${item.id}" ${sim.dayActive || st.equipment?.includes(item.id) ? 'disabled' : ''} title="${SKILL_LABEL[item.skill]} +${item.bonus}">${st.equipment?.includes(item.id) ? '✓ ' : ''}${item.name} · ${item.cost} 币<br><span class="dim">${SKILL_LABEL[item.skill]} +${item.bonus}</span></button>`).join('')}</div></div>
-        <div class="card"><b>职业技能</b><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_PERKS.map((perk) => `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${sim.dayActive || st.perks?.includes(perk.id) ? 'disabled' : ''} title="${perk.note}；要求 ${perk.need}">${st.perks?.includes(perk.id) ? '✓ ' : ''}${perk.name} · ${perk.cost} 币<br><span class="dim">${perk.note}</span></button>`).join('')}</div></div>`;
+        <div class="card"><b>个人装备</b><div class="dim" style="margin-top:4px">打烊后购买，会立即扣除界币并提升对应能力。先点一次确认，再点一次才会扣费。</div><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_EQUIPMENT.map((item) => {
+          const owned = st.equipment?.includes(item.id);
+          const blocked = sim.dayActive ? '营业中不能购买' : owned ? '已装备' : `${SKILL_LABEL[item.skill]} +${item.bonus}`;
+          return `<button data-act="staffequip" data-id="${st.id}" data-v="${item.id}" ${sim.dayActive || owned ? 'disabled' : ''} title="${blocked}">${owned ? '✓ 已装备 · ' : ''}${item.name} · ${item.cost} 币<br><span class="dim">${owned ? `${SKILL_LABEL[item.skill]} 已 +${item.bonus}` : `${SKILL_LABEL[item.skill]} +${item.bonus}`}</span></button>`;
+        }).join('')}</div></div>
+        <div class="card"><b>职业技能</b><div class="dim" style="margin-top:4px">打烊后学习；能力未达标或界币不足时不会扣费。先点一次确认，再点一次才会扣费。</div><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_PERKS.map((perk) => {
+          const owned = st.perks?.includes(perk.id);
+          const related = perk.id === 'artisan' ? Math.max(st.skills.cook, st.skills.mix) : st.skills[perk.skill];
+          const ready = related >= perk.need;
+          const blocked = sim.dayActive ? '营业中不能学习' : owned ? '已学会' : !ready ? `需要${SKILL_LABEL[perk.skill]} ${perk.need}（当前 ${related}）` : perk.note;
+          return `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${sim.dayActive || owned || !ready ? 'disabled' : ''} title="${blocked}">${owned ? '✓ 已学会 · ' : ''}${perk.name} · ${perk.cost} 币<br><span class="dim">${owned ? perk.note : !ready ? `需要${SKILL_LABEL[perk.skill]} ${perk.need}` : perk.note}</span></button>`;
+        }).join('')}</div></div>`;
     } else {
       const rels = sim.relsOf(st.id);
       body = `<div class="row">${this.needTag('aff', st.id)}${bar(st.aff, 100, lv.color)}<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>

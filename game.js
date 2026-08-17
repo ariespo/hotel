@@ -1766,8 +1766,20 @@ class Game                    {
     this.save(); this.ui.render(true);
   }
   trainStaff(id, skill, choiceId = 'focus') { const ok = this.sim.trainStaff(id, skill, choiceId); if (ok) { this.save(); this.ui.render(true); } return ok; }
-  buyStaffEquipment(id, equipmentId) { if (this.sim.buyStaffEquipment(id, equipmentId)) { this.save(); this.ui.render(true); } }
-  learnStaffPerk(id, perkId) { if (this.sim.learnStaffPerk(id, perkId)) { this.save(); this.ui.render(true); } }
+  buyStaffEquipment(id, equipmentId) {
+    const ok = this.sim.buyStaffEquipment(id, equipmentId);
+    if (ok) { this.audio.play('coin', 0.75); this.save(); this.ui.render(true); }
+    else this.audio.play('error', 0.45);
+    this.ui.renderToasts();
+    return ok;
+  }
+  learnStaffPerk(id, perkId) {
+    const ok = this.sim.learnStaffPerk(id, perkId);
+    if (ok) { this.audio.play('chime', 0.75); this.save(); this.ui.render(true); }
+    else this.audio.play('error', 0.45);
+    this.ui.renderToasts();
+    return ok;
+  }
   setWage(id        , w        )       {
     const s = this.sim.staff.find((x) => x.id === id);
     if (s && !s.isOwner) { s.wage = Math.max(5, w); this.save(); }
