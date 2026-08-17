@@ -400,6 +400,13 @@ export function difficultyMods(econ) {
   return DIFFICULTY[econ?.difficulty] || DIFFICULTY.normal;
 }
 
+/** 1星 500，2星 800，3星 1200，之后每次递增再多 100。 */
+export function certificationBonus(level) {
+  const n = Math.max(0, Math.round(Number(level) || 0));
+  if (n < 1) return 0;
+  return 50 * (n * n + 3 * n + 6);
+}
+
 export function normalizeGuestSettings(econ) {
   if (!econ || typeof econ !== 'object') return econ;
   const cap = Number(econ.guestCap);
@@ -1792,6 +1799,15 @@ export class Sim {
     stat.certification = this.evaluateCertification(stat);
     if (stat.certification.achieved) {
       this.econ.certifiedStars = stat.certification.level;
+      const bonus = certificationBonus(stat.certification.level);
+      this.econ.coins += bonus;
+      stat.certificationBonus = bonus;
+      stat.coinsAfter = this.econ.coins;
+      if (stat.report?.finance) {
+        stat.report.finance.certificationBonus = bonus;
+        stat.report.finance.coinsAfter = this.econ.coins;
+      }
+      this.toast(`★${stat.certification.level} 星经营认证通过！评议会奖金 +${bonus}`);
       fiveStarReached = !this.endingSeen && this.stars() >= 5;
       if (fiveStarReached) this.endingSeen = true;
       stat.fiveStarReached = fiveStarReached;

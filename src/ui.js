@@ -321,6 +321,27 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .creator-footer [data-act="closemodal"]{width:100%;margin-top:6px}
 @media (max-width:1899px){.top-actions-secondary{display:none}.top-overflow{display:inline-flex}}
 @media (max-width:1040px) and (orientation:landscape){#ui.compact.manual-owner #owner-stick{left:max(96px,calc(env(safe-area-inset-left) + 88px))}#ui.compact.manual-owner.left-open #owner-stick{left:auto;right:max(14px,env(safe-area-inset-right))}}
+#star-cele{position:fixed;inset:0;z-index:40;display:none;pointer-events:auto;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,#3a2414cc 0%,#120904e6 72%);overflow:hidden;cursor:pointer}
+#star-cele.on{display:flex}
+#star-cele .cele-bits{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+#star-cele .cele-bit{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;animation:celeFall 1.8s linear forwards}
+#star-cele .cele-coin{position:absolute;top:-18px;width:16px;height:16px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3b0,#e2b13a 55%,#9a6b12);box-shadow:0 0 0 2px #7a5208,0 2px 0 #5a3a08;color:#7a4e10;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;animation:celeFall 2s linear forwards}
+#star-cele .cele-plaque{position:relative;z-index:1;width:min(440px,92vw);padding:22px 22px 18px;text-align:center;border:4px solid #d4b06a;border-radius:8px;background:linear-gradient(#fff8e4,#f0d7a4 55%,#e2bf7a);box-shadow:0 10px 0 #6b4218,0 18px 40px #0008,inset 0 2px #fff8;transform:scale(.7) translateY(18px);opacity:0}
+#star-cele.ready .cele-plaque{animation:celeSlam .45s cubic-bezier(.2,1.4,.3,1) forwards}
+#star-cele .cele-ribbon{display:inline-block;margin-bottom:8px;padding:3px 16px;background:#a54339;color:#fff6dc;border-radius:999px;font-size:13px;letter-spacing:.12em;box-shadow:0 2px 0 #5b1c16}
+#star-cele .cele-title{margin:0;font-size:28px;color:#8a3d14;text-shadow:0 2px 0 #fff4c8}
+#star-cele .cele-stars{display:flex;justify-content:center;gap:8px;margin:12px 0 8px;min-height:42px}
+#star-cele .cele-star{font-size:34px;line-height:1;color:#d8a21a;text-shadow:0 2px 0 #7a5208,0 0 12px #ffd76a;opacity:0;transform:scale(.2)}
+#star-cele.ready .cele-star{animation:celePop .4s cubic-bezier(.2,1.6,.3,1) forwards}
+#star-cele .cele-prize{font-size:22px;color:#865c23;min-height:28px}
+#star-cele .cele-prize b{color:#b45f10;font-size:26px}
+#star-cele .cele-hint{margin-top:10px;font-size:12px;color:#87684e}
+#star-cele .cele-stamp{position:absolute;right:16px;top:16px;width:64px;height:64px;border:4px solid #c23b32;border-radius:50%;color:#c23b32;font-weight:800;display:flex;align-items:center;justify-content:center;transform:rotate(-18deg) scale(1.6);opacity:0}
+#star-cele.ready .cele-stamp{animation:celeStamp .35s .55s cubic-bezier(.2,1.5,.3,1) forwards}
+@keyframes celeSlam{to{opacity:1;transform:none}}
+@keyframes celePop{to{opacity:1;transform:scale(1)}}
+@keyframes celeStamp{to{opacity:1;transform:rotate(-18deg) scale(1)}}
+@keyframes celeFall{to{transform:translateY(110vh) rotate(220deg);opacity:.15}}
 @media(max-width:650px){.creator-footer{margin:10px -10px -10px;padding:10px}}
 `;
 
@@ -518,7 +539,10 @@ export class UI {
     this.scrim = el('<div id="scrim"></div>');
     this.tutorialLayer = el('<div id="tutorial-layer"></div>');
     this.ownerStick = el('<div id="owner-stick" role="group" aria-label="店主移动摇杆"><div class="owner-stick-knob" aria-hidden="true"></div></div>');
-    this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim, this.ownerStick, this.tutorialLayer);
+    this.starCele = el('<div id="star-cele" hidden></div>');
+    this.starCeleStat = null;
+    this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim, this.ownerStick, this.tutorialLayer, this.starCele);
+    this.starCele.addEventListener('click', () => this.finishStarCelebration());
     this.bindOwnerStick();
     this.scrim.addEventListener('click', () => { this.collapsed.left = this.collapsed.right = true; this.render(true); });
     // 小屏/竖屏：抽屉式侧栏，进入时双栏折起、视野适配整店
@@ -1002,6 +1026,7 @@ export class UI {
     else if (act === 'mobilemanual') g.setManualOwner(!g.sim.manualOwner);
     else if (act === 'overflow-toggle') { this.topOverflowOpen = !this.topOverflowOpen; }
     else if (act === 'confirmnew') this.openConfirmRestart();
+    else if (act === 'starcele') this.finishStarCelebration();
     if (fromOverflow && act !== 'overflow-toggle') this.topOverflowOpen = false;
     this.handleTutorialAction(act, v);
     this.render(true);
@@ -3472,6 +3497,52 @@ export class UI {
           <button data-act="newgame">新开一家酒馆</button></div>`);
       return;
     }
+    if (stat.certification?.achieved && stat.certificationBonus) {
+      this.playStarCelebration(stat);
+      return;
+    }
+    this.continueSettlement(stat);
+  }
+
+  playStarCelebration(stat) {
+    const level = Math.max(1, Math.min(5, Number(stat.certification?.level) || 1));
+    const bonus = Math.round(Number(stat.certificationBonus) || 0);
+    const bits = Array.from({ length: 18 }, (_, i) => {
+      const colors = ['#e25b4a', '#f3b84b', '#7fb069', '#39d7d2', '#c97f2b'];
+      return `<span class="cele-bit" style="left:${6 + i * 5.2}%;background:${colors[i % colors.length]};animation-delay:${(i % 9) * 0.08}s;animation-duration:${1.5 + (i % 5) * 0.12}s"></span>`;
+    }).join('');
+    const coins = Array.from({ length: 10 }, (_, i) => `<span class="cele-coin" style="left:${10 + i * 8}%;animation-delay:${0.2 + i * 0.07}s">币</span>`).join('');
+    const stars = Array.from({ length: level }, (_, i) => `<span class="cele-star" style="animation-delay:${0.28 + i * 0.12}s">★</span>`).join('');
+    this.starCeleStat = stat;
+    this.starCele.hidden = false;
+    this.starCele.className = 'on';
+    this.starCele.innerHTML = `<div class="cele-bits">${bits}${coins}</div>
+      <div class="cele-plaque">
+        <div class="cele-stamp">通过</div>
+        <div class="cele-ribbon">位面评议会</div>
+        <h2 class="cele-title">经营认证通过</h2>
+        <div class="cele-stars">${stars}</div>
+        <div class="cele-prize">评议会奖金 <b>+${bonus}</b> 界币</div>
+        <div class="cele-hint">点击继续查看日结</div>
+      </div>`;
+    const reduced = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.setTimeout(() => this.starCele.classList.add('ready'), reduced ? 0 : 40);
+    this.g.audio?.play?.('upgrade', 0.9);
+    this.g.audio?.play?.('happy', 0.85);
+    window.setTimeout(() => this.g.audio?.play?.('coin', 0.8), reduced ? 0 : 620);
+  }
+
+  finishStarCelebration() {
+    if (!this.starCele.classList.contains('on')) return;
+    const stat = this.starCeleStat;
+    this.starCeleStat = null;
+    this.starCele.className = '';
+    this.starCele.hidden = true;
+    this.starCele.innerHTML = '';
+    if (stat) this.continueSettlement(stat);
+  }
+
+  continueSettlement(stat) {
     this.settlementAIStat = stat;
     if (aiConfigured()) {
       this.renderSettlement(stat, { loading: true });
@@ -3538,7 +3609,7 @@ export class UI {
     }).join('');
     const connections = (stat.newWorldConnections || []).map((id) => s.worldById(id));
     const cert = stat.certification;
-    const certPanel = cert?.requirements?.length ? `<div class="card" style="margin-top:10px;border-left-color:${cert.achieved ? '#65A85B' : '#D3A23A'}"><h3>${cert.achieved ? `★ ${cert.level} 星经营认证通过` : `★ ${cert.level} 星认证待完成`}</h3>
+    const certPanel = cert?.requirements?.length ? `<div class="card" style="margin-top:10px;border-left-color:${cert.achieved ? '#65A85B' : '#D3A23A'}"><h3>${cert.achieved ? `★ ${cert.level} 星经营认证通过${stat.certificationBonus ? ` · 奖金 +${stat.certificationBonus}` : ''}` : `★ ${cert.level} 星认证待完成`}</h3>
       ${cert.requirements.map((row) => `<div class="row"><span>${row.met ? '✓' : '○'} ${htmlText(row.label)}</span><span class="${row.met ? 'good' : 'bad'}">${htmlText(String(row.current))} / ${htmlText(String(row.target))}</span></div>`).join('')}
       <div class="dim">声望可继续累计，但不会绕过未完成的经营条件。</div></div>` : '';
     const story = state.story;
@@ -3553,6 +3624,7 @@ export class UI {
       <div class="row"><span>工资</span><span class="bad">-${stat.wages}</span></div>
       <div class="row"><span>房间与家具维护</span><span class="bad">-${stat.maintenance}</span></div>
       <div class="row"><span>补货</span><span class="bad">-${stat.restock}</span></div>
+      ${stat.certificationBonus ? `<div class="row"><span>★${stat.certification.level} 星认证奖金</span><span class="good">+${stat.certificationBonus}</span></div>` : ''}
       <div class="row"><b>净收益</b><b class="${net >= 0 ? 'good' : 'bad'}">${net >= 0 ? '+' : ''}${net}</b></div>
       <div class="row"><span>接待 ${stat.served} 位客人 · 流失 ${stat.lost} 组</span><span>平均评价 ${stat.avgScore.toFixed(2)}★</span></div>
       ${scoreRows}
