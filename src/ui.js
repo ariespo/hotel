@@ -692,9 +692,8 @@ export class UI {
   }
 
   renderRails()       {
-    const notices = this.noticeState || {};
     const btn = (side        , tab        , icon        , name        ) =>
-      `<button data-act="rail" data-s="${side}" data-v="${tab}" title="${name}" aria-label="打开${name}面板">${uiIcon(icon)}${noticeDot(!!notices[tab], `${name}有新内容或待处理事项`)}</button>`;
+      `<button data-act="rail" data-s="${side}" data-v="${tab}" title="${name}" aria-label="打开${name}面板">${uiIcon(icon)}</button>`;
     this.railL.innerHTML = btn('left', 'room', 'room', '房间') + btn('left', 'furn', 'furn', '家具') + btn('left', 'menu', 'menu', '菜单') + btn('left', 'econ', 'econ', '经营');
     this.railR.innerHTML = btn('right', 'staff', 'staff', '员工') + btn('right', 'guest', 'guest', '客人') + btn('right', 'world', 'world', '万界') + btn('right', 'task', 'task', '工作') + btn('right', 'log', 'log', '日志');
   }
@@ -1147,7 +1146,6 @@ export class UI {
   render(force         )       {
     if (!force && (this.interactionLock || this.purchaseConfirm)) return;
     this.root.classList.toggle('manual-owner', this.compact && this.g.sim.manualOwner);
-    this.noticeState = navNoticeState(this.g.sim);
     this.renderRails();
     this.renderTop();
     this.renderLeft();
@@ -1268,7 +1266,7 @@ export class UI {
            <div class="row">${['off', 'clean', 'traffic'].map((h) => `<button data-act="heat" data-v="${h}" class="${g.heat === h ? 'on' : ''}">${h === 'off' ? '关闭' : h === 'clean' ? '卫生' : '拥堵'}</button>`).join('')}</div>`;
     }
     this.setPanelHTML(this.left, `<div class="tabs">
-      ${[['room', '房间', 'room'], ['furn', '家具', 'furn'], ['menu', '菜单', 'menu'], ['econ', '经营', 'econ']].map(([k, n, icon]) => `<button data-act="ltab" data-v="${k}" class="${this.leftTab === k ? 'on' : ''}">${uiIcon(icon)}${n}${noticeDot(!!this.noticeState[k], `${n}有待处理事项`)}</button>`).join('')}<button class="fold" data-act="collapse" data-v="left" title="收起左栏" aria-label="收起左侧面板"><span class="panel-collapse-mark left"></span></button>
+      ${[['room', '房间', 'room'], ['furn', '家具', 'furn'], ['menu', '菜单', 'menu'], ['econ', '经营', 'econ']].map(([k, n, icon]) => `<button data-act="ltab" data-v="${k}" class="${this.leftTab === k ? 'on' : ''}">${uiIcon(icon)}${n}</button>`).join('')}<button class="fold" data-act="collapse" data-v="left" title="收起左栏" aria-label="收起左侧面板"><span class="panel-collapse-mark left"></span></button>
       </div>${body}
       ${g.buildBp || g.buildFurn ? `<div class="row" style="margin-top:6px"><button data-act="rotate">R 旋转</button><button data-act="cancelbuild" class="warn">取消</button></div>` : ''}`);
   }
@@ -1533,7 +1531,7 @@ export class UI {
       body = s.log.length ? s.log.slice(0, 24).map((l) => `<div class="dim">· ${l}</div>`).join('') : '<div class="dim">暂无记录。</div>';
     }
     this.setPanelHTML(this.right, `<div class="tabs">
-      ${[['staff', '员工', 'staff'], ['guest', '客人', 'guest'], ['world', '万界', 'world'], ['task', '工作', 'task'], ['log', '日志', 'log']].map(([k, n, icon]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}">${uiIcon(icon)}${n}${noticeDot(!!this.noticeState[k], `${n}有新内容或待处理事项`)}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏" aria-label="收起右侧面板"><span class="panel-collapse-mark right"></span></button>
+      ${[['staff', '员工', 'staff'], ['guest', '客人', 'guest'], ['world', '万界', 'world'], ['task', '工作', 'task'], ['log', '日志', 'log']].map(([k, n, icon]) => `<button data-act="rtab" data-v="${k}" class="${this.rightTab === k ? 'on' : ''}">${uiIcon(icon)}${n}</button>`).join('')}<button class="fold" data-act="collapse" data-v="right" title="收起右栏" aria-label="收起右侧面板"><span class="panel-collapse-mark right"></span></button>
       </div>${body}`);
   }
 
