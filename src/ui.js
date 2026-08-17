@@ -3642,7 +3642,7 @@ export class UI {
             <label><span class="dim">背景经历</span><textarea id="crbackground" maxlength="2400" placeholder="${employeeRecruit ? '写下员工的出身、经历、求职动机和待人方式……' : '写下店主的出身、经历、经营动机和待人方式……'}">${htmlText(ownerBackground)}</textarea></label>
           </div>
           ${aiConfigured() ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ ${employeeRecruit ? 'AI 设计员工' : 'AI 完整角色设计'}</b><span class="hi">生成完整外貌、经历与能力</span></div>
-            <div class="dim">输入一个大概概念，AI 会重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力。${employeeRecruit ? '员工仍会按能力计算正常工资与入职费。' : '不会给予跳过经营规则的权限。'}</div>
+            <div class="dim">只根据这段文字每次从零重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力，不会把页面上已填的其他字段发给 AI。${employeeRecruit ? '员工仍会按能力计算正常工资与入职费。' : '不会给予跳过经营规则的权限。'}</div>
             <textarea id="craidraft" maxlength="1200" placeholder="${employeeRecruit ? '例如：从浮空港辞职的猫族调酒师，嘴硬心软，手很稳但特别怕打扫……' : '例如：沉默寡言的机械体前旅行厨师，背着旧武士刀，看起来冷淡但很会照顾人……'}">${htmlText(aiDraft)}</textarea>
             <div class="row"><span class="dim">${aiDesignNote ? htmlText(aiDesignNote) : '描述越具体，生成的人设和长短板越鲜明。'}</span><span>${aiGenerating ? '<button data-aicancelowner>取消生成</button>' : `<button data-aiowner>让 AI 设计${employeeRecruit ? '员工' : '整个角色'}</button>`}</span></div>
             ${aiGenerating ? '<div class="creator-ai-status hi">AI 正在组合人物经历、外貌与能力，请稍候…</div>' : aiError ? `<div class="creator-ai-status bad">${htmlText(aiError)}</div>` : ''}
@@ -3712,14 +3712,11 @@ export class UI {
         try {
           const result = await requestGameAI(employeeRecruit ? 'employee_creator' : 'owner_creator', {
             concept: aiDraft,
-            currentDraft: {
-              name, sex, age, traitIds: traits, appearance: app, role: ownerRole, background: ownerBackground,
-              skills: aiDesigned && aiSkills ? aiSkills : (skillPresets.find((preset) => preset.id === ownerSkillPreset) || skillPresets[0]).skills,
-            },
             catalogs: ownerCreatorCatalogs(AGE_MAX),
             constraints: employeeRecruit
               ? { characterRole: '受店主雇用并领取正常工资的旅店员工', aiSkillRange: [1, 100], normalHiringRulesApply: true }
               : { playerRole: '多元便携旅店的店主、所有者与经营者', manualPresetAverage: 38, aiSkillRange: [1, 100], aiMayExceedManualAverage: true },
+            requestNonce: `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`,
           }, { signal: controller.signal });
           if (this.modal !== m) return;
           app = cloneApp(result.appearance);
