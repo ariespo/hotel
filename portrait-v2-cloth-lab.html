@@ -27,7 +27,7 @@
     .panel h2{margin:0 0 14px;font-size:18px}
     .field{display:grid;grid-template-columns:70px 1fr 76px;gap:10px;align-items:center;margin:13px 0}
     .field input[type=range]{width:100%;padding:0}
-    .field input[type=number]{width:76px}
+    .field input[type=number]{width:76px;padding:0 6px}
     .nudge{display:grid;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,38px);justify-content:center;gap:6px;margin:17px 0}
     .nudge button{padding:0;font-size:18px}
     .nudge [data-dx="-1"]{grid-column:1;grid-row:2}
@@ -51,7 +51,7 @@
 <body>
   <header>
     <h1>立绘 V2 · 服装母版实验室</h1>
-    <p>用哥特裙作为第一套服装层，叠在正式脸型下面。画布固定 <b>384 × 512</b>。调好缩放和相对脸部的位置后导出，之后所有服装都按这个母版来画。</p>
+    <p>用立领蓝袍作为第一套服装母版（保留脖子开孔），叠在正式脸型下面。画布固定 <b>384 × 512</b>。位移 ±400，缩放 0–300（以 100 为基准可调 ±200）。调好后导出，之后所有服装都按这个母版来画。</p>
     <p class="warn">合成顺序：服装 → 脸 → 眼睛 →（可选）头发/耳朵。本页只做母版定位，不改运行时立绘。</p>
     <div class="controls">
       <label>脸型<select id="face"></select></label>
@@ -66,9 +66,9 @@
       <div class="panel">
         <h2>服装定位</h2>
         <label>当前服装<select id="cloth"></select></label>
-        <div class="field"><span>左右 X</span><input id="xRange" type="range" min="-96" max="96" step="1"><input id="xNumber" type="number" min="-96" max="96" step="1"></div>
-        <div class="field"><span>上下 Y</span><input id="yRange" type="range" min="-96" max="96" step="1"><input id="yNumber" type="number" min="-96" max="96" step="1"></div>
-        <div class="field"><span>整体缩放</span><input id="scaleRange" type="range" min="50" max="150" step="1"><input id="scaleNumber" type="number" min="50" max="150" step="1"></div>
+        <div class="field"><span>左右 X</span><input id="xRange" type="range" min="-400" max="400" step="1"><input id="xNumber" type="number" min="-400" max="400" step="1"></div>
+        <div class="field"><span>上下 Y</span><input id="yRange" type="range" min="-400" max="400" step="1"><input id="yNumber" type="number" min="-400" max="400" step="1"></div>
+        <div class="field"><span>整体缩放</span><input id="scaleRange" type="range" min="0" max="300" step="1"><input id="scaleNumber" type="number" min="0" max="300" step="1"></div>
         <div class="nudge" aria-label="逐像素移动">
           <button type="button" data-dy="-1" aria-label="上移一像素">↑</button>
           <button type="button" data-dx="-1" aria-label="左移一像素">←</button>
@@ -91,10 +91,10 @@
     const FACES = [['round', '圆脸'], ['oval', '鹅蛋脸'], ['square', '方脸'], ['sharp', '尖脸'], ['chubby', '圆润脸'], ['cat', '猫系脸']];
     const EYES = [['round', '圆瞳'], ['almond', '杏眼'], ['sharp', '锐眼'], ['droop', '垂眼'], ['sleepy', '困眼'], ['diamond', '菱形眼']];
     const HAIRS = [['off', '关闭'], ['long', '长直发'], ['bob', '波波头'], ['short', '中短发']];
-    const CLOTHES = [['gothic', '哥特裙母版']];
+    const CLOTHES = [['mandarin', '立领蓝袍母版']];
     const CANVAS = { width: 384, height: 512 };
     const FACE_ANCHORS = { chin: [192, 322], neck: [192, 340], shoulderY: 382 };
-    const STORAGE_KEY = 'portrait-v2-cloth-offsets-v1';
+    const STORAGE_KEY = 'portrait-v2-cloth-offsets-v2';
     const DEFAULT_TRANSFORM = { x: 0, y: 0, scale: 100 };
 
     const $ = (s) => document.querySelector(s);

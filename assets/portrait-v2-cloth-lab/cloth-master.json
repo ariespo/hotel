@@ -1,6 +1,6 @@
 {
-  "version": 1,
-  "id": "gothic",
+  "version": 2,
+  "id": "mandarin",
   "canvas": {
     "width": 384,
     "height": 512
@@ -13,7 +13,12 @@
     "neck": [192, 340],
     "shoulderY": 382
   },
-  "note": "后续服装必须使用同一张 384×512 透明画布。相对脸部的 x/y/scale 以本页导出的 gothic 定位为母版标准。",
+  "adjustRange": {
+    "x": [-400, 400],
+    "y": [-400, 400],
+    "scale": [0, 300]
+  },
+  "note": "后续服装必须使用同一张 384×512 透明画布，并保留领口内的脖子。相对脸部的 x/y/scale 以本页导出的 mandarin 定位为母版标准。",
   "transform": {
     "x": 0,
     "y": 0,
