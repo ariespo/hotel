@@ -1793,14 +1793,15 @@ class Game                    {
     const oldTex = furnTexture(f.kind, f.quality, fstyle.accent, atlas);
     const [fw, fh] = furnFootprint(f.kind, f.dir);
     const [sourceW, sourceH] = furnFootprint(f.kind, 0);
+    const hdChair = !!(atlas && f.kind === 'chair');
     f.quality++;
     this.tavern.version++;    // 触发静态层重建，否则新外观不刷新
     this.playUpgradeFx({
       type: 'furn',
       x: (f.x + fw / 2) * T,
       y: (f.y + fh / 2) * T,
-      w: sourceW * T,
-      h: sourceH * T,
+      w: sourceW * T * (hdChair ? 0.6 : 1),
+      h: sourceH * T * (hdChair ? 0.6 : 1),
       rot: f.dir * (Math.PI / 2),
       oldTex,
       quality: f.quality,
@@ -2496,6 +2497,7 @@ class Game                    {
       const [fw, fh] = furnFootprint(f.kind, f.dir);
       const [sourceW, sourceH] = furnFootprint(f.kind, 0);
       sp.width = sourceW * T; sp.height = sourceH * T;
+      if (hdFurniture && f.kind === 'chair') { sp.width *= 0.6; sp.height *= 0.6; }
       sp.anchor.set(0.5);
       sp.x = (f.x + fw / 2) * T;
       sp.y = (f.y + fh / 2) * T;
