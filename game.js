@@ -1,6 +1,6 @@
 import * as PIXI from 'pixi.js';
 import { ACC_NAMES,                  appKey, avatarURL, defaultAppearance, drawAvatar, drawSprite, normalizeApp,            PRESETS, randomAppearance, THEMES } from './src/chargen.js';
-import { furnPix, dirtPix, doorPix, equipAnimPix, hdQualityHardware, platePix, ROOM_WALL, T, wallPix } from './src/furniture.js';
+import { furnPix, dirtPix, doorPix, equipAnimPix, platePix, ROOM_WALL, T, wallPix } from './src/furniture.js';
 
 const ACTOR_S = 0.5;          // 世界里的小人按 50% 画（美术画布 64×72 → 场内 32×36）
 import { FLOOR_VARIANTS, floorVariant, glowPix, lightPoolPix, rugTile, wallDecoPix } from './src/floor.js';
@@ -113,7 +113,8 @@ function actorTexture(app            , dir        , pose      , frame        , c
 }
 const furnTex = new Map                      ();
 const FURNITURE_ATLAS_FRAMES = {
-  table: [0, 0, 128, 128], chair: [128, 0, 128, 128], plant: [256, 0, 128, 128],
+  table: [0, 0, 128, 128], table2: [640, 0, 128, 128], table3: [768, 0, 128, 128],
+  chair: [128, 0, 128, 128], plant: [256, 0, 128, 128],
   desk: [384, 0, 256, 128], prep: [0, 128, 256, 128], stove: [256, 128, 256, 128],
   sconce: [512, 128, 128, 128],
   sink: [0, 256, 256, 128], pass: [256, 256, 256, 128], shelf: [512, 256, 256, 128], bed: [768, 256, 256, 128],
@@ -129,10 +130,11 @@ const FURNITURE_ATLAS_FRAMES = {
   doublebed: [0, 896, 256, 256], pool: [256, 896, 256, 256], fountain: [512, 896, 256, 256],
   kingbed: [768, 896, 384, 256],
 };
-function furnitureAtlasTexture(kind, atlas) {
-  const frame = FURNITURE_ATLAS_FRAMES[kind];
+function furnitureAtlasTexture(kind, atlas, quality = 1) {
+  // 高清升级：有同款豪华帧就换贴图（table2/table3），否则回落基础帧再叠轮廓光。
+  const frame = (quality >= 2 && FURNITURE_ATLAS_FRAMES[kind + quality]) || FURNITURE_ATLAS_FRAMES[kind];
   if (!atlas || !frame) return null;
-  const key = `atlas|${kind}`;
+  const key = `atlas|${kind}|${quality}|${frame.join(',')}`;
   let t = furnTex.get(key);
   if (!t) {
     t = new PIXI.Texture({ source: atlas.source, frame: new PIXI.Rectangle(...frame) });
@@ -141,7 +143,7 @@ function furnitureAtlasTexture(kind, atlas) {
   return t;
 }
 function furnTexture(kind        , q        , accent = '#C9922F', atlas = null)               {
-  const hd = furnitureAtlasTexture(kind, atlas);
+  const hd = furnitureAtlasTexture(kind, atlas, q);
   if (hd) return hd;
   const key = kind + q + accent;
   let t = furnTex.get(key);
@@ -2279,35 +2281,7 @@ class Game                    {
           wall.rect(cx * T + 8, cy * T + 8, 3, 3).fill(0xF3D98A);
         }
       }
-      if (r.quality >= 2 && this.materialPack === 'hd') {
-        const rail = beamStrip(r.x + r.y);
-        const gold = r.quality >= 3 ? 0xF3D98A : 0xC9922F;
-        const placeRail = (x, y, rot, len = T) => {
-          if (!rail) return;
-          const trim = new PIXI.Sprite(rail);
-          trim.anchor.set(0.5); trim.width = len; trim.height = r.quality >= 3 ? 4 : 3;
-          trim.rotation = rot; trim.x = x; trim.y = y; trim.tint = gold;
-          this.wallSprites.addChild(trim);
-        };
-        for (let x = r.x; x < r.x + r.w; x++) {
-          if ((!this.tavern.roomAt(x, r.y - 1) || gap(x, r.y, 0, -1)) && !gap(x, r.y, 0, -1)) placeRail(x * T + T / 2, r.y * T + 10, 0);
-          if ((!this.tavern.roomAt(x, r.y + r.h) || gap(x, r.y + r.h - 1, 0, 1)) && !gap(x, r.y + r.h - 1, 0, 1)) placeRail(x * T + T / 2, (r.y + r.h) * T - 10, 0);
-        }
-        for (let y = r.y; y < r.y + r.h; y++) {
-          if ((!this.tavern.roomAt(r.x - 1, y) || gap(r.x, y, -1, 0)) && !gap(r.x, y, -1, 0)) placeRail(r.x * T + 10, y * T + T / 2, Math.PI / 2);
-          if ((!this.tavern.roomAt(r.x + r.w, y) || gap(r.x + r.w - 1, y, 1, 0)) && !gap(r.x + r.w - 1, y, 1, 0)) placeRail((r.x + r.w) * T - 10, y * T + T / 2, Math.PI / 2);
-        }
-        if (r.quality >= 3) {
-          const boss = glowTex(7, '#F3D98A');
-          for (const [cx, cy] of [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h]]) {
-            const med = new PIXI.Sprite(boss);
-            med.anchor.set(0.5); med.alpha = 0.9;
-            med.x = cx * T + (cx === r.x ? 10 : -10);
-            med.y = cy * T + (cy === r.y ? 10 : -10);
-            this.wallSprites.addChild(med);
-          }
-        }
-      }
+
     }
     // 门厅入口只在真正朝向室外时补门槛；与上方房间相连时由普通门系统处理。
     const e = this.tavern.entrance();
@@ -2331,10 +2305,12 @@ class Game                    {
       // 实例级微色差：同种家具不再千件一面（色相暖冷 4 档抖动）
       const jit = [0xFFFFFF, 0xF7EEE0, 0xFFF6E4, 0xEFF2F4][((f.id * 2654435761) >>> 0) % 4];
       const base = hexToNum(fstyle.furnTint);
+      const deluxeHd = hdFurniture && f.quality >= 2 && !!FURNITURE_ATLAS_FRAMES[f.kind + f.quality];
       if (hdFurniture) {
-        const qHex = f.quality >= 3 ? '#E8C070' : f.quality >= 2 ? '#F2D9A0' : '#FFFFFF';
         const styleHex = fstyle.id !== 'rustic' ? mix('#FFFFFF', fstyle.furnTint, 0.58) : '#FFFFFF';
-        const merged = mix(styleHex, qHex, f.quality >= 2 ? 0.55 : 0);
+        // 豪华帧自己已是升级材质，不再额外镀金；无豪华帧时只轻微暖一下原贴图。
+        const qHex = deluxeHd ? '#FFFFFF' : (f.quality >= 3 ? '#F0D090' : f.quality >= 2 ? '#F6E4B8' : '#FFFFFF');
+        const merged = mix(styleHex, qHex, deluxeHd ? 0 : (f.quality >= 2 ? 0.28 : 0));
         if (merged !== '#FFFFFF') sp.tint = hexToNum(merged);
       } else {
         sp.tint = (((base >> 16 & 255) * (jit >> 16 & 255) / 255) << 16) | (((base >> 8 & 255) * (jit >> 8 & 255) / 255) << 8) | Math.round((base & 255) * (jit & 255) / 255);
@@ -2350,20 +2326,28 @@ class Game                    {
       sp.zIndex = Math.round((f.y + fh) * 100) - 5;
       this.actorLayer.addChild(sp);
       this.furnSprites.push(sp);
-      if (hdFurniture && f.quality >= 2) {
-        const hwKey = `hdq|${sourceW}|${sourceH}|${f.quality}`;
-        let hwTex = this.pixTex.get(hwKey);
-        if (!hwTex) {
-          hwTex = texFromCanvas(hdQualityHardware(sourceW, sourceH, f.quality).canvas);
-          this.pixTex.set(hwKey, hwTex);
-        }
-        const hw = new PIXI.Sprite(hwTex);
-        hw.anchor.set(0.5);
-        hw.x = sp.x; hw.y = sp.y; hw.rotation = sp.rotation;
-        hw.width = sourceW * T; hw.height = sourceH * T;
-        hw.zIndex = sp.zIndex + 1;
-        this.actorLayer.addChild(hw);
-        this.furnSprites.push(hw);
+      if (hdFurniture && f.quality >= 2 && !deluxeHd) {
+        const sheen = new PIXI.Sprite(sp.texture);
+        sheen.anchor.set(0.5);
+        sheen.x = sp.x; sheen.y = sp.y; sheen.rotation = sp.rotation;
+        sheen.width = sp.width; sheen.height = sp.height;
+        sheen.blendMode = 'add';
+        sheen.tint = f.quality >= 3 ? 0xE8C070 : 0xC9A050;
+        sheen.alpha = f.quality >= 3 ? 0.22 : 0.12;
+        sheen.zIndex = sp.zIndex + 1;
+        this.actorLayer.addChild(sheen);
+        this.furnSprites.push(sheen);
+      }
+      if (hdFurniture && f.quality >= 2 && (f.kind === 'table' || f.kind === 'teatable')) {
+        const candle = new PIXI.Sprite(glowTex(12 + f.quality * 3, f.quality >= 3 ? '#F6D080' : '#E8B44A'));
+        candle.anchor.set(0.5);
+        candle.blendMode = 'add';
+        candle.alpha = f.quality >= 3 ? 0.38 : 0.24;
+        candle.x = sp.x;
+        candle.y = sp.y;
+        candle.zIndex = sp.zIndex + 2;
+        this.actorLayer.addChild(candle);
+        this.furnSprites.push(candle);
       }
       const shadow = contactShadow(f.kind, fw, fh, T);
       if (shadow) {

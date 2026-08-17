@@ -5,39 +5,6 @@ import { ao, cloth, disc3, liquid, mat, metal, planks, plate, stone, useEdge } f
 
 export const T = 32; // 每格像素
 
-/** 高清家具品质件：同一俯视模型上叠黄铜包角，II 抛光、III 金边，旋转不穿帮。 */
-export function hdQualityHardware(fw, fh, quality) {
-  const w = Math.max(T, fw * T), h = Math.max(T, fh * T);
-  const p = new Pix(w, h);
-  if (quality < 2) return p;
-  const brass = quality >= 3 ? '#F3D98A' : '#C9922F';
-  const dark = quality >= 3 ? '#8A5A18' : '#6A4216';
-  const inset = 2;
-  const arm = Math.max(6, Math.round(Math.min(w, h) * 0.2));
-  const corners = [
-    [inset, inset, 1, 1],
-    [w - 1 - inset, inset, -1, 1],
-    [inset, h - 1 - inset, 1, -1],
-    [w - 1 - inset, h - 1 - inset, -1, -1],
-  ];
-  for (const [x, y, sx, sy] of corners) {
-    const hx = sx < 0 ? x - arm : x;
-    const vy = sy < 0 ? y - arm : y;
-    p.rect(hx, y, arm + 1, 3, dark);
-    p.rect(x, vy, 3, arm + 1, dark);
-    p.rect(hx, y + (sy < 0 ? 1 : 0), arm + 1, 1, brass);
-    p.rect(x + (sx < 0 ? 1 : 0), vy, 1, arm + 1, brass);
-    p.px(x, y, quality >= 3 ? PAL.cream : brass);
-  }
-  if (quality >= 3) {
-    p.rect(inset + 1, inset + 1, w - inset * 2 - 2, 1, mix(brass, '#FFFFFF', 0.25));
-    p.rect(inset + 1, h - 2 - inset, w - inset * 2 - 2, 1, mix(brass, '#FFFFFF', 0.25));
-    p.rect(inset + 1, inset + 1, 1, h - inset * 2 - 2, mix(brass, '#FFFFFF', 0.25));
-    p.rect(w - 2 - inset, inset + 1, 1, h - inset * 2 - 2, mix(brass, '#FFFFFF', 0.25));
-  }
-  return p;
-}
-
 const WOOD = mat('#9B5B3C');
 const WOOD_DARK = mat('#6E3C27');
 const WOOD_WARM = mat('#B5763F');
