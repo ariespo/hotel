@@ -647,11 +647,24 @@ class Game                    {
   // ---------- 初始局 ----------
   startCreator()       {
     this.creatorPending = true;
-    this.ui.openCreator(defaultAppearance(), '店主', (app, name, sex, ownerOptions) => {
-      this.newTavern(app, name, sex, ownerOptions);
-      this.creatorPending = false;
-      this.ui.render(true);
-    });
+    const openOwner = (app0, name0, sex0, seed = {}) => {
+      this.ui.openCreator(app0, name0, (app, name, sex, ownerOptions) => {
+        this.ui.openTavernSetup({
+          ownerName: name,
+          tavernPreset: ownerOptions.tavernPreset,
+          tavernName: ownerOptions.tavernName,
+          tavernBlurb: ownerOptions.tavernBlurb,
+          startLayout: ownerOptions.startLayout,
+        }, (tavern) => {
+          this.newTavern(app, name, sex, { ...ownerOptions, ...tavern });
+          this.creatorPending = false;
+          this.ui.render(true);
+        }, (tavern) => {
+          openOwner(app, name, sex, { ...ownerOptions, ...tavern });
+        });
+      }, false, sex0, seed);
+    };
+    openOwner(defaultAppearance(), '店主', '女', {});
   }
 
   newTavern(app            , name        , sex        , ownerOptions = {})       {

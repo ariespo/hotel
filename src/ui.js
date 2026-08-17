@@ -250,7 +250,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 120px}html.portrait-v2 .creator-preview img.big{width:120px;height:160px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity label span{white-space:nowrap;flex:0 0 auto}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality label span{white-space:nowrap}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
 .owner-skill-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0}.owner-skill-presets button{text-align:left;white-space:normal}.owner-skill-presets small{display:block;color:#87684e;margin-top:2px}.owner-growth{position:relative;overflow:hidden;border-left-color:#7A4BE0!important;background:linear-gradient(115deg,#fff7db,#efe3ff,#fff7db);animation:ownerGrowthGlow 1.6s ease-in-out infinite alternate}.owner-growth:after{content:'✦';position:absolute;right:12px;top:7px;color:#7A4BE0;font-size:24px;animation:ownerGrowthSpark 1.2s ease-in-out infinite}@keyframes ownerGrowthGlow{to{box-shadow:0 0 18px #9e72e866,inset 0 0 12px #fff}}@keyframes ownerGrowthSpark{50%{transform:scale(1.3) rotate(15deg);opacity:.45}}
 .creator-background,.creator-ai-design{padding:9px 10px;border:2px solid #D9BC91;border-radius:11px;background:#FFF8E9;margin-bottom:9px}.creator-background-presets{display:flex;gap:5px;flex-wrap:wrap;margin:6px 0}.creator-background label{display:block;margin-top:6px}.creator-background input,.creator-background textarea,.creator-ai-design textarea{width:100%;box-sizing:border-box}.creator-background textarea{min-height:116px;resize:vertical;line-height:1.55}.creator-ai-design{border-color:#A78BD0;background:linear-gradient(135deg,#FFF8E9,#F2EAFE)}.creator-ai-design textarea{min-height:86px;resize:vertical;line-height:1.5}.creator-ai-skills{margin-top:5px;padding:5px 7px;border-radius:7px;background:#7A4BE014;color:#6A4B91}.creator-ai-status{margin-top:6px}.creator-ai-design button{border-color:#8D6CC0}.creator-ai-design.generating{animation:ownerGrowthGlow 1.4s ease-in-out infinite alternate}
-@media(max-width:650px){#ui.compact .mbox:has(#cr){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.prompt-module-grid,.world-decision-grid,.compare-grid{grid-template-columns:1fr}.prompt-tabs button{flex:1;min-width:84px}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 92px}html.portrait-v2 .creator-preview img.big{width:92px;height:123px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
+@media(max-width:650px){#ui.compact .mbox:has(#cr),#ui.compact .mbox:has(#tavern-setup){max-width:100vw;width:100vw;max-height:100vh;height:100vh;border-radius:0;padding:10px;box-sizing:border-box}.prompt-module-grid,.world-decision-grid,.compare-grid{grid-template-columns:1fr}.prompt-tabs button{flex:1;min-width:84px}.creator-head{position:sticky;top:-10px;z-index:4;background:#F5E6C8;padding:5px 0}.creator-layout{display:flex;flex-direction:column;min-width:0;width:100%;gap:9px}.creator-preview{position:static;width:100%;box-sizing:border-box}.creator-preview-art{grid-template-columns:minmax(0,1fr) 86px}.creator-preview img.big{width:86px;height:112px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 92px}html.portrait-v2 .creator-preview img.big{width:92px;height:123px}.creator-identity{grid-template-columns:1fr}.creator-personality{grid-template-columns:74px 1fr 1fr}.creator-groups{position:sticky;top:36px;z-index:3;background:#F5E6C8;padding:7px 0}.creator-groups button{flex:1;min-width:54px}.creator-cats{overflow-x:auto;flex-wrap:nowrap;padding-bottom:3px}.creator-cats button{flex:0 0 auto}.creator-options{max-height:none;overflow:visible}.creator-presets{overflow-x:auto;flex-wrap:nowrap}.creator-presets button{flex:0 0 auto}.tutorial-card{bottom:12px;max-height:58vh;overflow:auto;padding:10px 11px}.tutorial-card h2{font-size:15px}.tutorial-card p,.tutorial-card ul{font-size:12px}}
 
 /* 商业版 UI 基础设计系统：集中覆盖旧样式，避免并行维护第二套组件。 */
 #ui{--paper:#f2e7d2;--paper-clean:#fbf6eb;--paper-deep:#e4d3b6;--walnut:#24170f;--walnut-2:#3a2518;--ink:#39291f;--ink-muted:#786552;--brass:#9a763f;--brass-soft:#c2a36b;--oxblood:#7c241f;--positive:#5f8f42;--info:#3f8992;--rose:#c25d71;--warning:#c47a2c;--danger:#a64037;--line:#b9a17d;--portrait-face-y:14%;--ui-font:"Z Labs RoundPix 12px M CN","Microsoft YaHei UI","PingFang SC","Noto Sans CJK SC",sans-serif;font-family:var(--ui-font);font-size:16px;line-height:1.5;color:var(--ink);font-variant-numeric:tabular-nums;-webkit-font-smoothing:none;-moz-osx-font-smoothing:unset;font-smooth:never;text-rendering:optimizeLegibility}
@@ -350,6 +350,12 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .start-layout{display:flex;flex-direction:column;align-items:stretch;gap:4px;text-align:left;white-space:normal;padding:8px}
 .start-layout .layout-preview{width:100%;height:86px;background:#fff8e8;border:1px solid #c9a176;border-radius:6px}
 .start-layout small{display:block;color:#87684e;line-height:1.35}
+.tavern-setup{min-width:min(760px,88vw)}
+.tavern-setup .start-layout .layout-preview{height:120px}
+.tavern-setup-footer{display:flex;gap:8px;align-items:stretch}
+.tavern-setup-footer [data-tavern-back]{flex:0 0 auto}
+.tavern-setup-footer .creator-done{flex:1;margin:0}
+@media(max-width:650px){.tavern-setup{min-width:0}.tavern-setup-footer{flex-direction:column}.tavern-setup-footer [data-tavern-back]{width:100%}}
 @media(max-width:650px){.creator-footer{margin:10px -10px -10px;padding:10px}}
 `;
 
@@ -3857,9 +3863,6 @@ export class UI {
     let tavernPreset = TAVERN_PRESETS.some((preset) => preset.id === ownerOptions.tavernPreset) ? ownerOptions.tavernPreset : 'portable';
     let tavernName = ownerOptions.tavernName || TAVERN_PRESETS[0].name;
     let tavernBlurb = ownerOptions.tavernBlurb || TAVERN_PRESETS[0].blurb;
-    let tavernDraft = '';
-    let tavernAiBusy = false;
-    let tavernAiError = '';
     let startLayout = START_LAYOUTS.some((row) => row.id === ownerOptions.startLayout) ? ownerOptions.startLayout : 'classic';
     let aiDraft = '';
     let aiDesigned = !!ownerOptions.aiDesigned;
@@ -3951,12 +3954,6 @@ export class UI {
       if (currentBackground !== undefined) ownerBackground = currentBackground;
       const currentDraft = host.querySelector('#craidraft')?.value;
       if (currentDraft !== undefined) aiDraft = currentDraft;
-      const currentTavernName = host.querySelector('#crtavernname')?.value;
-      if (currentTavernName !== undefined) tavernName = currentTavernName;
-      const currentTavernBlurb = host.querySelector('#crtavernblurb')?.value;
-      if (currentTavernBlurb !== undefined) tavernBlurb = currentTavernBlurb;
-      const currentTavernDraft = host.querySelector('#crtaverndraft')?.value;
-      if (currentTavernDraft !== undefined) tavernDraft = currentTavernDraft;
     };
     const rerender = (captureInputs = true)       => {
       if (captureInputs) captureCreatorInputs();
@@ -3970,8 +3967,8 @@ export class UI {
       const cat = visible.find((c) => c.key === activeCat)                     ;
       const selectedSkillPreset = skillPresets.find((preset) => preset.id === ownerSkillPreset) || skillPresets[0];
       const displayedSkills = aiDesigned && aiSkills ? aiSkills : selectedSkillPreset.skills;
-      host.innerHTML = `<div class="creator-head"><div><h3>${dressOnly ? '纸娃娃换装' : employeeRecruit ? '定向招募 · 员工 DIY' : '捏一个店主'}</h3><div class="dim">先选样板，再按面部、发型、身体、服装与配色逐组调整。</div></div>
-        <div class="creator-history"><button data-undo title="撤销" ${historyIndex <= 0 ? 'disabled' : ''}>↶</button><button data-redo title="重做" ${historyIndex >= history.length - 1 ? 'disabled' : ''}>↷</button></div></div>
+      host.innerHTML = `<div class="creator-head"><div><h3>${dressOnly ? '纸娃娃换装' : employeeRecruit ? '定向招募 · 员工 DIY' : '捏一个店主'}</h3><div class="dim">${dressOnly ? '只改衣着与配色。' : employeeRecruit ? '先选样板，再按面部、发型、身体、服装与配色逐组调整。' : '先定店主。确认后会进入下一页，给酒馆起名并选开局店面。'}</div></div>
+        <div class="creator-history">${dressOnly || employeeRecruit ? '' : '<span class="dim">1 / 2</span>'}<button data-undo title="撤销" ${historyIndex <= 0 ? 'disabled' : ''}>↶</button><button data-redo title="重做" ${historyIndex >= history.length - 1 ? 'disabled' : ''}>↷</button></div></div>
       <div class="creator-presets">${PRESETS.map((ps) => `<button data-preset="${ps.id}">${ps.name}</button>`).join('')}</div>
       <div class="creator-layout">
         <section class="creator-preview">
@@ -3994,19 +3991,6 @@ export class UI {
             <label><span class="dim">身份定位</span><input id="crrole" maxlength="100" value="${htmlText(ownerRole)}"></label>
             <label><span class="dim">背景经历</span><textarea id="crbackground" maxlength="2400" placeholder="${employeeRecruit ? '写下员工的出身、经历、求职动机和待人方式……' : '写下店主的出身、经历、经营动机和待人方式……'}">${htmlText(ownerBackground)}</textarea></label>
           </div>
-          ${employeeRecruit ? '' : `<div class="creator-background" style="margin-top:8px"><div class="row"><b>酒馆名称与简介</b><span class="dim">会挂在门楣和账簿上</span></div>
-            <div class="creator-background-presets">${TAVERN_PRESETS.map((preset) => `<button data-tavern-preset="${preset.id}" class="${tavernPreset === preset.id ? 'on' : ''}">${preset.name}</button>`).join('')}<button data-tavern-preset="custom" class="${tavernPreset === 'custom' ? 'on' : ''}">自定义</button></div>
-            <label><span class="dim">酒馆名称</span><input id="crtavernname" maxlength="24" value="${htmlText(tavernName)}"></label>
-            <label><span class="dim">酒馆简介</span><textarea id="crtavernblurb" maxlength="240" placeholder="写下这家店为什么值得旅人停下来……">${htmlText(tavernBlurb)}</textarea></label>
-            ${aiConfigured() ? `<textarea id="crtaverndraft" maxlength="400" placeholder="例如：一间只给散修和夜班工人烤靴子的炉边小店……">${htmlText(tavernDraft)}</textarea>
-            <div class="row"><span class="${tavernAiError ? 'bad' : 'dim'}">${tavernAiError ? htmlText(tavernAiError) : '可先写概念，再让 AI 生成店名和简介。'}</span><button data-aitavern ${tavernAiBusy ? 'disabled' : ''}>${tavernAiBusy ? '生成中…' : 'AI 生成店名简介'}</button></div>` : ''}</div>
-          <div class="creator-background" style="margin-top:8px"><div class="row"><b>开局店面</b><span class="dim">选一套布局，或只要门厅把造价退回账面</span></div>
-            <div class="start-layouts">${START_LAYOUTS.map((row) => `<button data-start-layout="${row.id}" class="start-layout ${startLayout === row.id ? 'on' : ''}">
-              ${startLayoutPreviewSvg(row)}
-              <b>${htmlText(row.name)}</b>
-              <small>${htmlText(row.note)}</small>
-              ${row.refund ? `<span class="hi">退回 ${emptyLayoutRefund()} 界币</span>` : ''}
-            </button>`).join('')}</div></div>`}
           ${aiConfigured() ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ ${employeeRecruit ? 'AI 设计员工' : 'AI 完整角色设计'}</b><span class="hi">生成完整外貌、经历与能力</span></div>
             <div class="dim">只根据这段文字每次从零重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力，不会把页面上已填的其他字段发给 AI。${employeeRecruit ? '员工仍会按能力计算正常工资与入职费。' : '不会给予跳过经营规则的权限。'}</div>
             <textarea id="craidraft" maxlength="1200" placeholder="${employeeRecruit ? '例如：从浮空港辞职的猫族调酒师，嘴硬心软，手很稳但特别怕打扫……' : '例如：沉默寡言的机械体前旅行厨师，背着旧武士刀，看起来冷淡但很会照顾人……'}">${htmlText(aiDraft)}</textarea>
@@ -4028,7 +4012,7 @@ export class UI {
       draw();
     };
     host.addEventListener('click', async (e) => {
-      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-bg-preset],[data-tavern-preset],[data-start-layout],[data-aitavern],[data-aiowner],[data-aicancelowner],[data-done]')                      ;
+      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-bg-preset],[data-aiowner],[data-aicancelowner],[data-done]')                      ;
       if (!t) return;
       let changed = false;
       let captureBeforeRender = true;
@@ -4060,34 +4044,6 @@ export class UI {
         const selected = OWNER_BACKGROUND_PRESETS.find((preset) => preset.id === backgroundPreset);
         if (selected) { ownerRole = selected.role; ownerBackground = selected.background; }
         captureBeforeRender = false;
-      }
-      else if (t.dataset.startLayout) { startLayout = t.dataset.startLayout; }
-      else if (t.dataset.tavernPreset) {
-        captureCreatorInputs();
-        tavernPreset = t.dataset.tavernPreset;
-        const selected = TAVERN_PRESETS.find((preset) => preset.id === tavernPreset);
-        if (selected) { tavernName = selected.name; tavernBlurb = selected.blurb; }
-        captureBeforeRender = false;
-      }
-      else if (t.hasAttribute('data-aitavern')) {
-        captureCreatorInputs();
-        tavernDraft = tavernDraft.trim() || `${tavernName}。${tavernBlurb}`.trim();
-        if (!tavernDraft) { tavernAiError = '请先写一点酒馆概念。'; rerender(false); return; }
-        const controller = new AbortController();
-        this.creatorAIController?.abort(); this.creatorAIController = controller;
-        tavernAiBusy = true; tavernAiError = ''; rerender(false);
-        try {
-          const result = await requestGameAI('tavern_identity', { draft: tavernDraft }, { signal: controller.signal });
-          if (this.modal !== m) return;
-          tavernName = result.name; tavernBlurb = result.blurb; tavernPreset = 'custom';
-        } catch (err) {
-          if (this.modal === m) tavernAiError = controller.signal.aborted ? '已取消生成。' : `生成失败：${err?.message || '未知错误'}`;
-        } finally {
-          if (this.creatorAIController === controller) this.creatorAIController = null;
-          tavernAiBusy = false;
-          if (this.modal === m) rerender(false);
-        }
-        return;
       }
       else if (t.hasAttribute('data-aicancelowner')) {
         this.creatorAIController?.abort();
@@ -4177,8 +4133,8 @@ export class UI {
         const skills = aiDesigned && aiSkills ? { ...aiSkills } : { ...preset.skills };
         onDone(app, nm, sex, {
           age, traits: [...traits], skillPreset: aiDesigned ? 'ai' : preset.id, skills, aiDesigned,
-          tavernPreset, tavernName: (host.querySelector('#crtavernname')?.value || tavernName).trim(),
-          tavernBlurb: (host.querySelector('#crtavernblurb')?.value || tavernBlurb).trim(),
+          tavernPreset, tavernName: String(tavernName || '').trim(),
+          tavernBlurb: String(tavernBlurb || '').trim(),
           startLayout,
           backgroundPreset, profile: employeeRecruit && !aiDesigned && !ownerBackground.trim() ? null : {
             role: ownerRole, background: ownerBackground,
@@ -4211,13 +4167,118 @@ export class UI {
       }
       else if (target.id === 'crrole') { ownerRole = target.value; backgroundPreset = 'custom'; }
       else if (target.id === 'crbackground') { ownerBackground = target.value; backgroundPreset = 'custom'; }
-      else if (target.id === 'crtavernname') { tavernName = target.value; tavernPreset = 'custom'; }
-      else if (target.id === 'crtavernblurb') { tavernBlurb = target.value; tavernPreset = 'custom'; }
-      else if (target.id === 'crtaverndraft') tavernDraft = target.value;
       else if (target.id === 'craidraft') aiDraft = target.value;
     });
     rerender();
     const timer = window.setInterval(() => { if (this.modal !== m) { clearInterval(timer); return; } draw(); }, 160);
+  }
+
+  openTavernSetup(seed = {}, onDone, onBack)       {
+    let tavernPreset = TAVERN_PRESETS.some((preset) => preset.id === seed.tavernPreset) ? seed.tavernPreset : 'portable';
+    let tavernName = seed.tavernName || TAVERN_PRESETS[0].name;
+    let tavernBlurb = seed.tavernBlurb || TAVERN_PRESETS[0].blurb;
+    let tavernDraft = '';
+    let tavernAiBusy = false;
+    let tavernAiError = '';
+    let startLayout = START_LAYOUTS.some((row) => row.id === seed.startLayout) ? seed.startLayout : 'classic';
+    const ownerName = String(seed.ownerName || '').trim();
+    const m = this.showModal('<div id="tavern-setup"></div>', false);
+    const host = m.querySelector('#tavern-setup');
+    const capture = () => {
+      const nameInput = host.querySelector('#crtavernname')?.value;
+      if (nameInput !== undefined) tavernName = nameInput;
+      const blurbInput = host.querySelector('#crtavernblurb')?.value;
+      if (blurbInput !== undefined) tavernBlurb = blurbInput;
+      const draftInput = host.querySelector('#crtaverndraft')?.value;
+      if (draftInput !== undefined) tavernDraft = draftInput;
+    };
+    const current = () => ({
+      tavernPreset,
+      tavernName: String(tavernName || '').trim(),
+      tavernBlurb: String(tavernBlurb || '').trim(),
+      startLayout,
+    });
+    const rerender = (captureInputs = true) => {
+      if (captureInputs) capture();
+      host.innerHTML = `<div class="tavern-setup">
+        <div class="creator-head"><div><h3>开一家酒馆</h3><div class="dim">${ownerName ? `店主「${htmlText(ownerName)}」已经定了。` : '店主已经定了。'}接下来给店起名、写简介，再选一套开局店面。</div></div>
+          <div class="dim">2 / 2</div></div>
+        <div class="creator-background"><div class="row"><b>酒馆名称与简介</b><span class="dim">会挂在门楣和账簿上</span></div>
+          <div class="creator-background-presets">${TAVERN_PRESETS.map((preset) => `<button data-tavern-preset="${preset.id}" class="${tavernPreset === preset.id ? 'on' : ''}">${preset.name}</button>`).join('')}<button data-tavern-preset="custom" class="${tavernPreset === 'custom' ? 'on' : ''}">自定义</button></div>
+          <label><span class="dim">酒馆名称</span><input id="crtavernname" maxlength="24" value="${htmlText(tavernName)}"></label>
+          <label><span class="dim">酒馆简介</span><textarea id="crtavernblurb" maxlength="240" placeholder="写下这家店为什么值得旅人停下来……">${htmlText(tavernBlurb)}</textarea></label>
+          ${aiConfigured() ? `<textarea id="crtaverndraft" maxlength="400" placeholder="例如：一间只给散修和夜班工人烤靴子的炉边小店……">${htmlText(tavernDraft)}</textarea>
+          <div class="row"><span class="${tavernAiError ? 'bad' : 'dim'}">${tavernAiError ? htmlText(tavernAiError) : '可先写概念，再让 AI 生成店名和简介。'}</span><button data-aitavern ${tavernAiBusy ? 'disabled' : ''}>${tavernAiBusy ? '生成中…' : 'AI 生成店名简介'}</button></div>` : ''}
+        </div>
+        <div class="creator-background"><div class="row"><b>开局店面</b><span class="dim">选一套布局，或只要门厅把造价退回账面</span></div>
+          <div class="start-layouts">${START_LAYOUTS.map((row) => `<button data-start-layout="${row.id}" class="start-layout ${startLayout === row.id ? 'on' : ''}">
+            ${startLayoutPreviewSvg(row)}
+            <b>${htmlText(row.name)}</b>
+            <small>${htmlText(row.note)}</small>
+            ${row.refund ? `<span class="hi">退回 ${emptyLayoutRefund()} 界币</span>` : ''}
+          </button>`).join('')}</div>
+        </div>
+        <div class="creator-footer tavern-setup-footer">
+          <button data-tavern-back>返回改店主</button>
+          <button class="creator-done" data-tavern-done ${tavernAiBusy ? 'disabled' : ''}>就这家店，开张</button>
+        </div>
+      </div>`;
+    };
+    host.addEventListener('click', async (e) => {
+      const t = e.target.closest('[data-tavern-preset],[data-start-layout],[data-aitavern],[data-tavern-back],[data-tavern-done]');
+      if (!t) return;
+      if (t.dataset.tavernPreset) {
+        capture();
+        tavernPreset = t.dataset.tavernPreset;
+        const selected = TAVERN_PRESETS.find((preset) => preset.id === tavernPreset);
+        if (selected) { tavernName = selected.name; tavernBlurb = selected.blurb; }
+        rerender(false);
+        return;
+      }
+      if (t.dataset.startLayout) {
+        startLayout = t.dataset.startLayout;
+        rerender();
+        return;
+      }
+      if (t.hasAttribute('data-aitavern')) {
+        capture();
+        tavernDraft = tavernDraft.trim() || `${tavernName}。${tavernBlurb}`.trim();
+        if (!tavernDraft) { tavernAiError = '请先写一点酒馆概念。'; rerender(false); return; }
+        const controller = new AbortController();
+        this.creatorAIController?.abort(); this.creatorAIController = controller;
+        tavernAiBusy = true; tavernAiError = ''; rerender(false);
+        try {
+          const result = await requestGameAI('tavern_identity', { draft: tavernDraft }, { signal: controller.signal });
+          if (this.modal !== m) return;
+          tavernName = result.name; tavernBlurb = result.blurb; tavernPreset = 'custom';
+        } catch (err) {
+          if (this.modal === m) tavernAiError = controller.signal.aborted ? '已取消生成。' : `生成失败：${err?.message || '未知错误'}`;
+        } finally {
+          if (this.creatorAIController === controller) this.creatorAIController = null;
+          tavernAiBusy = false;
+          if (this.modal === m) rerender(false);
+        }
+        return;
+      }
+      if (t.hasAttribute('data-tavern-back')) {
+        capture();
+        this.closeModal();
+        onBack?.(current());
+        return;
+      }
+      if (t.hasAttribute('data-tavern-done')) {
+        capture();
+        this.closeModal();
+        onDone?.(current());
+      }
+    });
+    host.addEventListener('input', (e) => {
+      const target = e.target;
+      if (target.id === 'crtavernname') { tavernName = target.value; tavernPreset = 'custom'; }
+      else if (target.id === 'crtavernblurb') { tavernBlurb = target.value; tavernPreset = 'custom'; }
+      else if (target.id === 'crtaverndraft') tavernDraft = target.value;
+    });
+    rerender(false);
   }
 
   openWardrobe(id        )       {
