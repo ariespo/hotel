@@ -3,7 +3,8 @@ import { ACC_NAMES,                  appKey, avatarURL, defaultAppearance, drawA
 import { furnPix, dirtPix, doorPix, equipAnimPix, platePix, ROOM_WALL, T, wallPix } from './src/furniture.js';
 
 const ACTOR_S = 0.5;          // 世界里的小人按 50% 画（美术画布 64×72 → 场内 32×36）
-import { FLOOR_VARIANTS, floorVariant, glowPix, rugTile, wallDecoPix } from './src/floor.js';
+import { FLOOR_VARIANTS, floorVariant, glowPix, lightPoolPix, rugTile, wallDecoPix } from './src/floor.js';
+import { contactShadow, edgeOcclusion, floorLightTint, nightShadeAlpha, tileWarmth, worldLights } from './src/light.js';
 import { hexToNum, mix, PAL, Rng } from './src/pix.js';
 import {
   BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById, worldById,
@@ -303,6 +304,7 @@ class Game                    {
   app                   ;
   world = new PIXI.Container();
   floorLayer = new PIXI.Container();
+  lightLayer = new PIXI.Container();
   wallLayer = new PIXI.Graphics();
   dirtLayer = new PIXI.Container();
   furnLayer = new PIXI.Container();
@@ -368,6 +370,7 @@ class Game                    {
   decoSprites = new PIXI.Container();
   pixTex = new Map                      ();
   wallSprites = new PIXI.Container();
+  nightShades = [];
   ownerName = '店主';
   currentSlot = 1;
   materialPack = normalizeMaterialPack(localStorage.getItem(MATERIAL_PACK_KEY));
@@ -410,7 +413,7 @@ class Game                    {
     }
     this.app.stage.addChild(this.stars, this.worldBackgroundFar, this.worldBackgroundMid, this.worldBackgroundMask, this.starGlintsA, this.starGlintsB, this.worldBackgroundWeather, this.worldTravelLayer, this.world, this.labelLayer);
     this.worldBackgroundMask.renderable = false;
-    this.world.addChild(this.floorLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.overlay);
+    this.world.addChild(this.floorLayer, this.lightLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.overlay);
     this.actorLayer.sortableChildren = true;
     this.labelLayer.addChild(this.speechLayer);
     for (let i = 0; i < 32; i++) {
@@ -1786,6 +1789,8 @@ class Game                    {
       const flick = Math.sin(t) * 0.5 + Math.sin(t * 2.7 + 1.3) * 0.3 + Math.sin(t * 6.1 + 0.7) * 0.2;
       ga.sp.alpha = Math.max(0.03, (ga.base + flick * ga.amp) * (busy ? 1 : 0.35));
     }
+    const shade = nightShadeAlpha(this.sim.dayActive);
+    for (const sp of this.nightShades) sp.alpha = shade;
     // 设备工作动效：火焰/气泡/水花换帧；壁炉常燃，其余开工才播
     for (const a of this.furnAnims) {
       a.phase += dt;
@@ -1982,6 +1987,8 @@ class Game                    {
 
   rebuildStatic()       {
     this.floorLayer.removeChildren();
+    this.lightLayer.removeChildren();
+    this.nightShades = [];
     this.furnLayer.removeChildren();
     const wall = this.wallLayer;
     wall.clear();
@@ -1989,6 +1996,12 @@ class Game                    {
     this.decoSprites.removeChildren();
     this.glowAnims = [];
     this.furnAnims = [];
+    const lights = worldLights(this.tavern, WALL_DECO, (f) => {
+      const fstyle = styleById(this.tavern.roomStyle(this.tavern.roomOfFurn(f)));
+      return f.kind === 'fireplace' || f.kind === 'stove' ? '#E4732C'
+        : (f.kind === 'lightbar' || f.kind === 'lightcol') ? fstyle.accent : fstyle.glow;
+    });
+    const hdLight = this.materialPack === 'hd';
     const floorTex = (name        , v        )               => {
       const key = `f|${name}|${v}`;
       let tex = this.pixTex.get(key);
@@ -2017,6 +2030,16 @@ class Game                    {
       let tex = this.pixTex.get(key);
       if (!tex) {
         tex = texFromCanvas(glowPix(r, c).canvas);
+        tex.source.scaleMode = 'linear';
+        this.pixTex.set(key, tex);
+      }
+      return tex;
+    };
+    const poolTex = (r        , c        )               => {
+      const key = `lp|${r}|${c}`;
+      let tex = this.pixTex.get(key);
+      if (!tex) {
+        tex = texFromCanvas(lightPoolPix(r, c).canvas);
         tex.source.scaleMode = 'linear';
         this.pixTex.set(key, tex);
       }
@@ -2060,6 +2083,10 @@ class Game                    {
             tint = (((tint >> 16 & 255) * (qt >> 16 & 255) / 255) << 16) | (((tint >> 8 & 255) * (qt >> 8 & 255) / 255) << 8) | Math.round((tint & 255) * (qt & 255) / 255);
             if (tint !== 0xFFFFFF) sp.tint = tint;
           }
+          const warmth = tileWarmth(x, y, lights) * edgeOcclusion(this.tavern, x, y);
+          const lit = hdLight ? warmth : 0.42 + warmth * 0.38;
+          const lightTint = floorLightTint(lit, sp.tint || 0xFFFFFF);
+          if (lightTint !== 0xFFFFFF) sp.tint = lightTint;
           this.floorLayer.addChild(sp);
         }
       }
@@ -2080,6 +2107,29 @@ class Game                    {
           this.floorLayer.addChild(sp);
         }
       }
+    }
+    const shadeA = nightShadeAlpha(this.sim && this.sim.dayActive);
+    for (const r of this.tavern.rooms) {
+      const shade = new PIXI.Graphics();
+      shade.rect(r.x * T, r.y * T, r.w * T, r.h * T).fill({ color: 0x1a1210, alpha: 1 });
+      shade.blendMode = 'multiply';
+      shade.alpha = shadeA;
+      this.lightLayer.addChild(shade);
+      this.nightShades.push(shade);
+    }
+    for (const light of lights) {
+      const pool = new PIXI.Sprite(poolTex(light.bloom, light.color));
+      pool.anchor.set(0.5);
+      pool.x = light.x * T;
+      pool.y = light.y * T;
+      pool.blendMode = 'add';
+      pool.alpha = light.alpha;
+      this.lightLayer.addChild(pool);
+      const prof = light.kind === 'fireplace' ? { base: 0.46, amp: 0.16, speed: 6.2 }
+        : light.kind === 'stove' ? { base: 0.14, amp: 0.22, speed: 8.4 }
+        : light.kind === 'sconce' ? { base: 0.4, amp: 0.08, speed: 2.0 }
+        : { base: light.alpha, amp: 0.08, speed: 2.1 };
+      this.glowAnims.push({ sp: pool, ...prof, phase: (light.x * 7.1 + light.y * 3.3) % 6.28, furn: light.furn || 0 });
     }
     // 墙体贴图化：外墙 8px（壁纸+踢脚线），内墙 5px，门口铺门框；墙脚再压两层地面投影
     const isDoor = (x1        , y1        , x2        , y2        )          =>
@@ -2156,10 +2206,10 @@ class Game                    {
             else { d.x = (x + 1) * T - 4; d.y = y * T + T / 2; d.scale.x *= -1; }
             this.decoSprites.addChild(d);
             if (kindDeco === 'sconce') {
-              const gl = new PIXI.Sprite(glowTex(20, '#F3B84B'));
+              const gl = new PIXI.Sprite(glowTex(28, '#F3B84B'));
               gl.anchor.set(0.5);
               gl.blendMode = 'add';
-              gl.alpha = 0.5;
+              gl.alpha = 0.58;
               gl.x = side === 2 ? x * T + 10 : side === 3 ? (x + 1) * T - 10 : x * T + T / 2;
               gl.y = side === 0 ? y * T + 10 : side === 1 ? (y + 1) * T - 10 : y * T + T / 2;
               this.decoSprites.addChild(gl);
@@ -2226,16 +2276,28 @@ class Game                    {
       sp.zIndex = Math.round((f.y + fh) * 100) - 5;
       this.actorLayer.addChild(sp);
       this.furnSprites.push(sp);
+      const shadow = contactShadow(f.kind, fw, fh, T);
+      if (shadow) {
+        const cs = new PIXI.Sprite(glowTex(18, '#1A1016'));
+        cs.anchor.set(0.5);
+        cs.blendMode = 'multiply';
+        cs.alpha = shadow.alpha;
+        cs.width = shadow.width;
+        cs.height = shadow.height;
+        cs.x = (f.x + fw / 2) * T;
+        cs.y = (f.y + fh / 2) * T + shadow.dy;
+        this.lightLayer.addChild(cs);
+      }
       if (f.kind === 'lamp' || f.kind === 'fireplace' || f.kind === 'lightbar' || f.kind === 'lightcol' || f.kind === 'stove') {
         const warm = f.kind === 'fireplace' ? '#E4732C' : f.kind === 'stove' ? '#E4732C'
           : (f.kind === 'lightbar' || f.kind === 'lightcol') ? fstyle.accent : fstyle.glow;
-        const rad = f.kind === 'fireplace' ? 40 : f.kind === 'stove' ? 30 : f.kind === 'lightbar' ? 30 + f.quality * 6 : 26 + f.quality * 4;
+        const rad = f.kind === 'fireplace' ? 48 : f.kind === 'stove' ? 36 : f.kind === 'lightbar' ? 34 + f.quality * 6 : 32 + f.quality * 5;
         const gl = new PIXI.Sprite(glowTex(rad, warm));
         gl.anchor.set(0.5);
         gl.x = (f.x + fw / 2) * T;
         gl.y = (f.y + fh / 2) * T;
         gl.blendMode = 'add';
-        gl.alpha = 0.5;
+        gl.alpha = 0.58;
         this.decoSprites.addChild(gl);
         // 火苗类闪得快而猛，灯带只是呼吸；灶台没人用时只留一点余烬
         const prof = f.kind === 'fireplace' ? { base: 0.5, amp: 0.3, speed: 7 }
@@ -2323,9 +2385,10 @@ class Game                    {
       }
       let sh = this.actorShadows.get(id);
       if (!sh) {
-        if (!this.shadowTex) this.shadowTex = texFromCanvas(glowPix(9, '#1A1016').canvas);
+        if (!this.shadowTex) this.shadowTex = texFromCanvas(glowPix(14, '#1A1016').canvas);
         sh = new PIXI.Sprite(this.shadowTex);
         sh.anchor.set(0.5, 0.5);
+        sh.blendMode = 'multiply';
         this.actorLayer.addChild(sh);
         this.actorShadows.set(id, sh);
       }
@@ -2386,8 +2449,8 @@ class Game                    {
       sp.zIndex = Math.max(Math.round((c.y + 1) * 100), facZ.get(id) || -1e9, restOn ? Math.round((restOn.y + 1) * 100) + 2 : -1e9);
       sp.visible = true;
       // 脚下接触阴影：站在地面上才有（躺床/泡汤/围桌/坐沙发不要）
-      sh.scale.set(1.1, 0.4);
-      sh.alpha = 0.3;
+      sh.scale.set(1.55, 0.48);
+      sh.alpha = 0.4;
       sh.x = (c.x + 0.5) * T;
       sh.y = (c.y + 1) * T + 1;
       sh.zIndex = sp.zIndex - 1;

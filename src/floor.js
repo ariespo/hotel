@@ -365,6 +365,19 @@ export function glowPix(r        , color        )      {
   return p;
 }
 
+/** 更大更软的地板投影光，让灯下木地板发暖而不是只贴一层小光斑 */
+export function lightPoolPix(r        , color        )      {
+  const radius = Math.max(8, Math.round(r));
+  const d = radius * 2 + 1;
+  const p = new Pix(d, d);
+  for (let k = radius; k >= 1; k--) {
+    const t = 1 - k / radius;
+    const a = 0.015 + 0.52 * Math.pow(t, 1.55);
+    p.disc(radius, radius, k, `rgba(${hex3(color)},${a.toFixed(3)})`);
+  }
+  return p;
+}
+
 function hex3(hex        )         {
   const h = hex.replace('#', '');
   return `${parseInt(h.slice(0, 2), 16)},${parseInt(h.slice(2, 4), 16)},${parseInt(h.slice(4, 6), 16)}`;
