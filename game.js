@@ -115,6 +115,8 @@ const WALL_DECO                           = {
   foyer: ['sconce', 'painting'], dining: ['sconce', 'painting', 'sconce'], kitchen: ['pans', 'sconce'],
   storage: ['crate', 'crate', 'sconce'], bar: ['bottles', 'sconce'], lounge: ['painting', 'sconce'],
 };
+// 高清墙饰边角还不干净：先整块关掉，只留壁灯。经典材质仍画原来的小像素。
+const HD_HIDDEN_WALL_DECOS = new Set(['painting', 'pans', 'bottles', 'crate']);
 
 function texFromCanvas(c                   )               {
   const t = PIXI.Texture.from(c);
@@ -2409,24 +2411,26 @@ class Game                    {
           if (!nb && ((x * 5 + y * 3 + side) % 4 === 0)) {
             const pick = WALL_DECO[r.kind] || WALL_DECO.dining;
             const kindDeco = pick[(x + y + side) % pick.length];
-            const hdDeco = this.materialPack === 'hd' ? furnitureAtlasTexture(kindDeco, this.worldMaterials.get('furniture')) : null;
-            const d = new PIXI.Sprite(hdDeco || decoTex(kindDeco, horiz));
-            if (hdDeco) { d.width = 24; d.height = 24; d.rotation = horiz ? 0 : Math.PI / 2; }
-            else d.tint = hexToNum(styleById(this.tavern.roomStyle(r)).furnTint);
-            d.anchor.set(0.5);
-            if (side === 0) { d.x = x * T + T / 2; d.y = y * T + 4; }
-            else if (side === 1) { d.x = x * T + T / 2; d.y = (y + 1) * T - 4; d.scale.y *= -1; }
-            else if (side === 2) { d.x = x * T + 4; d.y = y * T + T / 2; }
-            else { d.x = (x + 1) * T - 4; d.y = y * T + T / 2; d.scale.x *= -1; }
-            this.decoSprites.addChild(d);
-            if (kindDeco === 'sconce') {
-              const gl = new PIXI.Sprite(glowTex(40, '#F3B84B'));
-              gl.anchor.set(0.5);
-              gl.blendMode = 'add';
-              gl.alpha = 0.35;
-              gl.x = side === 2 ? x * T + 10 : side === 3 ? (x + 1) * T - 10 : x * T + T / 2;
-              gl.y = side === 0 ? y * T + 10 : side === 1 ? (y + 1) * T - 10 : y * T + T / 2;
-              this.decoSprites.addChild(gl);
+            if (!(this.materialPack === 'hd' && HD_HIDDEN_WALL_DECOS.has(kindDeco))) {
+              const hdDeco = this.materialPack === 'hd' ? furnitureAtlasTexture(kindDeco, this.worldMaterials.get('furniture')) : null;
+              const d = new PIXI.Sprite(hdDeco || decoTex(kindDeco, horiz));
+              if (hdDeco) { d.width = 24; d.height = 24; d.rotation = horiz ? 0 : Math.PI / 2; }
+              else d.tint = hexToNum(styleById(this.tavern.roomStyle(r)).furnTint);
+              d.anchor.set(0.5);
+              if (side === 0) { d.x = x * T + T / 2; d.y = y * T + 4; }
+              else if (side === 1) { d.x = x * T + T / 2; d.y = (y + 1) * T - 4; d.scale.y *= -1; }
+              else if (side === 2) { d.x = x * T + 4; d.y = y * T + T / 2; }
+              else { d.x = (x + 1) * T - 4; d.y = y * T + T / 2; d.scale.x *= -1; }
+              this.decoSprites.addChild(d);
+              if (kindDeco === 'sconce') {
+                const gl = new PIXI.Sprite(glowTex(40, '#F3B84B'));
+                gl.anchor.set(0.5);
+                gl.blendMode = 'add';
+                gl.alpha = 0.35;
+                gl.x = side === 2 ? x * T + 10 : side === 3 ? (x + 1) * T - 10 : x * T + T / 2;
+                gl.y = side === 0 ? y * T + 10 : side === 1 ? (y + 1) * T - 10 : y * T + T / 2;
+                this.decoSprites.addChild(gl);
+              }
             }
           }
           const s1 = side === 0 ? [x * T, y * T + th, T, 3] : side === 1 ? [x * T, (y + 1) * T - th - 3, T, 3]
