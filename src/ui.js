@@ -524,26 +524,61 @@ export class UI {
   bindOwnerStick() {
     const knob = this.ownerStick.querySelector('.owner-stick-knob');
     let pointerId = null;
+    let touchId = null;
+    const touchCapable = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+    const apply = (clientX, clientY) => {
+      const v = joystickVector(clientX, clientY, this.ownerStick.getBoundingClientRect());
+      this.g.setManualInput(v.x, v.y);
+      knob.style.transform = `translate(${v.knobX}px,${v.knobY}px)`;
+    };
+    const reset = () => {
+      this.g.setManualInput(0, 0);
+      knob.style.transform = '';
+    };
     const move = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault(); e.stopPropagation();
-      const v = joystickVector(e.clientX, e.clientY, this.ownerStick.getBoundingClientRect());
-      this.g.setManualInput(v.x, v.y);
-      knob.style.transform = `translate(${v.knobX}px,${v.knobY}px)`;
+      apply(e.clientX, e.clientY);
     };
     const stop = (e) => {
       if (e.pointerId !== pointerId) return;
       e.preventDefault(); e.stopPropagation(); pointerId = null;
-      this.g.setManualInput(0, 0); knob.style.transform = '';
+      reset();
     };
     this.ownerStick.addEventListener('pointerdown', (e) => {
+      // Android 浏览器走下面的原生 touch 路径，绕过部分内核不可靠的指针捕获。
+      if (touchCapable && e.pointerType === 'touch') return;
       if (!this.g.sim.manualOwner) return;
       pointerId = e.pointerId; this.ownerStick.setPointerCapture?.(pointerId); move(e);
     });
     this.ownerStick.addEventListener('pointermove', move);
-    this.ownerStick.addEventListener('pointerup', stop);
-    this.ownerStick.addEventListener('pointercancel', stop);
+    window.addEventListener('pointermove', move, { passive: false });
+    window.addEventListener('pointerup', stop);
+    window.addEventListener('pointercancel', stop);
     this.ownerStick.addEventListener('lostpointercapture', stop);
+
+    const activeTouch = (touches) => Array.from(touches).find((touch) => touch.identifier === touchId);
+    this.ownerStick.addEventListener('touchstart', (e) => {
+      if (!this.g.sim.manualOwner || touchId !== null || !e.changedTouches.length) return;
+      const touch = e.changedTouches[0];
+      touchId = touch.identifier;
+      e.preventDefault(); e.stopPropagation();
+      apply(touch.clientX, touch.clientY);
+    }, { passive: false });
+    window.addEventListener('touchmove', (e) => {
+      const touch = activeTouch(e.touches);
+      if (!touch) return;
+      e.preventDefault(); e.stopPropagation();
+      apply(touch.clientX, touch.clientY);
+    }, { passive: false });
+    const stopTouch = (e) => {
+      if (!activeTouch(e.changedTouches)) return;
+      e.preventDefault(); e.stopPropagation();
+      touchId = null;
+      reset();
+    };
+    window.addEventListener('touchend', stopTouch, { passive: false });
+    window.addEventListener('touchcancel', stopTouch, { passive: false });
   }
 
   setPanelHTML(node        , html        )       {
