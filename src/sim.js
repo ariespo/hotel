@@ -12,6 +12,10 @@ import {
 import {            Tavern, dirDelta, furnFootprint } from './world.js';
 import { normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { worldContentFor, worldSpecialtyFor } from './world-content.js';
+import {
+  blankContestState, CONTEST_STAGES, contestKey, contestNameOf, equippedTitleOf, makeOpponent,
+  nextContestInvite, normalizeContestState, resolveContestMatch, stageById, titleNameFor, titleTierForPlace,
+} from './contest.js';
 
 export const LONG_EVENT_CHAINS = [
   { id: 'starwhale', name: '星鲸迁徙季', steps: [
@@ -980,6 +984,7 @@ export class Sim {
     this.econ.recruitmentSeen = this.econ.recruitmentSeen && typeof this.econ.recruitmentSeen === 'object' ? this.econ.recruitmentSeen : {};
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.econ.certifiedStars);
     normalizeGuestSettings(this.econ);
+    normalizeContestState(this.econ);
     this.rng = new Rng(econ.seed || 12345);
   }
 
@@ -1847,8 +1852,101 @@ export class Sim {
       }
     }
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.stars());
+    this.maybeQueueContestInvite();
     this.lastStat = stat;
     return stat;
+  }
+
+  tavernTitle() {
+    return equippedTitleOf(this.econ);
+  }
+
+  maybeQueueContestInvite() {
+    normalizeContestState(this.econ);
+    const contest = this.econ.contest;
+    if (contest.pendingInvite || contest.active) return null;
+    const invite = nextContestInvite(this.stars(), this.econ.currentWorldId, contest);
+    if (!invite) return null;
+    contest.pendingInvite = invite;
+    return invite;
+  }
+
+  acceptContestInvite() {
+    normalizeContestState(this.econ);
+    const invite = this.econ.contest.pendingInvite;
+    if (!invite) return null;
+    const world = invite.tier === 'myriad' ? { id: 'myriad', name: '诸天万界' } : this.worldById(invite.worldId);
+    const stage = CONTEST_STAGES[0];
+    this.econ.contest.active = {
+      tier: invite.tier, worldId: invite.worldId || '', stage: stage.id,
+      lastMatchDay: 0, seed: this.econ.seed + this.econ.day * 17,
+      opponent: makeOpponent(this.rng, world, stage.id),
+    };
+    this.econ.contest.pendingInvite = null;
+    this.toast(`已报名「${contestNameOf(invite.tier, world)}」`);
+    return this.econ.contest.active;
+  }
+
+  declineContestInvite() {
+    normalizeContestState(this.econ);
+    const invite = this.econ.contest.pendingInvite;
+    if (!invite) return false;
+    this.econ.contest.records[contestKey(invite.tier, invite.worldId)] = 'declined';
+    this.econ.contest.pendingInvite = null;
+    this.toast('已拒绝邀请。该世界本轮大赛链路取消。');
+    return true;
+  }
+
+  grantContestTitle(place) {
+    const active = this.econ.contest?.active;
+    if (!active || place > 16) return null;
+    const world = active.tier === 'myriad' ? { id: 'myriad', name: '诸天万界' } : this.worldById(active.worldId);
+    const title = {
+      id: `title_${contestKey(active.tier, active.worldId)}_${place}`,
+      name: titleNameFor(active.tier, world, place),
+      tier: titleTierForPlace(active.tier, place),
+      contest: contestNameOf(active.tier, world),
+      place,
+    };
+    this.econ.titles = (this.econ.titles || []).filter((row) => row.id !== title.id);
+    this.econ.titles.push(title);
+    if (!this.econ.equippedTitle) this.econ.equippedTitle = title.id;
+    return title;
+  }
+
+  finishContestMatch(tactics) {
+    const active = this.econ.contest?.active;
+    if (!active) return null;
+    const result = resolveContestMatch(this, tactics);
+    if (!result) return null;
+    active.lastMatchDay = this.econ.day;
+    const world = active.tier === 'myriad' ? { id: 'myriad', name: '诸天万界' } : this.worldById(active.worldId);
+    if (result.passed && result.stage.next) {
+      active.stage = result.stage.next;
+      active.opponent = makeOpponent(this.rng, world, active.stage);
+      result.advanced = true;
+      result.nextStage = stageById(active.stage);
+      this.toast(`${result.stage.name}过关，下一场：${result.nextStage.name}`);
+    } else {
+      const place = result.passed ? 1 : (result.stage.id === 'final' ? 2 : result.stage.place);
+      const title = this.grantContestTitle(place);
+      this.econ.contest.records[contestKey(active.tier, active.worldId)] = result.passed ? 'champion' : `place_${place}`;
+      this.econ.contest.active = null;
+      result.finished = true;
+      result.place = place;
+      result.title = title;
+      this.toast(result.passed ? `夺冠！获得称号「${title.name}」` : `${result.stage.name}止步，获得称号「${title?.name || '参赛纪念'}」`);
+    }
+    result.contestName = contestNameOf(active.tier, world);
+    return result;
+  }
+
+  equipTitle(id) {
+    normalizeContestState(this.econ);
+    if (!id) { this.econ.equippedTitle = ''; return true; }
+    if (!(this.econ.titles || []).some((row) => row.id === id)) return false;
+    this.econ.equippedTitle = id;
+    return true;
   }
 
   recordDayWork(s       , task       )       {
@@ -4471,6 +4569,7 @@ export class Sim {
     if (!this.econ.worldSeenLevels || typeof this.econ.worldSeenLevels !== 'object') this.econ.worldSeenLevels = {};
     if (!this.econ.recruitmentSeen || typeof this.econ.recruitmentSeen !== 'object') this.econ.recruitmentSeen = {};
     normalizeGuestSettings(this.econ);
+    normalizeContestState(this.econ);
     if (!this.econ.dishMastery || typeof this.econ.dishMastery !== 'object') this.econ.dishMastery = {};
     this.econ.restockTargets = { ...DEFAULT_RESTOCK_TARGETS, ...(this.econ.restockTargets || {}) };
     this.econ.restockBudget = Math.max(0, Math.round(Number(this.econ.restockBudget) || 0));
@@ -4549,6 +4648,8 @@ export function newEcon(seed        )       {
     factionRelations: {}, worldSeenLevels: {}, recruitmentSeen: {},
     worldKnowledge: blankWorldKnowledge(), worldForecast: worldForecastForDay(seed, 1, 0),
     guestCap: 0, difficulty: 'normal',
+    tavernName: '多元便携旅店', tavernBlurb: '一间能开到任何世界门口的便携旅店。',
+    titles: [], equippedTitle: '', contest: blankContestState(),
     revenue: 0, served: 0, lost: 0, seed,
   };
 }

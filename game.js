@@ -657,6 +657,8 @@ class Game                    {
     this.tavern = new Tavern();
     this.sim = new Sim(this.tavern, newEcon(Math.floor(Math.random() * 1e9)));
     this.ownerName = name;
+    this.sim.econ.tavernName = String(ownerOptions.tavernName || '多元便携旅店').trim().slice(0, 24) || '多元便携旅店';
+    this.sim.econ.tavernBlurb = String(ownerOptions.tavernBlurb || '').trim().slice(0, 240);
     const t = this.tavern;
     // 开局布局：中间前台（门厅），左侧餐饮→厨房→储藏，右侧横向走廊、上下各一间客房
     t.placeRoom(bpById('foyer4'), 0, 0, 0);

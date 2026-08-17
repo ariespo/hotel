@@ -58,6 +58,18 @@ const DEFINITIONS = Object.freeze({
     ],
     temperature: 0.82, maxTokens: 360,
   },
+  tavern_identity: {
+    schema: {
+      name: '酒馆名称，2-16 个汉字',
+      blurb: '酒馆简介，40-180 个汉字',
+    },
+    rules: [
+      '根据 draft 写成一家可长期经营的奇幻旅店招牌和简介；信息不足时只做克制补全。',
+      '名称要好记、适合挂在门楣上，不要用无意义符号堆砌。',
+      '简介写清待客风格、炉火气氛和旅人为什么愿意停下来，不要承诺经营数值、无敌能力或规则外特权。',
+    ],
+    temperature: 0.8, maxTokens: 400,
+  },
   player_profile: {
     schema: {
       role: '字符串，玩家在旅店与世界中的身份定位，10-80 个汉字',
@@ -482,6 +494,10 @@ export function validateGameAIResult(kind, raw, facts = {}) {
     const allowed = ['neutral', 'happy', 'shy', 'tired', 'serious'];
     return { reply: requiredText(raw.reply, 'reply', 2, 180), emotion: allowed.includes(raw.emotion) ? raw.emotion : 'neutral' };
   }
+  if (kind === 'tavern_identity') return {
+    name: requiredText(raw.name, 'name', 2, 24),
+    blurb: requiredText(raw.blurb, 'blurb', 16, 240),
+  };
   if (kind === 'player_profile') return {
     role: requiredText(raw.role, 'role', 4, 100),
     background: requiredText(raw.background, 'background', 30, 1200),

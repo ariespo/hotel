@@ -17,6 +17,7 @@ import {
   WORLD_PROFILES, worldById,
 } from './data.js';
 import { AGE_MAX, effectiveSkill, fairWageRange, jobFocusSkill, PERK_MAX_LEVEL, perkCostAt, perkLevel, perkNeedAt, perkNoteAt, perkTierOf, relatedPerkSkill, restockPlan, skillBonusOf, SKILL_EFFECT_CAP, SKILL_POINT_CAP, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
+import { CONTEST_HEATS, contestHostOf, contestNameOf, equippedTitleOf, stageById, TAVERN_PRESETS, TITLE_TIERS } from './contest.js';
 import { CUSTOM_WORLD_LIMIT, customWorldCreationCost, normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
@@ -342,6 +343,8 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 @keyframes celePop{to{opacity:1;transform:scale(1)}}
 @keyframes celeStamp{to{opacity:1;transform:rotate(-18deg) scale(1)}}
 @keyframes celeFall{to{transform:translateY(110vh) rotate(220deg);opacity:.15}}
+.tavern-title{font-weight:800;letter-spacing:.04em}
+.contest-heat button{white-space:normal;text-align:left;flex:1;min-width:140px}
 @media(max-width:650px){.creator-footer{margin:10px -10px -10px;padding:10px}}
 `;
 
@@ -927,7 +930,12 @@ export class UI {
     else if (act === 'aibg') this.generateAIBackground(parseInt(v, 10));
     else if (act === 'viewbg') this.openAIBackground(parseInt(v, 10));
     else if (act === 'finale') this.openFinale();
-    else if (act === 'closemodal') { this.closeModal(); if (!this.g.sim.dayActive) { this.g.audio.playTrack('bgm-plan'); this.g.audio.playAmb('amb-night'); } }
+    else if (act === 'closemodal') {
+      const afterSettlement = !!this.settlementAIStat && !!this.modal;
+      this.closeModal();
+      if (!this.g.sim.dayActive) { this.g.audio.playTrack('bgm-plan'); this.g.audio.playAmb('amb-night'); }
+      if (afterSettlement) this.afterSettlementClose();
+    }
     else if (act === 'newgame') g.newGame();
     else if (act === 'loadmorning') g.loadMorning();
     else if (act === 'savemenu') this.openSaveManager();
@@ -1027,6 +1035,18 @@ export class UI {
     else if (act === 'overflow-toggle') { this.topOverflowOpen = !this.topOverflowOpen; }
     else if (act === 'confirmnew') this.openConfirmRestart();
     else if (act === 'starcele') this.finishStarCelebration();
+    else if (act === 'contestaccept') this.resolveContestInvite(true);
+    else if (act === 'contestdecline') this.resolveContestInvite(false);
+    else if (act === 'contestheat') { this.contestTactics[t.dataset.s] = v; this.openContestMatch(); }
+    else if (act === 'contestgo') this.runContestMatch();
+    else if (act === 'contestafter') {
+      const stat = this.contestAfterStat;
+      this.contestAfterStat = null;
+      if (stat) this.continueSettlement(stat);
+      else this.closeModal();
+    }
+    else if (act === 'titles') this.openTitleCabinet();
+    else if (act === 'titleequip') { g.sim.equipTitle(v); g.save(); this.openTitleCabinet(); }
     if (fromOverflow && act !== 'overflow-toggle') this.topOverflowOpen = false;
     this.handleTutorialAction(act, v);
     this.render(true);
@@ -1236,7 +1256,7 @@ export class UI {
       document.documentElement.style.setProperty('--world-tint', world.visuals?.atmosphere?.tint || '#F3B84B');
     }
     this.setPanelHTML(this.top, `
-      <div class="top-group top-identity"><button data-act="worldcard" data-v="${htmlText(world.id)}" class="brand-title" title="万界旅店账簿 · 当前驻留：${htmlText(world.name)}，点击查看世界卡">万界旅店账簿</button></div>
+      <div class="top-group top-identity"><button data-act="worldcard" data-v="${htmlText(world.id)}" class="brand-title" title="万界旅店账簿 · ${htmlText(e.tavernBlurb || world.name)}">${this.tavernBrandHtml(e)}</button></div>
       <div class="top-group top-date"><span>第 ${e.day} 天</span><span class="dim">${SEASON_NAMES[s.seasonIndex()]}</span><span class="top-day-state">${s.dayActive ? `<span class="hi">营业中·${this.phase()}</span><span class="bar" style="display:inline-block;width:72px"><i style="width:${timePct}%;background:var(--warning)"></i></span>` : '<span class="dim">收盘规划</span>'}</span></div>
       <div class="top-group top-speed"><button data-act="pause" class="${g.paused ? 'on' : ''}" aria-label="${g.paused ? '继续' : '暂停'}">${g.paused ? '▶' : 'Ⅱ'}</button>${[1, 2, 4].map((n) => `<button data-act="speed" data-v="${n}" class="${g.speed === n && !g.paused ? 'on' : ''}">${n}X</button>`).join('')}</div>
       <div class="top-group top-economy"><span class="hi">${uiIcon('econ', '界币')} ${Math.round(e.coins)}</span><span>声望 <span class="star">${'★'.repeat(stars)}</span><span class="dim">${'☆'.repeat(5 - stars)}</span> ${Math.round(e.rep)}/${nextTh}</span></div>
@@ -3410,6 +3430,8 @@ export class UI {
       <div class="dim">跟随阶段：营业用炉火营业，打烊规划用收盘规划，日结用位面夜航。点某一首会锁定，直到改回跟随或换曲。</div>
       <h3 style="margin:14px 0 6px">同时接待</h3>
       ${this.guestCapSettingsHtml()}
+      <h3 style="margin:14px 0 6px">酒馆称号</h3>
+      <div class="row"><span class="dim" style="flex:1">同时只能佩戴一个称号，显示在顶栏店名之前。</span><button data-act="titles">称号柜</button></div>
       <h3 style="margin:14px 0 6px">经营难度</h3>
       ${this.difficultySettingsHtml()}
       <div class="row" style="margin-top:10px"><span style="width:56px">音乐</span><input data-act="volm" type="range" min="0" max="1" step="0.05" value="${vols.m}" style="flex:1"></div>
@@ -3541,7 +3563,109 @@ export class UI {
     this.starCele.className = '';
     this.starCele.hidden = true;
     this.starCele.innerHTML = '';
+    if (stat && this.g.sim.econ.contest?.pendingInvite) {
+      this.pendingSettlementStat = stat;
+      this.openContestInvite();
+      return;
+    }
     if (stat) this.continueSettlement(stat);
+  }
+
+  tavernBrandHtml(econ = this.g.sim.econ) {
+    const title = equippedTitleOf(econ);
+    const tier = TITLE_TIERS[title?.tier] || null;
+    const name = htmlText(econ.tavernName || '多元便携旅店');
+    if (!title) return name;
+    return `<span class="tavern-title" style="color:${tier.color}">【${htmlText(title.name)}】</span>${name}`;
+  }
+
+  openContestInvite() {
+    const invite = this.g.sim.econ.contest?.pendingInvite;
+    if (!invite) return false;
+    const world = invite.tier === 'myriad' ? { id: 'myriad', name: '诸天万界' } : this.g.sim.worldById(invite.worldId);
+    const host = contestHostOf(invite.tier, world);
+    const name = contestNameOf(invite.tier, world);
+    this.showModal(`<h3>✦ ${htmlText(host.title)}</h3>
+      <div class="card" style="border-left-color:#7A4BE0">
+        <b>${htmlText(host.name)}</b>推开了门，把一份烫金请柬按在柜台上。
+        <div style="margin-top:7px">「${htmlText(this.g.sim.econ.tavernName || '贵店')}已经通过 ${invite.star} 星认证。我们正式邀请你们参加<b>${htmlText(name)}</b>。」</div>
+        <div class="dim" style="margin-top:6px">接受后，每天打烊都会进行一场比拼，从入围赛一路打到决赛。拒绝则该世界本轮大赛链路取消。</div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <button data-act="contestaccept">带领大家参赛</button>
+        <button data-act="contestdecline" class="warn">婉拒邀请</button>
+      </div>`, true, false, { variant: 'important' });
+    return true;
+  }
+
+  resolveContestInvite(accept) {
+    const sim = this.g.sim;
+    if (accept) sim.acceptContestInvite(); else sim.declineContestInvite();
+    this.g.save();
+    const pending = this.pendingSettlementStat;
+    this.pendingSettlementStat = null;
+    if (accept) this.openContestMatch();
+    else if (pending) this.continueSettlement(pending);
+    else this.closeModal();
+  }
+
+  openContestMatch() {
+    const sim = this.g.sim;
+    const active = sim.econ.contest?.active;
+    if (!active) return;
+    this.contestTactics ||= {};
+    const world = active.tier === 'myriad' ? { name: '诸天万界' } : sim.worldById(active.worldId);
+    const heats = CONTEST_HEATS.map((heat) => {
+      const picked = this.contestTactics[heat.id] || heat.tactics[0].id;
+      return `<div class="card contest-heat"><b>${htmlText(heat.name)}</b>
+        <div class="row" style="flex-wrap:wrap;margin-top:6px">${heat.tactics.map((tactic) => `<button data-act="contestheat" data-s="${heat.id}" data-v="${tactic.id}" class="${picked === tactic.id ? 'on' : ''}">${htmlText(tactic.label)}<br><span class="dim">${htmlText(tactic.note)}</span></button>`).join('')}</div></div>`;
+    }).join('');
+    this.showModal(`<h3>🏆 ${htmlText(contestNameOf(active.tier, world))}</h3>
+      <div class="row"><span class="hi">${htmlText(stageById(active.stage).name)}</span><span>${htmlText(sim.econ.tavernName)} vs ${htmlText(active.opponent?.name || '匿名酒楼')}</span></div>
+      <div class="dim">${htmlText(active.opponent?.note || '评委已经入座。选出每一环节的打法。')}</div>
+      ${heats}
+      <div class="row" style="margin-top:10px"><button data-act="contestgo">开赛</button></div>`, true, false, { variant: 'important' });
+  }
+
+  runContestMatch() {
+    const result = this.g.sim.finishContestMatch(this.contestTactics || {});
+    if (!result) return;
+    this.g.save();
+    this.g.audio.play(result.passed ? 'happy' : 'error');
+    const heats = result.heats.map((row) => `<div class="row"><span>${htmlText(row.heat.name)} · ${htmlText(row.tactic.label)}</span><span class="${row.won ? 'good' : 'bad'}">${row.player} : ${row.opponent} ${row.won ? '胜' : '负'}</span></div>`).join('');
+    const next = result.finished
+      ? `<div class="card" style="margin-top:8px"><b>${result.passed ? '冠军诞生' : '本轮止步'}</b><div>${result.title ? `永久称号：<span class="tavern-title" style="color:${(TITLE_TIERS[result.title.tier] || TITLE_TIERS.common).color}">${htmlText(result.title.name)}</span>` : '未获得称号。'}</div></div>`
+      : `<div class="dim" style="margin-top:8px">下一场：${htmlText(result.nextStage.name)}。明天打烊后继续。</div>`;
+    const pending = this.pendingSettlementStat;
+    this.pendingSettlementStat = null;
+    this.showModal(`<h3>${result.passed ? '✅' : '❌'} ${htmlText(result.stage.name)}结算</h3>
+      <div class="dim">${htmlText(result.contestName)} · 对阵 ${htmlText(result.opponent?.name || '对手')}</div>
+      ${heats}${next}
+      <div class="row" style="margin-top:12px"><button data-act="${pending ? 'contestafter' : 'closemodal'}">${pending ? '继续日结' : '收起比拼'}</button></div>`, true, false, { variant: result.passed ? 'important' : 'plain' });
+    this.contestAfterStat = pending;
+  }
+
+  afterSettlementClose() {
+    this.settlementAIStat = null;
+    if (this.g.sim.econ.contest?.pendingInvite) { this.openContestInvite(); return; }
+    const active = this.g.sim.econ.contest?.active;
+    if (active && active.lastMatchDay !== this.g.sim.econ.day) this.openContestMatch();
+  }
+
+  openTitleCabinet() {
+    const econ = this.g.sim.econ;
+    const rows = (econ.titles || []).map((title) => {
+      const tier = TITLE_TIERS[title.tier] || TITLE_TIERS.common;
+      const on = econ.equippedTitle === title.id;
+      return `<div class="card"><div class="row"><b class="tavern-title" style="color:${tier.color}">${htmlText(title.name)}</b><span class="dim">${htmlText(tier.label)}</span></div>
+        <div class="dim">${htmlText(title.contest || '')}</div>
+        <button data-act="titleequip" data-v="${htmlText(title.id)}" class="${on ? 'on' : ''}">${on ? '佩戴中' : '佩戴此称号'}</button></div>`;
+    }).join('');
+    this.showModal(`<h3>酒馆称号</h3>
+      <div class="dim">称号永久保留，同时只能佩戴一个，会显示在顶栏店名之前。</div>
+      ${econ.equippedTitle ? `<div class="row" style="margin-top:8px"><button data-act="titleequip" data-v="">卸下称号</button></div>` : ''}
+      ${rows || '<div class="dim" style="margin-top:8px">还没有称号。二星后的世界大赛会颁发。</div>'}
+      <div class="row" style="margin-top:12px"><button data-act="closemodal">关闭</button></div>`);
   }
 
   continueSettlement(stat) {
@@ -3725,6 +3849,12 @@ export class UI {
     let ownerBackground = ownerOptions.profile?.background || (employeeRecruit ? '' : initialBackground.background);
     let employeeAspiration = ownerOptions.profile?.aspiration || '';
     let employeeQuirk = ownerOptions.profile?.quirk || '';
+    let tavernPreset = TAVERN_PRESETS.some((preset) => preset.id === ownerOptions.tavernPreset) ? ownerOptions.tavernPreset : 'portable';
+    let tavernName = ownerOptions.tavernName || TAVERN_PRESETS[0].name;
+    let tavernBlurb = ownerOptions.tavernBlurb || TAVERN_PRESETS[0].blurb;
+    let tavernDraft = '';
+    let tavernAiBusy = false;
+    let tavernAiError = '';
     let aiDraft = '';
     let aiDesigned = !!ownerOptions.aiDesigned;
     let aiSkills = ownerOptions.aiDesigned && ownerOptions.skills ? { ...ownerOptions.skills } : null;
@@ -3815,6 +3945,12 @@ export class UI {
       if (currentBackground !== undefined) ownerBackground = currentBackground;
       const currentDraft = host.querySelector('#craidraft')?.value;
       if (currentDraft !== undefined) aiDraft = currentDraft;
+      const currentTavernName = host.querySelector('#crtavernname')?.value;
+      if (currentTavernName !== undefined) tavernName = currentTavernName;
+      const currentTavernBlurb = host.querySelector('#crtavernblurb')?.value;
+      if (currentTavernBlurb !== undefined) tavernBlurb = currentTavernBlurb;
+      const currentTavernDraft = host.querySelector('#crtaverndraft')?.value;
+      if (currentTavernDraft !== undefined) tavernDraft = currentTavernDraft;
     };
     const rerender = (captureInputs = true)       => {
       if (captureInputs) captureCreatorInputs();
@@ -3852,6 +3988,12 @@ export class UI {
             <label><span class="dim">身份定位</span><input id="crrole" maxlength="100" value="${htmlText(ownerRole)}"></label>
             <label><span class="dim">背景经历</span><textarea id="crbackground" maxlength="2400" placeholder="${employeeRecruit ? '写下员工的出身、经历、求职动机和待人方式……' : '写下店主的出身、经历、经营动机和待人方式……'}">${htmlText(ownerBackground)}</textarea></label>
           </div>
+          ${employeeRecruit ? '' : `<div class="creator-background" style="margin-top:8px"><div class="row"><b>酒馆名称与简介</b><span class="dim">会挂在门楣和账簿上</span></div>
+            <div class="creator-background-presets">${TAVERN_PRESETS.map((preset) => `<button data-tavern-preset="${preset.id}" class="${tavernPreset === preset.id ? 'on' : ''}">${preset.name}</button>`).join('')}<button data-tavern-preset="custom" class="${tavernPreset === 'custom' ? 'on' : ''}">自定义</button></div>
+            <label><span class="dim">酒馆名称</span><input id="crtavernname" maxlength="24" value="${htmlText(tavernName)}"></label>
+            <label><span class="dim">酒馆简介</span><textarea id="crtavernblurb" maxlength="240" placeholder="写下这家店为什么值得旅人停下来……">${htmlText(tavernBlurb)}</textarea></label>
+            ${aiConfigured() ? `<textarea id="crtaverndraft" maxlength="400" placeholder="例如：一间只给散修和夜班工人烤靴子的炉边小店……">${htmlText(tavernDraft)}</textarea>
+            <div class="row"><span class="${tavernAiError ? 'bad' : 'dim'}">${tavernAiError ? htmlText(tavernAiError) : '可先写概念，再让 AI 生成店名和简介。'}</span><button data-aitavern ${tavernAiBusy ? 'disabled' : ''}>${tavernAiBusy ? '生成中…' : 'AI 生成店名简介'}</button></div>` : ''}</div>`}
           ${aiConfigured() ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ ${employeeRecruit ? 'AI 设计员工' : 'AI 完整角色设计'}</b><span class="hi">生成完整外貌、经历与能力</span></div>
             <div class="dim">只根据这段文字每次从零重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力，不会把页面上已填的其他字段发给 AI。${employeeRecruit ? '员工仍会按能力计算正常工资与入职费。' : '不会给予跳过经营规则的权限。'}</div>
             <textarea id="craidraft" maxlength="1200" placeholder="${employeeRecruit ? '例如：从浮空港辞职的猫族调酒师，嘴硬心软，手很稳但特别怕打扫……' : '例如：沉默寡言的机械体前旅行厨师，背着旧武士刀，看起来冷淡但很会照顾人……'}">${htmlText(aiDraft)}</textarea>
@@ -3873,7 +4015,7 @@ export class UI {
       draw();
     };
     host.addEventListener('click', async (e) => {
-      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-bg-preset],[data-aiowner],[data-aicancelowner],[data-done]')                      ;
+      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-bg-preset],[data-tavern-preset],[data-aitavern],[data-aiowner],[data-aicancelowner],[data-done]')                      ;
       if (!t) return;
       let changed = false;
       let captureBeforeRender = true;
@@ -3905,6 +4047,33 @@ export class UI {
         const selected = OWNER_BACKGROUND_PRESETS.find((preset) => preset.id === backgroundPreset);
         if (selected) { ownerRole = selected.role; ownerBackground = selected.background; }
         captureBeforeRender = false;
+      }
+      else if (t.dataset.tavernPreset) {
+        captureCreatorInputs();
+        tavernPreset = t.dataset.tavernPreset;
+        const selected = TAVERN_PRESETS.find((preset) => preset.id === tavernPreset);
+        if (selected) { tavernName = selected.name; tavernBlurb = selected.blurb; }
+        captureBeforeRender = false;
+      }
+      else if (t.hasAttribute('data-aitavern')) {
+        captureCreatorInputs();
+        tavernDraft = tavernDraft.trim() || `${tavernName}。${tavernBlurb}`.trim();
+        if (!tavernDraft) { tavernAiError = '请先写一点酒馆概念。'; rerender(false); return; }
+        const controller = new AbortController();
+        this.creatorAIController?.abort(); this.creatorAIController = controller;
+        tavernAiBusy = true; tavernAiError = ''; rerender(false);
+        try {
+          const result = await requestGameAI('tavern_identity', { draft: tavernDraft }, { signal: controller.signal });
+          if (this.modal !== m) return;
+          tavernName = result.name; tavernBlurb = result.blurb; tavernPreset = 'custom';
+        } catch (err) {
+          if (this.modal === m) tavernAiError = controller.signal.aborted ? '已取消生成。' : `生成失败：${err?.message || '未知错误'}`;
+        } finally {
+          if (this.creatorAIController === controller) this.creatorAIController = null;
+          tavernAiBusy = false;
+          if (this.modal === m) rerender(false);
+        }
+        return;
       }
       else if (t.hasAttribute('data-aicancelowner')) {
         this.creatorAIController?.abort();
@@ -3994,6 +4163,8 @@ export class UI {
         const skills = aiDesigned && aiSkills ? { ...aiSkills } : { ...preset.skills };
         onDone(app, nm, sex, {
           age, traits: [...traits], skillPreset: aiDesigned ? 'ai' : preset.id, skills, aiDesigned,
+          tavernPreset, tavernName: (host.querySelector('#crtavernname')?.value || tavernName).trim(),
+          tavernBlurb: (host.querySelector('#crtavernblurb')?.value || tavernBlurb).trim(),
           backgroundPreset, profile: employeeRecruit && !aiDesigned && !ownerBackground.trim() ? null : {
             role: ownerRole, background: ownerBackground,
             ...(employeeRecruit ? { aspiration: employeeAspiration, quirk: employeeQuirk } : {}),
@@ -4025,6 +4196,9 @@ export class UI {
       }
       else if (target.id === 'crrole') { ownerRole = target.value; backgroundPreset = 'custom'; }
       else if (target.id === 'crbackground') { ownerBackground = target.value; backgroundPreset = 'custom'; }
+      else if (target.id === 'crtavernname') { tavernName = target.value; tavernPreset = 'custom'; }
+      else if (target.id === 'crtavernblurb') { tavernBlurb = target.value; tavernPreset = 'custom'; }
+      else if (target.id === 'crtaverndraft') tavernDraft = target.value;
       else if (target.id === 'craidraft') aiDraft = target.value;
     });
     rerender();

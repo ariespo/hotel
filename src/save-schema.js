@@ -1,9 +1,10 @@
 import { DEFAULT_RESTOCK_TARGETS, normalizePerkList, stripEquipmentFromBaseSkills } from './sim.js';
+import { normalizeContestState } from './contest.js';
 import { starsOf, WORLD_PROFILES, worldsForStars } from './data.js';
 import { RACE_NAMES } from './chargen.js';
 import { normalizeCustomWorld } from './world-system.js';
 
-export const SAVE_SCHEMA_VERSION = 9;
+export const SAVE_SCHEMA_VERSION = 10;
 
 function stableHash(text) {
   let hash = 2166136261;
@@ -125,6 +126,11 @@ export function migrateGameSaveData(source) {
     }
     data.meta.version = 9;
     version = 9;
+  }
+  if (version < 10) {
+    normalizeContestState(data.sim.econ);
+    data.meta.version = 10;
+    version = 10;
   }
   if (version > SAVE_SCHEMA_VERSION) throw new Error(`存档版本 ${version} 高于当前支持的 ${SAVE_SCHEMA_VERSION}`);
   data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, migratedAt: originalVersion < SAVE_SCHEMA_VERSION ? Date.now() : data.meta.migratedAt || 0 };
