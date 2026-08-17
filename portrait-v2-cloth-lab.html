@@ -51,8 +51,8 @@
 <body>
   <header>
     <h1>立绘 V2 · 服装母版实验室</h1>
-    <p>用立领蓝袍作为第一套服装母版（保留脖子开孔），叠在正式脸型下面。画布固定 <b>384 × 512</b>。位移 ±400，缩放 0–300（以 100 为基准可调 ±200）。调好后导出，之后所有服装都按这个母版来画。</p>
-    <p class="warn">合成顺序：服装 → 脸 → 眼睛 →（可选）头发/耳朵。本页只做母版定位，不改运行时立绘。</p>
+    <p>用立领蓝袍作为第一套服装母版（保留脖子开孔），叠在正式脸型上面，盖住脸图自带的那截衣领。画布固定 <b>384 × 512</b>。位移 ±400，缩放 0–300（以 100 为基准可调 ±200）。调好后导出，之后所有服装都按这个母版来画。</p>
+    <p class="warn">合成顺序：脸 → 眼睛 → 服装 →（可选）头发/耳朵。本页只做母版定位，不改运行时立绘。</p>
     <div class="controls">
       <label>脸型<select id="face"></select></label>
       <label>眼型<select id="eye"></select></label>
@@ -138,13 +138,13 @@
         jobs.push(load(`assets/portrait-v2-formal/ears/${faceId}.png`));
       }
       const [clothLayer, faceLayer, eyeLayer, hairLayer, earLayer] = await Promise.all(jobs);
+      x.drawImage(faceLayer, 0, 0);
+      x.drawImage(eyeLayer, 0, 0);
       x.save();
       x.translate(192 + offset.x, 256 + offset.y);
       x.scale(offset.scale / 100, offset.scale / 100);
       x.drawImage(clothLayer, -192, -256);
       x.restore();
-      x.drawImage(faceLayer, 0, 0);
-      x.drawImage(eyeLayer, 0, 0);
       if (hairLayer) x.drawImage(hairLayer, 0, 0);
       if (earLayer) x.drawImage(earLayer, 0, 0);
     }
@@ -155,7 +155,7 @@
         id: cloth.value,
         canvas: CANVAS,
         layer: 'body',
-        drawOrder: ['cloth', 'face', 'eyes', 'hair', 'ears'],
+        drawOrder: ['face', 'eyes', 'cloth', 'hair', 'ears'],
         faceAnchors: FACE_ANCHORS,
         relativeToFace: {
           fromChin: { x: draft.x, y: draft.y },
@@ -170,7 +170,7 @@
       yRange.value = yNumber.value = draft.y;
       scaleRange.value = scaleNumber.value = draft.scale;
       status.textContent = `当前草稿：相对脸部 X ${draft.x}px，Y ${draft.y}px，缩放 ${draft.scale}% · 母版 ${CANVAS.width}×${CANVAS.height}`;
-      spec.innerHTML = `母版画布 <b>${CANVAS.width} × ${CANVAS.height}</b>。下巴锚点 (192, 322)。服装在脸下面。<br>导出后，这套相对脸部的位移和缩放就是后续服装的标准。`;
+      spec.innerHTML = `母版画布 <b>${CANVAS.width} × ${CANVAS.height}</b>。下巴锚点 (192, 322)。服装盖在脸上面，遮住脸图自带的领口。<br>导出后，这套相对脸部的位移和缩放就是后续服装的标准。`;
     }
 
     function updateDraft(values) {

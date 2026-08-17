@@ -6,7 +6,7 @@
     "height": 512
   },
   "layer": "body",
-  "drawOrder": ["cloth", "face", "eyes", "hair", "ears"],
+  "drawOrder": ["face", "eyes", "cloth", "hair", "ears"],
   "faceAnchors": {
     "crown": [192, 48],
     "chin": [192, 322],
