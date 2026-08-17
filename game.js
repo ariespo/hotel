@@ -35,6 +35,10 @@ const WORLD_MATERIALS = {
   'floor-storage': 'assets/world-materials/floor-storage-v3.webp',
   'floor-carpet': 'assets/world-materials/floor-carpet-v3.webp',
   'floor-tatami': 'assets/world-materials/floor-tatami-v3.webp',
+  'floor-neon': 'assets/world-materials/floor-neon-v3.webp',
+  'floor-astral': 'assets/world-materials/floor-astral-v3.webp',
+  'floor-forge': 'assets/world-materials/floor-forge-v3.webp',
+  'floor-frost': 'assets/world-materials/floor-frost-v3.webp',
   furniture: 'assets/world-materials/furniture-target-v3.webp',
 };
 const saveKeyFor = (slot        ) => slot === 1 ? SAVE_KEY : `wjbdy.save.v2.slot.${slot}`;
@@ -2070,8 +2074,8 @@ class Game                    {
           const hd = this.materialPack === 'hd' ? materialFrame(name, x - r.x, y - r.y) : null;
           const sp = new PIXI.Sprite(hd || floorTex(name, v));
           sp.width = T; sp.height = T;
-          if (name === 'floor-tatami' && ((x + y) & 1)) {
-            // 榻榻米经典铺法：相邻格织向转 90°（贴图四边对称，旋转不破缝）
+          if (name === 'floor-tatami' && this.materialPack !== 'hd' && ((x + y) & 1)) {
+            // 经典榻榻米：相邻格织向转 90°。高清图已带完整席面，再转会把席块拧碎。
             sp.anchor.set(0.5);
             sp.rotation = Math.PI / 2;
             sp.x = x * T + T / 2; sp.y = y * T + T / 2;
@@ -2190,6 +2194,8 @@ class Game                    {
             trim.rotation = horiz ? 0 : Math.PI / 2;
             trim.x = side === 2 ? x * T + th / 2 : side === 3 ? (x + 1) * T - th / 2 : x * T + T / 2;
             trim.y = side === 0 ? y * T + th / 2 : side === 1 ? (y + 1) * T - th / 2 : y * T + T / 2;
+            const beamStyle = styleById(this.tavern.roomStyle(r));
+            if (beamStyle.id !== 'rustic') trim.tint = hexToNum(mix('#FFFFFF', beamStyle.trim || beamStyle.accent, 0.55));
             this.wallSprites.addChild(trim);
           }
           if (!nb && ((x * 5 + y * 3 + side) % 4 === 0)) {
@@ -2264,7 +2270,11 @@ class Game                    {
       // 实例级微色差：同种家具不再千件一面（色相暖冷 4 档抖动）
       const jit = [0xFFFFFF, 0xF7EEE0, 0xFFF6E4, 0xEFF2F4][((f.id * 2654435761) >>> 0) % 4];
       const base = hexToNum(fstyle.furnTint);
-      if (!hdFurniture) sp.tint = (((base >> 16 & 255) * (jit >> 16 & 255) / 255) << 16) | (((base >> 8 & 255) * (jit >> 8 & 255) / 255) << 8) | Math.round((base & 255) * (jit & 255) / 255);
+      if (hdFurniture) {
+        if (fstyle.id !== 'rustic') sp.tint = hexToNum(mix('#FFFFFF', fstyle.furnTint, 0.58));
+      } else {
+        sp.tint = (((base >> 16 & 255) * (jit >> 16 & 255) / 255) << 16) | (((base >> 8 & 255) * (jit >> 8 & 255) / 255) << 8) | Math.round((base & 255) * (jit & 255) / 255);
+      }
       const [fw, fh] = furnFootprint(f.kind, f.dir);
       const [sourceW, sourceH] = furnFootprint(f.kind, 0);
       sp.width = sourceW * T; sp.height = sourceH * T;
