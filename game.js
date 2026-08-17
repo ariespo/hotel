@@ -145,7 +145,8 @@ function actorTexture(app            , dir        , pose      , frame        , c
 const furnTex = new Map                      ();
 const FURNITURE_ATLAS_FRAMES = {
   table: [0, 0, 128, 128], table2: [640, 0, 128, 128], table3: [768, 0, 128, 128],
-  chair: [128, 0, 128, 128], plant: [256, 0, 128, 128],
+  chair: [128, 0, 128, 128], chair2: [1664, 0, 128, 128], chair3: [1792, 0, 128, 128],
+  plant: [256, 0, 128, 128],
   desk: [384, 0, 256, 128], desk2: [640, 128, 256, 128], desk3: [896, 128, 256, 128],
   prep: [0, 128, 256, 128], stove: [256, 128, 256, 128],
   sconce: [512, 128, 128, 128],
