@@ -3333,7 +3333,7 @@ export class UI {
         <button data-act="guestcapauto" class="${auto ? 'on' : ''}">跟随员工能力</button>
         <button data-act="guestcapsuggest" class="${!auto && cap === hint.mid ? 'on' : ''}">采用建议 ${hint.mid}</button>
       </div>
-      <div class="dim">按当前 ${hint.staffCount} 名员工、服务相关技能均分 ${hint.skillAvg} 估算，较稳妥的同时接待区间是 ${hint.lo}–${hint.hi} 组。${tone}</div>`;
+      <div class="dim">按当前 ${hint.staffCount} 名员工、服务相关技能均分 ${hint.skillAvg} 估算，较稳妥的同时接待区间是 ${hint.lo}–${hint.hi} 组。${tone} 同一瞬间最多再进 2 组，一组可以有好几个人。</div>`;
   }
 
   difficultySettingsHtml() {

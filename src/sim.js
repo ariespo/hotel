@@ -367,6 +367,8 @@ function clamp(v        , a        , b        )         { return v < a ? a : v >
 
 /** 同时在场客组硬上限；建议区间由员工人数与服务技能估算。 */
 export const GUEST_CAP_MAX = 16;
+/** 同一瞬间从门厅入场的客组上限。一组仍可有多人。 */
+export const ARRIVAL_WAVE_MAX = 2;
 export const GUEST_CAP_SKILLS = ['serve', 'cook', 'mix', 'clean', 'carry', 'calm'];
 
 export function guestCapacityRange(staffList) {
@@ -998,6 +1000,10 @@ export class Sim {
   setDifficulty(id) {
     this.econ.difficulty = DIFFICULTY[id] ? id : 'normal';
     return this.econ.difficulty;
+  }
+
+  arrivingGroupCount() {
+    return this.groups.filter((group) => group.state === 'wait').length;
   }
 
   skillOf(s, key) { return effectiveSkill(s, key); }
@@ -1947,16 +1953,14 @@ export class Sim {
     const repBoost = 1 - Math.min(0.45, this.econ.rep / 2200);
     // 开局节奏：第一天客人稀疏，之后逐日放开（避免第一天就是中期强度）
     const ease = this.econ.day <= 1 ? 2.4 : this.econ.day === 2 ? 1.7 : this.econ.day === 3 ? 1.3 : 1;
-    const waiting = this.groups.filter((g) => g.state === 'wait').length;
     const guestCap = this.effectiveGuestCap();
     if (this.groups.length >= guestCap) return;
-    const waitingLimit = Math.max(1, Math.min(guestCap, Math.max(2, Math.ceil(guestCap / 2))));
-    if (waiting >= waitingLimit) return;
+    if (this.arrivingGroupCount() >= ARRIVAL_WAVE_MAX) return;
     // 厨房积压时不再涌入新客（产能自适应：扩厨房/招厨师直接提高客流）
     const cooks = this.staff.filter((s) => s.job === 'cook' || s.job === 'bartender' || s.job === 'free').length;
     const backlog = this.orders.filter((o) => o.stage === 'queued' || o.stage === 'prep' || o.stage === 'cook').length;
     if (backlog > 2 + cooks * 2) return;
-    if (this.seatsFree() < 1 && this.freeFacilities() < 1 && waiting >= 1) return;
+    if (this.seatsFree() < 1 && this.freeFacilities() < 1 && this.arrivingGroupCount() >= 1) return;
     this.spawnAcc = (this.spawnAcc || 0) + dt;
     const interval = base * repBoost * ease * (0.8 + this.rng.next() * 0.5);
     if (this.spawnAcc < interval) return;
