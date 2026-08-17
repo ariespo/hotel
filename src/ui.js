@@ -16,7 +16,7 @@ import {
   NEED_HELP, ROOM_LABEL, SKILL_HELP, SKILL_KEYS, SKILL_LABEL, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
   WORLD_PROFILES, worldById,
 } from './data.js';
-import { AGE_MAX, fairWageRange, jobFocusSkill, restockPlan, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
+import { AGE_MAX, effectiveSkill, fairWageRange, jobFocusSkill, PERK_MAX_LEVEL, perkCostAt, perkLevel, perkNeedAt, perkNoteAt, perkTierOf, relatedPerkSkill, restockPlan, skillBonusOf, SKILL_EFFECT_CAP, SKILL_POINT_CAP, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
 import { CUSTOM_WORLD_LIMIT, customWorldCreationCost, normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
@@ -2644,24 +2644,35 @@ export class UI {
         <div class="dim">${st.task ? '正在：' + st.task.label : st.note || '待命中'}</div>
         ${st.isOwner ? `<div class="card" style="margin-top:7px;border-left-color:#7A4BE0"><div class="row"><b>店主身份与背景</b><button data-act="ownerprofile">修改设定</button></div><div><span class="dim">身份定位：</span>${htmlText(playerProfile.role)}</div><div class="dim" style="margin-top:5px;white-space:pre-wrap">${playerProfile.background ? htmlText(playerProfile.background) : '尚未填写背景设定。'}</div></div>` : st.background ? `<div class="card" style="margin-top:7px"><b>人物背景</b>${st.background.role ? `<div><span class="dim">身份定位：</span>${htmlText(st.background.role)}</div>` : ''}<div class="dim">${htmlText(st.background.background)}</div><button data-act="viewbg" data-v="${st.id}">查看完整背景</button></div>` : aiConfigured() ? `<button data-act="aibg" data-v="${st.id}" style="margin-top:7px">AI 生成员工背景</button>` : ''}`;
     } else if (this.detailTab === 'skill') {
-      body = SKILL_KEYS.map((k) => `<div class="row">${this.skillTag(k, st.id)}${bar(st.skills[k], 100, '#F3B84B')}<span style="width:56px">${st.skills[k]}<span class="dim">+${Math.floor(st.exp[k] || 0)}</span></span></div>`).join('')
-        + `<div class="dim">点击词条可查看数值作用。干活会攒经验，熟练度越高上菜/翻台/清洁越快。好感加成：当前 +${Math.round(st.aff / 4)}% 动作速度。</div>`;
+      body = SKILL_KEYS.map((k) => {
+        const base = st.skills[k];
+        const bonus = skillBonusOf(st, k);
+        const shown = effectiveSkill(st, k);
+        return `<div class="row">${this.skillTag(k, st.id)}${bar(shown, SKILL_EFFECT_CAP, '#F3B84B')}<span style="min-width:92px">${shown}${bonus ? `<span class="dim">（${base}+${bonus}）</span>` : ''}<span class="dim"> +${Math.floor(st.exp[k] || 0)}</span></span></div>`;
+      }).join('')
+        + `<div class="dim">加点上限 ${SKILL_POINT_CAP}；装备与技能加成可以继续提高实效，最高影响 ${SKILL_EFFECT_CAP}。点击词条可查看数值作用。干活会攒经验。好感加成：当前 +${Math.round(st.aff / 4)}% 动作速度。</div>`;
     } else if (this.detailTab === 'growth') {
       const trained = st.lastTrainingDay === sim.econ.day;
       body = `<div class="card"><div class="row"><b>外出进修</b><span class="${trained ? 'bad' : 'dim'}">${sim.dayActive ? '营业中不可外出' : trained ? '本次打烊已进修' : '本次打烊可选择一次'}</span></div>
         <div class="dim">同一名员工每次打烊期间只能选择一门课程；将根据员工性格和已接通世界生成研修事件。三条路线的成长分配不同，但总成长量相同。</div>
-        <div class="row" style="flex-wrap:wrap;margin-top:7px">${SKILL_KEYS.map((skill) => { const cost = Math.round(90 + st.skills[skill] * 2.2); return `<button data-act="stafftrain" data-id="${st.id}" data-v="${skill}" ${sim.dayActive || trained || st.skills[skill] >= 100 ? 'disabled' : ''} title="${TRAINING_PROGRAMS[skill]}：能力 +3">${TRAINING_PROGRAMS[skill]}<br><span class="dim">${SKILL_LABEL[skill]} ${st.skills[skill]} → ${Math.min(100, st.skills[skill] + 3)} · ${cost} 币</span></button>`; }).join('')}</div></div>
-        <div class="card"><b>个人装备</b><div class="dim" style="margin-top:4px">打烊后购买，会立即扣除界币并提升对应能力。先点一次确认，再点一次才会扣费。</div><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_EQUIPMENT.map((item) => {
+        <div class="row" style="flex-wrap:wrap;margin-top:7px">${SKILL_KEYS.map((skill) => { const cost = Math.round(90 + st.skills[skill] * 2.2); return `<button data-act="stafftrain" data-id="${st.id}" data-v="${skill}" ${sim.dayActive || trained || st.skills[skill] >= SKILL_POINT_CAP ? 'disabled' : ''} title="${TRAINING_PROGRAMS[skill]}：加点 +3，不超过 ${SKILL_POINT_CAP}">${TRAINING_PROGRAMS[skill]}<br><span class="dim">${SKILL_LABEL[skill]} ${st.skills[skill]} → ${Math.min(SKILL_POINT_CAP, st.skills[skill] + 3)} · ${cost} 币</span></button>`; }).join('')}</div></div>
+        <div class="card"><b>个人装备</b><div class="dim" style="margin-top:4px">打烊后购买，会立即扣除界币并以外部加成提高实效能力，可突破加点上限 100。先点一次确认，再点一次才会扣费。</div><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_EQUIPMENT.map((item) => {
           const owned = st.equipment?.includes(item.id);
           const blocked = sim.dayActive ? '营业中不能购买' : owned ? '已装备' : `${SKILL_LABEL[item.skill]} +${item.bonus}`;
           return `<button data-act="staffequip" data-id="${st.id}" data-v="${item.id}" ${sim.dayActive || owned ? 'disabled' : ''} title="${blocked}">${owned ? '✓ 已装备 · ' : ''}${item.name} · ${item.cost} 币<br><span class="dim">${owned ? `${SKILL_LABEL[item.skill]} 已 +${item.bonus}` : `${SKILL_LABEL[item.skill]} +${item.bonus}`}</span></button>`;
         }).join('')}</div></div>
-        <div class="card"><b>职业技能</b><div class="dim" style="margin-top:4px">打烊后学习；能力未达标或界币不足时不会扣费。先点一次确认，再点一次才会扣费。</div><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_PERKS.map((perk) => {
-          const owned = st.perks?.includes(perk.id);
-          const related = perk.id === 'artisan' ? Math.max(st.skills.cook, st.skills.mix) : st.skills[perk.skill];
-          const ready = related >= perk.need;
-          const blocked = sim.dayActive ? '营业中不能学习' : owned ? '已学会' : !ready ? `需要${SKILL_LABEL[perk.skill]} ${perk.need}（当前 ${related}）` : perk.note;
-          return `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${sim.dayActive || owned || !ready ? 'disabled' : ''} title="${blocked}">${owned ? '✓ 已学会 · ' : ''}${perk.name} · ${perk.cost} 币<br><span class="dim">${owned ? perk.note : !ready ? `需要${SKILL_LABEL[perk.skill]} ${perk.need}` : perk.note}</span></button>`;
+        <div class="card"><b>职业技能</b><div class="dim" style="margin-top:4px">打烊后学习或升级，最高 3 级。凡/良/精/绝四阶；部分技能每日限次发动。先点一次确认，再点一次才会扣费。</div><div class="row" style="flex-wrap:wrap;margin-top:7px">${STAFF_PERKS.map((perk) => {
+          const level = perkLevel(st, perk.id);
+          const next = Math.min(PERK_MAX_LEVEL, level + 1);
+          const related = relatedPerkSkill(st, perk);
+          const need = perkNeedAt(perk, level ? next : 1);
+          const cost = perkCostAt(perk, level ? next : 1);
+          const maxed = level >= PERK_MAX_LEVEL;
+          const ready = related >= need;
+          const tier = perkTierOf(perk).label;
+          const note = perkNoteAt(perk, level || 1);
+          const blocked = sim.dayActive ? '营业中不能学习' : maxed ? `已满 ${PERK_MAX_LEVEL} 级` : !ready ? `需要${SKILL_LABEL[perk.skill]} ${need}（当前 ${related}）` : perkNoteAt(perk, next);
+          return `<button data-act="staffperk" data-id="${st.id}" data-v="${perk.id}" ${sim.dayActive || maxed || !ready ? 'disabled' : ''} title="${blocked}">${level ? `✓ ${tier} Lv.${level} · ` : `${tier} · `}${perk.name}${maxed ? '' : ` · ${cost} 币`}<br><span class="dim">${maxed ? note : !ready ? `需要${SKILL_LABEL[perk.skill]} ${need}` : `${level ? `升级 ${level}→${next}：` : ''}${perkNoteAt(perk, next)}`}</span></button>`;
         }).join('')}</div></div>`;
     } else {
       const rels = sim.relsOf(st.id);

@@ -374,8 +374,7 @@ export function guestCapacityRange(staffList) {
   const n = Math.max(1, people.length);
   const skillAvg = people.length
     ? people.reduce((sum, person) => {
-        const skills = person.skills || {};
-        const vals = GUEST_CAP_SKILLS.map((key) => Math.max(0, Number(skills[key]) || 0));
+        const vals = GUEST_CAP_SKILLS.map((key) => Math.max(0, effectiveSkill(person, key)));
         return sum + vals.reduce((a, b) => a + b, 0) / vals.length;
       }, 0) / people.length
     : 30;
@@ -562,7 +561,7 @@ export function dayReputationDelta(avgScore, served, lost, day, stars = 0) {
 }
 
 export function fairWageRange(staff) {
-  const skills = normalizedSkills(staff?.skills);
+  const skills = effectiveSkills(staff);
   const baseline = 18 + SKILL_KEYS.reduce((sum, key) => sum + skills[key], 0) * 0.13;
   return { min: Math.round(baseline * 0.95), recommended: Math.round(baseline * 1.05), max: Math.round(baseline * 1.16) };
 }
@@ -585,14 +584,14 @@ export function jobFocusSkill(job) {
 }
 
 export function staffAnalysis(staff) {
-  const skills = normalizedSkills(staff?.skills);
+  const skills = effectiveSkills(staff);
   const roles = Object.entries(JOB_SKILL_WEIGHTS).map(([job, weights]) => ({
     job, score: Math.round(Object.entries(weights).reduce((sum, [key, weight]) => sum + skills[key] * weight, 0)),
   })).sort((a, b) => b.score - a.score);
   const ordered = SKILL_KEYS.map((key) => ({ key, value: skills[key] })).sort((a, b) => b.value - a.value);
   const traitBoost = (staff?.traits || []).reduce((sum, trait) => sum + ({ decisive: 3, diligent: 3, fast: 2, organized: 2, lazy: -4, clumsy: -3, grumpy: -2 }[trait] || 0), 0);
   return {
-    score: Math.max(1, Math.min(100, roles[0].score + traitBoost)), recommendedJob: roles[0].job,
+    score: Math.max(1, Math.min(SKILL_EFFECT_CAP, roles[0].score + traitBoost)), recommendedJob: roles[0].job,
     strengths: ordered.slice(0, 2), weaknesses: ordered.slice(-2).reverse(), roles,
   };
 }
@@ -646,12 +645,152 @@ export const STAFF_EQUIPMENT = Object.freeze([
   { id: 'calm_charm', name: '静心护符', skill: 'calm', bonus: 3, cost: 220 },
 ]);
 
+export const SKILL_POINT_CAP = 100;
+export const SKILL_EFFECT_CAP = 160;
+export const PERK_MAX_LEVEL = 3;
+export const PERK_TIERS = Object.freeze({
+  common: { id: 'common', label: '凡阶', rank: 1 },
+  uncommon: { id: 'uncommon', label: '良阶', rank: 2 },
+  rare: { id: 'rare', label: '精阶', rank: 3 },
+  epic: { id: 'epic', label: '绝阶', rank: 4 },
+});
+
 export const STAFF_PERKS = Object.freeze([
-  { id: 'warm_welcome', name: '宾至如归', skill: 'serve', need: 40, cost: 260, note: '接待、引座与结账速度 +12%' },
-  { id: 'swift_hands', name: '熟练手法', skill: 'carry', need: 40, cost: 260, note: '搬运与上菜动作速度 +12%' },
-  { id: 'spotless_route', name: '无尘路线', skill: 'clean', need: 40, cost: 260, note: '清洁与整理速度 +18%' },
-  { id: 'artisan', name: '匠心出品', skill: 'cook', need: 45, cost: 320, note: '烹饪与调酒动作速度 +10%' },
+  { id: 'warm_welcome', name: '宾至如归', skill: 'serve', need: 40, cost: 260, tier: 'common', kind: 'passive_speed',
+    speeds: { serve: [0.12, 0.18, 0.24] },
+    notes: ['接待、引座与结账速度 +12%', '接待、引座与结账速度 +18%', '接待、引座与结账速度 +24%'] },
+  { id: 'swift_hands', name: '熟练手法', skill: 'carry', need: 40, cost: 260, tier: 'common', kind: 'passive_speed',
+    speeds: { carry: [0.12, 0.18, 0.24] },
+    notes: ['搬运与上菜动作速度 +12%', '搬运与上菜动作速度 +18%', '搬运与上菜动作速度 +24%'] },
+  { id: 'spotless_route', name: '无尘路线', skill: 'clean', need: 40, cost: 260, tier: 'common', kind: 'passive_speed',
+    speeds: { clean: [0.18, 0.26, 0.34] },
+    notes: ['清洁与整理速度 +18%', '清洁与整理速度 +26%', '清洁与整理速度 +34%'] },
+  { id: 'artisan', name: '匠心出品', skill: 'cook', need: 45, cost: 320, tier: 'common', kind: 'passive_speed',
+    speeds: { cook: [0.1, 0.16, 0.22], mix: [0.1, 0.16, 0.22] },
+    notes: ['烹饪与调酒动作速度 +10%', '烹饪与调酒动作速度 +16%', '烹饪与调酒动作速度 +22%'] },
+  { id: 'second_wind', name: '回气诀', skill: 'calm', need: 36, cost: 240, tier: 'common', kind: 'daily_restore',
+    restore: { need: 'stamina', below: 30, to: [60, 70, 80] },
+    notes: ['每次营业 1 次：体力降至 30 时回复到 60', '每次营业 2 次：体力降至 30 时回复到 70', '每次营业 3 次：体力降至 30 时回复到 80'] },
+  { id: 'cool_head', name: '压火', skill: 'calm', need: 42, cost: 280, tier: 'uncommon', kind: 'daily_restore',
+    restore: { need: 'stress', above: 70, to: [40, 30, 20] },
+    notes: ['每次营业 1 次：压力升至 70 时降到 40', '每次营业 2 次：压力升至 70 时降到 30', '每次营业 3 次：压力升至 70 时降到 20'] },
+  { id: 'late_snack', name: '垫一口', skill: 'cook', need: 34, cost: 220, tier: 'common', kind: 'daily_restore',
+    restore: { need: 'hunger', above: 70, to: [35, 25, 15] },
+    notes: ['每次营业 1 次：饥饿升至 70 时降到 35', '每次营业 2 次：饥饿升至 70 时降到 25', '每次营业 3 次：饥饿升至 70 时降到 15'] },
+  { id: 'pep_talk', name: '打起精神', skill: 'looks', need: 40, cost: 270, tier: 'uncommon', kind: 'daily_restore',
+    restore: { need: 'morale', below: 30, to: [55, 65, 75] },
+    notes: ['每次营业 1 次：士气降至 30 时回复到 55', '每次营业 2 次：士气降至 30 时回复到 65', '每次营业 3 次：士气降至 30 时回复到 75'] },
+  { id: 'hold_line', name: '压住场面', skill: 'serve', need: 48, cost: 360, tier: 'rare', kind: 'daily_proc',
+    notes: ['每次营业 1 次：等待客组耐心跌到 25% 时回复 20', '每次营业 2 次：等待客组耐心跌到 25% 时回复 30', '每次营业 3 次：等待客组耐心跌到 25% 时回复 40'] },
+  { id: 'clutch', name: '绝处补救', skill: 'calm', need: 50, cost: 380, tier: 'rare', kind: 'daily_proc',
+    notes: ['每次营业 1 次：设施挑战初检失败时改判成功', '每次营业 2 次：设施挑战初检失败时改判成功', '每次营业 3 次：设施挑战初检失败时改判成功'] },
+  { id: 'signature', name: '会心出品', skill: 'cook', need: 48, cost: 360, tier: 'rare', kind: 'daily_proc',
+    notes: ['每次营业 1 次：下一份料理/饮品品质 +0.5', '每次营业 2 次：下一份料理/饮品品质 +0.8', '每次营业 3 次：下一份料理/饮品品质 +1.1'] },
+  { id: 'tidy_after', name: '顺手清', skill: 'clean', need: 36, cost: 230, tier: 'common', kind: 'daily_proc',
+    notes: ['每次营业 1 次：做完一项工作后顺手清掉身边一处污渍', '每次营业 2 次：做完一项工作后顺手清掉身边一处污渍', '每次营业 3 次：做完一项工作后顺手清掉身边一处污渍'] },
+  { id: 'iron_legs', name: '铁脚', skill: 'carry', need: 55, cost: 420, tier: 'epic', kind: 'daily_proc',
+    notes: ['每次营业 1 次：本该回房休息时改为体力回到 50', '每次营业 2 次：本该回房休息时改为体力回到 60', '每次营业 3 次：本该回房休息时改为体力回到 70'] },
+  { id: 'front_aura', name: '门厅气场', skill: 'looks', need: 42, cost: 300, tier: 'uncommon', kind: 'passive_skill',
+    bonuses: { looks: [3, 5, 8], serve: [3, 5, 8] },
+    notes: ['颜值、服务各 +3，可突破加点上限', '颜值、服务各 +5，可突破加点上限', '颜值、服务各 +8，可突破加点上限'] },
+  { id: 'kitchen_soul', name: '灶台魂', skill: 'cook', need: 42, cost: 300, tier: 'uncommon', kind: 'passive_skill',
+    bonuses: { cook: [3, 5, 8], mix: [3, 5, 8] },
+    notes: ['厨艺、调酒各 +3，可突破加点上限', '厨艺、调酒各 +5，可突破加点上限', '厨艺、调酒各 +8，可突破加点上限'] },
+  { id: 'house_keep', name: '内务通', skill: 'clean', need: 42, cost: 300, tier: 'uncommon', kind: 'passive_skill',
+    bonuses: { clean: [3, 5, 8], carry: [3, 5, 8] },
+    notes: ['清洁、搬运各 +3，可突破加点上限', '清洁、搬运各 +5，可突破加点上限', '清洁、搬运各 +8，可突破加点上限'] },
+  { id: 'iron_mind', name: '定神', skill: 'calm', need: 48, cost: 340, tier: 'rare', kind: 'passive_skill',
+    bonuses: { calm: [6, 10, 15] },
+    notes: ['冷静 +6，可突破加点上限', '冷静 +10，可突破加点上限', '冷静 +15，可突破加点上限'] },
+  { id: 'star_host', name: '镇店之宝', skill: 'looks', need: 58, cost: 480, tier: 'epic', kind: 'passive_skill',
+    bonuses: { looks: [2, 4, 6], cook: [2, 4, 6], mix: [2, 4, 6], serve: [2, 4, 6], clean: [2, 4, 6], carry: [2, 4, 6], calm: [2, 4, 6] },
+    notes: ['全部能力 +2，可突破加点上限', '全部能力 +4，可突破加点上限', '全部能力 +6，可突破加点上限'] },
 ]);
+
+export function perkDef(id) {
+  return STAFF_PERKS.find((perk) => perk.id === id) || null;
+}
+
+export function perkTierOf(perk) {
+  return PERK_TIERS[perk?.tier] || PERK_TIERS.common;
+}
+
+export function normalizePerkList(perks) {
+  const map = new Map();
+  if (!Array.isArray(perks)) return [];
+  for (const row of perks) {
+    const id = typeof row === 'string' ? row : row?.id;
+    if (!perkDef(id)) continue;
+    const level = typeof row === 'string' ? 1 : clamp(Math.round(Number(row.level) || 1), 1, PERK_MAX_LEVEL);
+    const prev = map.get(id);
+    map.set(id, { id, level: Math.max(prev?.level || 0, level) });
+  }
+  return [...map.values()];
+}
+
+export function perkLevel(staff, id) {
+  return normalizePerkList(staff?.perks).find((row) => row.id === id)?.level || 0;
+}
+
+export function perkNeedAt(perk, level) {
+  const step = perk?.tier === 'epic' ? 16 : perk?.tier === 'rare' ? 14 : 12;
+  return Math.round(Number(perk?.need) || 0) + (Math.max(1, level) - 1) * step;
+}
+
+export function perkCostAt(perk, level) {
+  const base = Math.round(Number(perk?.cost) || 0);
+  return Math.round(base * (level <= 1 ? 1 : level === 2 ? 1.65 : 2.5));
+}
+
+export function perkNoteAt(perk, level) {
+  const notes = perk?.notes || [perk?.note || ''];
+  return notes[clamp(Math.round(Number(level) || 1), 1, PERK_MAX_LEVEL) - 1] || notes[0] || '';
+}
+
+export function relatedPerkSkill(staff, perk) {
+  if (!perk) return 0;
+  if (perk.id === 'artisan' || perk.id === 'kitchen_soul' || perk.id === 'signature') {
+    return Math.max(effectiveSkill(staff, 'cook'), effectiveSkill(staff, 'mix'));
+  }
+  return effectiveSkill(staff, perk.skill);
+}
+
+export function baseSkill(staff, key) {
+  return clamp(Math.round(Number(staff?.skills?.[key]) || 0), 1, SKILL_POINT_CAP);
+}
+
+export function skillBonusOf(staff, key) {
+  let bonus = 0;
+  for (const id of staff?.equipment || []) {
+    const item = STAFF_EQUIPMENT.find((row) => row.id === id);
+    if (item?.skill === key) bonus += item.bonus;
+  }
+  for (const row of normalizePerkList(staff?.perks)) {
+    const add = perkDef(row.id)?.bonuses?.[key];
+    if (add) bonus += add[row.level - 1] || 0;
+  }
+  return bonus;
+}
+
+export function effectiveSkill(staff, key) {
+  return Math.min(SKILL_EFFECT_CAP, baseSkill(staff, key) + skillBonusOf(staff, key));
+}
+
+export function effectiveSkills(staff) {
+  return Object.fromEntries(SKILL_KEYS.map((key) => [key, effectiveSkill(staff, key)]));
+}
+
+export function stripEquipmentFromBaseSkills(person) {
+  if (!person?.skills || !Array.isArray(person.equipment)) return person;
+  const next = { ...person.skills };
+  for (const id of person.equipment) {
+    const item = STAFF_EQUIPMENT.find((row) => row.id === id);
+    if (!item) continue;
+    next[item.skill] = Math.max(1, Math.round((Number(next[item.skill]) || 1) - item.bonus));
+  }
+  person.skills = next;
+  return person;
+}
 
 const DUTY_TASK = Object.freeze({ greet: 'front', seat: 'front', checkout: 'front', order: 'service', serve: 'service', cook: 'cook', mix: 'mix', facility: 'facility', tidy: 'clean', clean: 'clean', bus: 'carry' });
 function defaultDutyPriorities(job = 'free') {
@@ -859,6 +998,29 @@ export class Sim {
   setDifficulty(id) {
     this.econ.difficulty = DIFFICULTY[id] ? id : 'normal';
     return this.econ.difficulty;
+  }
+
+  skillOf(s, key) { return effectiveSkill(s, key); }
+
+  resetPerkCharges(staff = this.staff) {
+    for (const person of staff) {
+      const charges = {};
+      for (const row of normalizePerkList(person.perks)) {
+        const perk = perkDef(row.id);
+        if (perk?.kind === 'daily_restore' || perk?.kind === 'daily_proc') charges[row.id] = row.level;
+      }
+      person.perkCharges = charges;
+    }
+  }
+
+  perkChargesLeft(s, perkId) {
+    return Math.max(0, Math.round(Number(s?.perkCharges?.[perkId]) || 0));
+  }
+
+  consumePerkCharge(s, perkId) {
+    if (!s || this.perkChargesLeft(s, perkId) <= 0) return false;
+    s.perkCharges[perkId] -= 1;
+    return true;
   }
 
   worldFactionRelations(worldId) {
@@ -1493,6 +1655,7 @@ export class Sim {
     this.roomUsage = {};
     this.dayActive = true;
     this.running = true;
+    this.resetPerkCharges();
     this.econ.revenue = 0; this.econ.served = 0; this.econ.lost = 0;
     this.scores = [];
     this.scoreParts = { quality: [], wait: [], service: [], hygiene: [], comfort: [], spectacle: [] };
@@ -2010,7 +2173,7 @@ export class Sim {
     if (this.econ.coins < st.fee) return { ok: false, msg: `研发费要 ${st.fee} 币，手头不够。` };
     for (const k of ING_KEYS) this.econ.stock[k] -= input.ing[k] || 0;
     this.econ.coins -= st.fee;
-    const chefSkill = chef.skills[input.drink ? 'mix' : 'cook'];
+    const chefSkill = this.skillOf(chef, input.drink ? 'mix' : 'cook');
     const chance = clamp(55 + (chefSkill - st.skill) * 1.6, 20, 98);
     if (!this.rng.chance(chance / 100)) {
       this.sounds.push('angry');
@@ -2152,7 +2315,7 @@ export class Sim {
     g.state = 'using';
     g.useT = t ? t[f.quality - 1] : 22;
     g.facilityService = { ...(g.facilityService || {}), attended: true, attendant: staff?.name || '' };
-    g.facilityAttendantSkill = staff ? staff.skills[this.facilitySkill(g.want)] : 0;
+    g.facilityAttendantSkill = staff ? this.skillOf(staff, this.facilitySkill(g.want)) : 0;
     for (const m of g.members) {
       m.pose = 'idle';
       m.dir = Math.abs(m.x - f.x) > Math.abs(m.y - f.y) ? (m.x > f.x ? 1 : 3) : (m.y > f.y ? 2 : 0);
@@ -2368,6 +2531,7 @@ export class Sim {
       }
       if (g.state === 'wait' || g.state === 'seated' || g.state === 'ordered' || g.state === 'facility_prepare' || g.state === 'facility_waiting_attend') {
         g.patience -= dt * (1 + (g.state === 'ordered' ? 0.15 : 0));
+        this.tryHoldLine(g);
         if (!g.worldWaitSpoken && g.patience < g.maxPatience * .55) {
           const guest = g.members[0];
           if (guest) { const text = this.worldDialogueLine(guest, 'wait', g.originWorldId); guest.bubble = { text, t: 6, tone: 'neutral' }; this.say(`${guest.name}：${text}`); }
@@ -2376,6 +2540,7 @@ export class Sim {
         if (g.patience <= 0) { this.leave(g, g.state === 'wait' ? '在前台等太久' : '等菜太久'); continue; }
       }
       if (g.state === 'wait') {
+        this.tryHoldLine(g);
         // 客人不会再自行找桌；迎宾后仍无空位时，前台会创建新的引座任务。
         if (g.patience < g.maxPatience * 0.3) { this.leave(g, '等不到座位'); continue; }
       }
@@ -2934,17 +3099,17 @@ export class Sim {
   }
 
   actSpeed(s       , skill          )         {
-    let m = (0.55 + s.skills[skill] / 130) * (1 + s.aff / 400);
+    let m = (0.55 + this.skillOf(s, skill) / 130) * (1 + s.aff / 400);
     if ((s.boostT || 0) > 0) m *= 1.35;
     if (s.traits.includes('fast')) m *= 1.15;
     if (s.traits.includes('perfectionist')) m *= 0.88;
     if (skill === 'clean' && s.traits.includes('clean_freak')) m *= 1.25;
     if ((skill === 'clean' || skill === 'carry') && s.traits.includes('organized')) m *= 1.1;
     if ((s.prio || 0) >= 2 && s.traits.includes('competitive')) m *= 1.08;
-    if (s.perks?.includes('warm_welcome') && skill === 'serve') m *= 1.12;
-    if (s.perks?.includes('swift_hands') && skill === 'carry') m *= 1.12;
-    if (s.perks?.includes('spotless_route') && skill === 'clean') m *= 1.18;
-    if (s.perks?.includes('artisan') && (skill === 'cook' || skill === 'mix')) m *= 1.1;
+    for (const row of normalizePerkList(s.perks)) {
+      const add = perkDef(row.id)?.speeds?.[skill];
+      if (add) m *= 1 + (add[row.level - 1] || 0);
+    }
     if (s.needs.stamina < 25) m *= 0.8;
     return m;
   }
@@ -2985,10 +3150,14 @@ export class Sim {
       if ((s.boostT || 0) > 0) s.boostT = Math.max(0, (s.boostT          ) - dt);
       s.needs.stress = clamp(s.needs.stress + stressUp * dt, 0, 100);
       if (this.manualOwner && s.isOwner) { this.driveOwner(s, dt); continue; }
+      this.tickPerkRestores(s);
       // 疲惫员工先休息再抢下一项工作。前台任务近乎连续，若在 assign() 之后判断会永远轮不到休息。
       if (!s.task && s.needs.stamina < 28) {
-        s.path = [];                 // 取消回岗位的待命路径，立即改道去自己的休息室
-        this.tryRest(s);
+        if (this.tryIronLegs(s)) { /* 铁脚：本该回房，改为当场回气 */ }
+        else {
+          s.path = [];                 // 取消回岗位的待命路径，立即改道去自己的休息室
+          this.tryRest(s);
+        }
       }
       if (!s.task && open.length && s.needs.stamina >= 18) this.assign(s, open);
       if (s.task) this.runTask(s, dt);
@@ -3236,8 +3405,13 @@ export class Sim {
         kind: challengeKind[challenge.skill] || 'greet', key, label: `⚠ ${challenge.label}`, i: 0,
         steps: [{ tx: stand.x, ty: stand.y }, { dur: 2.8, label: challenge.label, skill: challenge.skill, done: (staff) => {
           if (challenge.state !== 'open') return;
-          const chance = clamp(Math.round(55 + (staff.skills[challenge.skill] - challenge.difficulty) * 1.15), 8, 96);
+          const chance = clamp(Math.round(55 + (this.skillOf(staff, challenge.skill) - challenge.difficulty) * 1.15), 8, 96);
           if (this.rng.next() * 100 <= chance) this.finishFacilityChallenge(challenge, staff, true);
+          else if (this.consumePerkCharge(staff, 'clutch')) {
+            staff.bubble = { text: '还能救！', t: 2 };
+            this.toast(`${staff.name}发动「绝处补救」`);
+            this.finishFacilityChallenge(challenge, staff, true);
+          }
           else this.escalateFacilityChallenge(challenge);
         } }],
       });
@@ -3559,8 +3733,11 @@ export class Sim {
         o.cookId = s.id;
         this.sounds.push('sizzle');
         // 出品质量 = 技能 + 设备品质 + 菜品难度惩罚
-        o.quality = clamp(0.9 + s.skills[cookSkill] / 26 + (stove.quality - 1) * 0.55 - dish.skill / 90
-          + (s.traits.includes('perfectionist') ? 0.4 : 0) + (s.traits.includes('creative') ? 0.25 : 0), 1, 5) * dish.taste;
+        const signature = this.consumePerkCharge(s, 'signature');
+        const signatureBoost = signature ? [0.5, 0.8, 1.1][perkLevel(s, 'signature') - 1] || 0.5 : 0;
+        if (signature) { s.bubble = { text: '会心！', t: 2 }; this.toast(`${s.name}发动「会心出品」`); }
+        o.quality = clamp(0.9 + this.skillOf(s, cookSkill) / 26 + (stove.quality - 1) * 0.55 - dish.skill / 90
+          + (s.traits.includes('perfectionist') ? 0.4 : 0) + (s.traits.includes('creative') ? 0.25 : 0) + signatureBoost, 1, 5) * dish.taste;
         // 整蛊料理：出品质量大幅随机，客人反应两极
         if (dish.fun && dish.fun.includes('prank')) o.quality = clamp(o.quality * this.rng.range(0.7, 1.35), 1, 5);
         if (dish.drink) {
@@ -3614,7 +3791,7 @@ export class Sim {
       if ((t.stationIds || []).some((id) => this.stationOwner.has(id))) continue;
       const first = t.steps.find((st) => st.tx !== undefined);
       const dist = first ? Math.abs((first.tx          ) - s.x) + Math.abs((first.ty          ) - s.y) : 0;
-      const skill = t.steps.reduce((a, st) => a + (st.skill ? s.skills[st.skill] : 0), 0) / Math.max(1, t.steps.filter((st) => st.skill).length);
+      const skill = t.steps.reduce((a, st) => a + (st.skill ? this.skillOf(s, st.skill) : 0), 0) / Math.max(1, t.steps.filter((st) => st.skill).length);
       let score = fit + skill * 0.5 - dist * 1.4 + s.needs.stamina * 0.08;
       const targetRoom = t.roomId ? this.tavern.roomById(t.roomId) : first ? this.tavern.roomAt(first.tx          , first.ty          ) : null;
       if (s.roomId && s.roomMode === 'strict' && targetRoom && targetRoom.id !== s.roomId) continue;
@@ -3687,7 +3864,7 @@ export class Sim {
         s.bubble = { text: '啊！', t: 1.5 };
       }
       t.i++;
-      if (t.i >= t.steps.length) { this.recordDayWork(s, t); s.task = null; s.carry = null; s.pose = 'idle'; s.note = ''; }
+      if (t.i >= t.steps.length) { this.recordDayWork(s, t); this.tryTidyAfter(s); s.task = null; s.carry = null; s.pose = 'idle'; s.note = ''; }
       else this.beginStep(s);
     }
   }
@@ -3695,9 +3872,9 @@ export class Sim {
   gainExp(s       , k          , amount        )       {
     s.exp[k] += amount * (s.traits.includes('gourmet') && k === 'cook' ? 1.5 : 1) * (s.traits.includes('ambitious') ? 1.2 : 1);
     const need = 12 + s.skills[k] * 0.9;
-    if (s.exp[k] >= need && s.skills[k] < 100) {
+    if (s.exp[k] >= need && s.skills[k] < SKILL_POINT_CAP) {
       s.exp[k] = 0;
-      s.skills[k] = Math.min(100, s.skills[k] + 1);
+      s.skills[k] = Math.min(SKILL_POINT_CAP, s.skills[k] + 1);
     }
   }
 
@@ -3710,7 +3887,7 @@ export class Sim {
     const gains = {};
     let remaining = budget;
     const add = (key) => {
-      const room = 100 - staff.skills[key] - (gains[key] || 0);
+      const room = SKILL_POINT_CAP - staff.skills[key] - (gains[key] || 0);
       if (remaining > 0 && room > 0) { gains[key] = (gains[key] || 0) + 1; remaining--; }
     };
     for (const key of priorities) add(key);
@@ -3734,7 +3911,7 @@ export class Sim {
     const region = regionProfile?.name || String(regionProfile || world.name);
     const mentor = world.travel.occupations[(seed >>> 3) % world.travel.occupations.length];
     const traitNames = (staff.traits || []).map((id) => TRAITS.find((trait) => trait.id === id)?.name || id).slice(0, 2);
-    const budget = Math.min(3, SKILL_KEYS.reduce((sum, key) => sum + Math.max(0, 100 - staff.skills[key]), 0));
+    const budget = Math.min(3, SKILL_KEYS.reduce((sum, key) => sum + Math.max(0, SKILL_POINT_CAP - staff.skills[key]), 0));
     const rawChoices = [
       { id: 'focus', label: course.focus, priorities: [skill, skill, skill], approach: `接受${mentor}的严格安排，把整段时间都投入${course.practice}` },
       { id: 'balanced', label: course.balanced, priorities: [skill, skill, course.a], approach: `先练核心课程，再把${SKILL_LABEL[course.a]}纳入同一套现场流程` },
@@ -3761,7 +3938,7 @@ export class Sim {
 
   trainStaff(id, skill, choiceId = 'focus') {
     const s = this.staff.find((person) => person.id === id);
-    if (!s || this.dayActive || !SKILL_KEYS.includes(skill) || s.skills[skill] >= 100) return false;
+    if (!s || this.dayActive || !SKILL_KEYS.includes(skill) || s.skills[skill] >= SKILL_POINT_CAP) return false;
     if (s.lastTrainingDay === this.econ.day) { this.toast(`${s.name}本次打烊期间已经外出进修过了`); return false; }
     const cost = Math.round(90 + s.skills[skill] * 2.2);
     if (this.econ.coins < cost) { this.toast(`进修需要 ${cost} 界币`); return false; }
@@ -3770,7 +3947,7 @@ export class Sim {
     if (!plan || !choice) return false;
     this.econ.coins -= cost;
     const before = { ...s.skills };
-    for (const [key, value] of Object.entries(choice.gains)) s.skills[key] = Math.min(100, s.skills[key] + value);
+    for (const [key, value] of Object.entries(choice.gains)) s.skills[key] = Math.min(SKILL_POINT_CAP, s.skills[key] + value);
     s.trainingCount = (s.trainingCount || 0) + 1;
     s.lastTrainingDay = this.econ.day;
     s.needs.morale = clamp(s.needs.morale + 3, 0, 100);
@@ -3786,21 +3963,79 @@ export class Sim {
     if (this.econ.coins < item.cost) { this.toast(`购买「${item.name}」需要 ${item.cost} 界币`); return false; }
     this.econ.coins -= item.cost;
     s.equipment = [...(s.equipment || []), item.id];
-    s.skills[item.skill] = Math.min(100, s.skills[item.skill] + item.bonus);
-    this.toast(`${s.name}装备了「${item.name}」：${SKILL_LABEL[item.skill]} +${item.bonus}`);
+    this.toast(`${s.name}装备了「${item.name}」：${SKILL_LABEL[item.skill]} +${item.bonus}（突破加点上限）`);
     return true;
   }
 
   learnStaffPerk(id, perkId) {
     const s = this.staff.find((person) => person.id === id);
-    const perk = STAFF_PERKS.find((row) => row.id === perkId);
-    if (!s || !perk || this.dayActive || s.perks?.includes(perk.id)) return false;
-    const related = perk.id === 'artisan' ? Math.max(s.skills.cook, s.skills.mix) : s.skills[perk.skill];
-    if (related < perk.need) { this.toast(`学习「${perk.name}」需要相关能力 ${perk.need}`); return false; }
-    if (this.econ.coins < perk.cost) { this.toast(`学习「${perk.name}」需要 ${perk.cost} 界币`); return false; }
-    this.econ.coins -= perk.cost;
-    s.perks = [...(s.perks || []), perk.id];
-    this.toast(`${s.name}学会了技能「${perk.name}」：${perk.note}`);
+    const perk = perkDef(perkId);
+    if (!s || !perk || this.dayActive) return false;
+    const current = perkLevel(s, perkId);
+    if (current >= PERK_MAX_LEVEL) { this.toast(`「${perk.name}」已经升到最高 ${PERK_MAX_LEVEL} 级`); return false; }
+    const next = current + 1;
+    const related = relatedPerkSkill(s, perk);
+    const need = perkNeedAt(perk, next);
+    if (related < need) { this.toast(`${current ? '升级' : '学习'}「${perk.name}」需要相关能力 ${need}`); return false; }
+    const cost = perkCostAt(perk, next);
+    if (this.econ.coins < cost) { this.toast(`${current ? '升级' : '学习'}「${perk.name}」需要 ${cost} 界币`); return false; }
+    this.econ.coins -= cost;
+    const rows = normalizePerkList(s.perks).filter((row) => row.id !== perk.id);
+    rows.push({ id: perk.id, level: next });
+    s.perks = rows;
+    this.toast(`${s.name}${current ? '将' : '学会了'}技能「${perk.name}」${current ? `升到 ${next} 级` : ''}：${perkNoteAt(perk, next)}`);
+    return true;
+  }
+
+  tickPerkRestores(s) {
+    if (!s?.needs) return;
+    for (const row of normalizePerkList(s.perks)) {
+      const perk = perkDef(row.id);
+      const spec = perk?.restore;
+      if (!spec || this.perkChargesLeft(s, row.id) <= 0) continue;
+      const value = Number(s.needs[spec.need]);
+      const should = Number.isFinite(spec.below) ? value <= spec.below : value >= spec.above;
+      if (!should) continue;
+      if (!this.consumePerkCharge(s, row.id)) continue;
+      const next = spec.to[row.level - 1] ?? spec.to[0];
+      s.needs[spec.need] = next;
+      s.bubble = { text: perk.name, t: 2 };
+      this.toast(`${s.name}发动「${perk.name}」`);
+    }
+  }
+
+  tryIronLegs(s) {
+    if (!this.consumePerkCharge(s, 'iron_legs')) return false;
+    const lv = perkLevel(s, 'iron_legs');
+    s.needs.stamina = 40 + lv * 10;
+    s.path = [];
+    s.bubble = { text: '还能撑', t: 2 };
+    this.toast(`${s.name}发动「铁脚」`);
+    return true;
+  }
+
+  tryTidyAfter(s) {
+    if (!this.dayActive || !this.consumePerkCharge(s, 'tidy_after')) return false;
+    const dirt = (this.tavern.dirt || []).find((spot) => Math.abs(spot.x - Math.round(s.x)) + Math.abs(spot.y - Math.round(s.y)) <= 2);
+    if (!dirt) {
+      s.perkCharges.tidy_after = (s.perkCharges.tidy_after || 0) + 1;
+      return false;
+    }
+    this.tavern.dirt = this.tavern.dirt.filter((spot) => spot !== dirt);
+    s.bubble = { text: '顺手清一下', t: 1.6 };
+    return true;
+  }
+
+  tryHoldLine(group) {
+    if (!group || group.state !== 'wait' || group.patience > group.maxPatience * 0.25) return false;
+    const helper = [...this.staff]
+      .filter((person) => this.perkChargesLeft(person, 'hold_line') > 0)
+      .sort((a, b) => this.skillOf(b, 'serve') - this.skillOf(a, 'serve'))[0];
+    if (!helper || !this.consumePerkCharge(helper, 'hold_line')) return false;
+    const restore = [20, 30, 40][perkLevel(helper, 'hold_line') - 1] || 20;
+    group.patience = Math.min(group.maxPatience, group.patience + restore);
+    helper.bubble = { text: '先稳住！', t: 2 };
+    this.toast(`${helper.name}发动「压住场面」`);
     return true;
   }
 
@@ -3832,7 +4067,10 @@ export class Sim {
   // ---------- 事件 ----------
   bestSkill(k          )                                  {
     let best = { id: 0, name: '无人', value: 0 };
-    for (const s of this.staff) if (s.skills[k] > best.value) best = { id: s.id, name: s.name, value: s.skills[k] };
+    for (const s of this.staff) {
+      const value = this.skillOf(s, k);
+      if (value > best.value) best = { id: s.id, name: s.name, value };
+    }
     return best;
   }
 
@@ -3976,7 +4214,7 @@ export class Sim {
     if (card?.challengeFallback) {
       const staff = this.staff.find((person) => person.id === (choice.actorId || card.actorId));
       if (!staff) return 5;
-      return clamp(Math.round(55 + (staff.skills[choice.skill] - choice.difficulty) * 1.15 + this.challengeTraitBonus(staff, choice.skill)), 5, 96);
+      return clamp(Math.round(55 + (this.skillOf(staff, choice.skill) - choice.difficulty) * 1.15 + this.challengeTraitBonus(staff, choice.skill)), 5, 96);
     }
     const best = this.bestSkill(choice.skill);
     const stoic = this.staff.some((s) => s.traits.includes('stoic')) ? 10 : 0;
@@ -4205,7 +4443,8 @@ export class Sim {
       roomMode: s.roomMode === 'strict' ? 'strict' : 'prefer',
       dutyPriorities: { ...defaultDutyPriorities(s.job), ...(s.dutyPriorities || {}) },
       equipment: Array.isArray(s.equipment) ? [...new Set(s.equipment)] : [],
-      perks: Array.isArray(s.perks) ? [...new Set(s.perks)] : [], trainingCount: Math.max(0, Number(s.trainingCount) || 0),
+      perks: normalizePerkList(s.perks), perkCharges: s.perkCharges && typeof s.perkCharges === 'object' ? { ...s.perkCharges } : {},
+      trainingCount: Math.max(0, Number(s.trainingCount) || 0),
       affCd: 0, chats: s.chats || 0, chatLog: s.chatLog || [], aiChatLog: s.aiChatLog || [], relationshipSummary: String(s.relationshipSummary || '').slice(0, 600), background: s.background || null, hireDay: s.hireDay || 1,
       originWorldId: String(s.originWorldId || ''),
       originWorldName: String(s.originWorldName || (s.originWorldId ? this.worldById(s.originWorldId).name : '')).slice(0, 80),

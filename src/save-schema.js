@@ -1,9 +1,9 @@
-import { DEFAULT_RESTOCK_TARGETS } from './sim.js';
+import { DEFAULT_RESTOCK_TARGETS, normalizePerkList, stripEquipmentFromBaseSkills } from './sim.js';
 import { starsOf, WORLD_PROFILES, worldsForStars } from './data.js';
 import { RACE_NAMES } from './chargen.js';
 import { normalizeCustomWorld } from './world-system.js';
 
-export const SAVE_SCHEMA_VERSION = 8;
+export const SAVE_SCHEMA_VERSION = 9;
 
 function stableHash(text) {
   let hash = 2166136261;
@@ -114,6 +114,17 @@ export function migrateGameSaveData(source) {
     econ.difficulty = econ.difficulty === 'easy' || econ.difficulty === 'hard' ? econ.difficulty : 'normal';
     data.meta.version = 8;
     version = 8;
+  }
+  if (version < 9) {
+    const people = [...(data.sim.staff || []), ...(data.sim.pool || [])];
+    for (const ad of data.sim.ads || []) people.push(...(ad.cands || []));
+    for (const person of people) {
+      stripEquipmentFromBaseSkills(person);
+      person.perks = normalizePerkList(person.perks);
+      person.perkCharges = person.perkCharges && typeof person.perkCharges === 'object' ? person.perkCharges : {};
+    }
+    data.meta.version = 9;
+    version = 9;
   }
   if (version > SAVE_SCHEMA_VERSION) throw new Error(`存档版本 ${version} 高于当前支持的 ${SAVE_SCHEMA_VERSION}`);
   data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, migratedAt: originalVersion < SAVE_SCHEMA_VERSION ? Date.now() : data.meta.migratedAt || 0 };
