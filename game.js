@@ -2319,7 +2319,9 @@ class Game                    {
         : { base: light.alpha, amp: 0.05, speed: 2.1 };
       this.glowAnims.push({ sp: pool, ...prof, phase: (light.x * 7.1 + light.y * 3.3) % 6.28, furn: light.furn || 0 });
     }
-    // 墙体贴图化：外墙 8px（壁纸+踢脚线），内墙 5px，门口铺门框；墙脚再压两层地面投影
+    // 墙体贴图化：经典外墙 8px / 内墙 5px；高清改用可读的踢脚梁，不再把 32px 源压成 8px。
+    const HD_BEAM_EXT = 16;
+    const HD_BEAM_INT = 12;
     const isDoor = (x1        , y1        , x2        , y2        )          =>
       this.tavern.doors.some((d) => (d.ax === x1 && d.ay === y1 && d.bx === x2 && d.by === y2) || (d.ax === x2 && d.ay === y2 && d.bx === x1 && d.by === y1));
     const wallTex = (kind               , roomKind        , horiz         , styleId        , rq = 1)               => {
@@ -2379,16 +2381,22 @@ class Game                    {
             continue;
           }
           const kind                = nb ? 'int' : 'ext';
-          const th = nb ? 5 : 8;
+          const beam = this.materialPack === 'hd' ? beamStrip(x, r.quality) : null;
+          const th = beam ? (nb ? HD_BEAM_INT : HD_BEAM_EXT) : (nb ? 5 : 8);
           const sp = new PIXI.Sprite(wallTex(kind, r.kind, horiz, this.tavern.roomStyle(r), r.quality));
           if (side === 0) { sp.x = x * T; sp.y = y * T; }
           else if (side === 1) { sp.x = x * T; sp.y = (y + 1) * T; sp.scale.y = -1; }
           else if (side === 2) { sp.x = x * T; sp.y = y * T; }
           else { sp.x = (x + 1) * T; sp.y = y * T; sp.scale.x = -1; }
-          const beam = this.materialPack === 'hd' ? beamStrip(x, r.quality) : null;
           if (beam) {
+            const back = th + 3;
+            const ao = nb ? 0.16 : 0.3;
+            if (side === 0) wall.rect(x * T, y * T, T, back).fill({ color: 0x140e0a, alpha: ao });
+            else if (side === 1) wall.rect(x * T, (y + 1) * T - back, T, back).fill({ color: 0x140e0a, alpha: ao });
+            else if (side === 2) wall.rect(x * T, y * T, back, T).fill({ color: 0x140e0a, alpha: ao });
+            else wall.rect((x + 1) * T - back, y * T, back, T).fill({ color: 0x140e0a, alpha: ao });
             const trim = new PIXI.Sprite(beam);
-            trim.anchor.set(0.5); trim.width = T; trim.height = th;
+            trim.anchor.set(0.5); trim.width = T + 1; trim.height = th;
             trim.rotation = horiz ? 0 : Math.PI / 2;
             trim.x = side === 2 ? x * T + th / 2 : side === 3 ? (x + 1) * T - th / 2 : x * T + T / 2;
             trim.y = side === 0 ? y * T + th / 2 : side === 1 ? (y + 1) * T - th / 2 : y * T + T / 2;
@@ -2412,10 +2420,11 @@ class Game                    {
             if (hdSconce) { d.width = 24; d.height = 24; d.rotation = horiz ? 0 : Math.PI / 2; }
             else d.tint = hexToNum(styleById(this.tavern.roomStyle(r)).furnTint);
             d.anchor.set(0.5);
-            if (side === 0) { d.x = x * T + T / 2; d.y = y * T + 4; }
-            else if (side === 1) { d.x = x * T + T / 2; d.y = (y + 1) * T - 4; d.scale.y *= -1; }
-            else if (side === 2) { d.x = x * T + 4; d.y = y * T + T / 2; }
-            else { d.x = (x + 1) * T - 4; d.y = y * T + T / 2; d.scale.x *= -1; }
+            const inset = beam ? Math.round(th * 0.55) : 4;
+            if (side === 0) { d.x = x * T + T / 2; d.y = y * T + inset; }
+            else if (side === 1) { d.x = x * T + T / 2; d.y = (y + 1) * T - inset; d.scale.y *= -1; }
+            else if (side === 2) { d.x = x * T + inset; d.y = y * T + T / 2; }
+            else { d.x = (x + 1) * T - inset; d.y = y * T + T / 2; d.scale.x *= -1; }
             this.decoSprites.addChild(d);
             if (kindDeco === 'sconce') {
               const gl = new PIXI.Sprite(glowTex(40, '#F3B84B'));
