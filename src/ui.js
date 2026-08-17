@@ -18,6 +18,7 @@ import {
 } from './data.js';
 import { AGE_MAX, effectiveSkill, fairWageRange, jobFocusSkill, PERK_MAX_LEVEL, perkCostAt, perkLevel, perkNeedAt, perkNoteAt, perkTierOf, relatedPerkSkill, restockPlan, skillBonusOf, SKILL_EFFECT_CAP, SKILL_POINT_CAP, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
 import { CONTEST_HEATS, contestHostOf, contestNameOf, equippedTitleOf, stageById, TAVERN_PRESETS, TITLE_TIERS } from './contest.js';
+import { emptyLayoutRefund, START_LAYOUTS, startLayoutPreviewSvg } from './start-layouts.js';
 import { CUSTOM_WORLD_LIMIT, customWorldCreationCost, normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
@@ -345,6 +346,10 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 @keyframes celeFall{to{transform:translateY(110vh) rotate(220deg);opacity:.15}}
 .tavern-title{font-weight:800;letter-spacing:.04em}
 .contest-heat button{white-space:normal;text-align:left;flex:1;min-width:140px}
+.start-layouts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px}
+.start-layout{display:flex;flex-direction:column;align-items:stretch;gap:4px;text-align:left;white-space:normal;padding:8px}
+.start-layout .layout-preview{width:100%;height:86px;background:#fff8e8;border:1px solid #c9a176;border-radius:6px}
+.start-layout small{display:block;color:#87684e;line-height:1.35}
 @media(max-width:650px){.creator-footer{margin:10px -10px -10px;padding:10px}}
 `;
 
@@ -3855,6 +3860,7 @@ export class UI {
     let tavernDraft = '';
     let tavernAiBusy = false;
     let tavernAiError = '';
+    let startLayout = START_LAYOUTS.some((row) => row.id === ownerOptions.startLayout) ? ownerOptions.startLayout : 'classic';
     let aiDraft = '';
     let aiDesigned = !!ownerOptions.aiDesigned;
     let aiSkills = ownerOptions.aiDesigned && ownerOptions.skills ? { ...ownerOptions.skills } : null;
@@ -3993,7 +3999,14 @@ export class UI {
             <label><span class="dim">酒馆名称</span><input id="crtavernname" maxlength="24" value="${htmlText(tavernName)}"></label>
             <label><span class="dim">酒馆简介</span><textarea id="crtavernblurb" maxlength="240" placeholder="写下这家店为什么值得旅人停下来……">${htmlText(tavernBlurb)}</textarea></label>
             ${aiConfigured() ? `<textarea id="crtaverndraft" maxlength="400" placeholder="例如：一间只给散修和夜班工人烤靴子的炉边小店……">${htmlText(tavernDraft)}</textarea>
-            <div class="row"><span class="${tavernAiError ? 'bad' : 'dim'}">${tavernAiError ? htmlText(tavernAiError) : '可先写概念，再让 AI 生成店名和简介。'}</span><button data-aitavern ${tavernAiBusy ? 'disabled' : ''}>${tavernAiBusy ? '生成中…' : 'AI 生成店名简介'}</button></div>` : ''}</div>`}
+            <div class="row"><span class="${tavernAiError ? 'bad' : 'dim'}">${tavernAiError ? htmlText(tavernAiError) : '可先写概念，再让 AI 生成店名和简介。'}</span><button data-aitavern ${tavernAiBusy ? 'disabled' : ''}>${tavernAiBusy ? '生成中…' : 'AI 生成店名简介'}</button></div>` : ''}</div>
+          <div class="creator-background" style="margin-top:8px"><div class="row"><b>开局店面</b><span class="dim">选一套布局，或只要门厅把造价退回账面</span></div>
+            <div class="start-layouts">${START_LAYOUTS.map((row) => `<button data-start-layout="${row.id}" class="start-layout ${startLayout === row.id ? 'on' : ''}">
+              ${startLayoutPreviewSvg(row)}
+              <b>${htmlText(row.name)}</b>
+              <small>${htmlText(row.note)}</small>
+              ${row.refund ? `<span class="hi">退回 ${emptyLayoutRefund()} 界币</span>` : ''}
+            </button>`).join('')}</div></div>`}
           ${aiConfigured() ? `<div class="creator-ai-design ${aiGenerating ? 'generating' : ''}"><div class="row"><b>✦ ${employeeRecruit ? 'AI 设计员工' : 'AI 完整角色设计'}</b><span class="hi">生成完整外貌、经历与能力</span></div>
             <div class="dim">只根据这段文字每次从零重新设计并回填姓名、性别、年龄、两个性格、种族、全部外貌组件、背景设定和七项能力，不会把页面上已填的其他字段发给 AI。${employeeRecruit ? '员工仍会按能力计算正常工资与入职费。' : '不会给予跳过经营规则的权限。'}</div>
             <textarea id="craidraft" maxlength="1200" placeholder="${employeeRecruit ? '例如：从浮空港辞职的猫族调酒师，嘴硬心软，手很稳但特别怕打扫……' : '例如：沉默寡言的机械体前旅行厨师，背着旧武士刀，看起来冷淡但很会照顾人……'}">${htmlText(aiDraft)}</textarea>
@@ -4015,7 +4028,7 @@ export class UI {
       draw();
     };
     host.addEventListener('click', async (e) => {
-      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-bg-preset],[data-tavern-preset],[data-aitavern],[data-aiowner],[data-aicancelowner],[data-done]')                      ;
+      const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-bg-preset],[data-tavern-preset],[data-start-layout],[data-aitavern],[data-aiowner],[data-aicancelowner],[data-done]')                      ;
       if (!t) return;
       let changed = false;
       let captureBeforeRender = true;
@@ -4048,6 +4061,7 @@ export class UI {
         if (selected) { ownerRole = selected.role; ownerBackground = selected.background; }
         captureBeforeRender = false;
       }
+      else if (t.dataset.startLayout) { startLayout = t.dataset.startLayout; }
       else if (t.dataset.tavernPreset) {
         captureCreatorInputs();
         tavernPreset = t.dataset.tavernPreset;
@@ -4165,6 +4179,7 @@ export class UI {
           age, traits: [...traits], skillPreset: aiDesigned ? 'ai' : preset.id, skills, aiDesigned,
           tavernPreset, tavernName: (host.querySelector('#crtavernname')?.value || tavernName).trim(),
           tavernBlurb: (host.querySelector('#crtavernblurb')?.value || tavernBlurb).trim(),
+          startLayout,
           backgroundPreset, profile: employeeRecruit && !aiDesigned && !ownerBackground.trim() ? null : {
             role: ownerRole, background: ownerBackground,
             ...(employeeRecruit ? { aspiration: employeeAspiration, quirk: employeeQuirk } : {}),

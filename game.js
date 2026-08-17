@@ -17,6 +17,7 @@ import { TitleScreen, validGameSave } from './src/title.js';
 import { createSkyPlan, skyBandColor } from './src/sky.js';
 import { resetPlayerProfile, savePlayerProfile } from './src/player-profile.js';
 import { clampZoom, usableViewport } from './src/camera.js';
+import { applyStartLayout, emptyLayoutRefund } from './src/start-layouts.js';
 import { parseAndMigrateGameSave, SAVE_SCHEMA_VERSION, stringifyGameSave } from './src/save-schema.js';
 
 const SAVE_KEY = 'wjbdy.save.v1';
@@ -660,47 +661,12 @@ class Game                    {
     this.sim.econ.tavernName = String(ownerOptions.tavernName || '多元便携旅店').trim().slice(0, 24) || '多元便携旅店';
     this.sim.econ.tavernBlurb = String(ownerOptions.tavernBlurb || '').trim().slice(0, 240);
     const t = this.tavern;
-    // 开局布局：中间前台（门厅），左侧餐饮→厨房→储藏，右侧横向走廊、上下各一间客房
-    t.placeRoom(bpById('foyer4'), 0, 0, 0);
-    t.placeRoom(bpById('dining6'), -6, 0, 0);
-    t.placeRoom(bpById('kitchen6'), -6, 5, 0);
-    t.placeRoom(bpById('storage4'), -10, 5, 0);
-    t.placeRoom(bpById('corridor6'), 4, 1, 0);
-    t.placeRoom(bpById('guestroom5'), 9, -3, 0);
-    t.placeRoom(bpById('guestroom5'), 9, 3, 0);
-    // 员工宿舍区：两段 6×2 走廊竖放串联向上，顶端走廊的左右两侧各一间员工休息室
-    t.placeRoom(bpById('corridor6'), 1, -6, 1);
-    t.placeRoom(bpById('corridor6'), 1, -12, 1);
-    t.placeRoom(bpById('lounge5'), -4, -12, 0);
-    t.placeRoom(bpById('lounge5'), 3, -12, 0);
-    // 前台柜台：门厅正中，客人一进门就看到
-    t.placeFurn('desk', 1, 2, 0, 1);
-    // 厨房产线
-    t.placeFurn('prep', -6, 6, 0, 1);
-    t.placeFurn('stove', -3, 6, 0, 1);
-    t.placeFurn('sink', -6, 8, 0, 1);
-    t.placeFurn('pass', -2, 8, 0, 1);
-    t.placeFurn('shelf', -10, 6, 0, 1);
-    const tables                     = [[-5, 1], [-2, 1], [-5, 3], [-2, 3]];
-    for (const [x, y] of tables) {
-      t.placeFurn('table', x, y, 0, 1);
-      t.placeFurn('chair', x - 1, y, 3, 1);
-      t.placeFurn('chair', x, y + 1, 2, 1);
+    const layout = applyStartLayout(t, ownerOptions.startLayout || 'classic');
+    if (layout.refund) {
+      const refund = emptyLayoutRefund();
+      this.sim.econ.coins += refund;
+      this.sim.toast(`空门厅开局：经典分馆造价 ${refund} 界币已全额退回账面`);
     }
-    // 两间客房各一张床，开局就能接过夜的客人
-    t.placeFurn('bed', 10, -2, 0, 1);
-    t.placeFurn('lamp', 13, 0, 0, 1);
-    t.placeFurn('bed', 10, 4, 0, 1);
-    t.placeFurn('lamp', 13, 6, 0, 1);
-    t.placeFurn('lamp', 7, 2, 0, 1);
-    // 两间休息室：沙发＋双层床是标配，左边带书架、右边带茶桌梳妆台
-    t.placeFurn('couch', -3, -12, 0, 1);
-    t.placeFurn('bunk', -3, -10, 0, 1);
-    t.placeFurn('bookshelf', -1, -12, 0, 1);
-    t.placeFurn('couch', 4, -12, 0, 1);
-    t.placeFurn('bunk', 4, -10, 0, 1);
-    t.placeFurn('teatable', 7, -12, 0, 1);
-    t.placeFurn('vanity', 7, -10, 0, 1);
     const owner = makeStaff(this.sim.rng, this.sim.id(), true, app, name, ownerOptions);
     owner.sex = sex;
     savePlayerProfile(ownerOptions.profile || {}, this.currentSlot);
@@ -718,9 +684,9 @@ class Game                    {
     if (leftLounge) leftLounge.occupant = clerk.id;
     this.sim.refreshPool();
     this.sim.manualOwner = this.manualPref();
-    this.sim.toast(`${name}接过了钥匙：多元便携旅店，开张了。`);
+    this.sim.toast(`${name}接过了钥匙：${this.sim.econ.tavernName}，开张了。`);
     this.staticVersion = -1;
-    this.cam = { x: 2, y: 3 };
+    this.cam = { x: 2, y: layout.id === 'empty' ? 2 : 3 };
     if (this.ui.compact) this.fitView();
     this.selection = null;
     this.resetBuildHistory('开局布局');
