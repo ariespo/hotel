@@ -1,6 +1,7 @@
 // 模拟：员工任务调度 / 客人流程 / 厨房产线 / 经济结算 / 事件
 import {                  randomAppearance,           } from './chargen.js';
 import { RACE_NAMES } from './chargen.js';
+import { pickWorldRace } from './world-identities.js';
 import { Rng } from './pix.js';
 import {
   AD_REQ_MULT, AD_TIERS,              BED_KINDS, BED_PRICE_MULT, DISHES,            EVENTS,                               
@@ -816,9 +817,13 @@ function defaultDutyPriorities(job = 'free') {
                                                                                              
 
 export function makeStaff(rng     , id        , isOwner         , app             , name         , opt          )        {
-  const raceIdx = app ? app.race : (opt && opt.race !== undefined && opt.race >= 0 ? opt.race : rng.int(18));
-  // 六成应聘者是成套造型（赛博/古装/魔幻），四成保持万界杂糅
-  const theme = rng.chance(0.6) ? LOOK_THEMES[rng.int(LOOK_THEMES.length)] : undefined;
+  const world = opt?.world;
+  const requestedRace = app ? app.race : (opt && Number.isInteger(opt.race) ? opt.race : undefined);
+  const raceIdx = world ? pickWorldRace(rng, world, requestedRace) : (Number.isInteger(requestedRace) && requestedRace >= 0 ? requestedRace : rng.int(RACE_NAMES.length));
+  const worldThemes = world?.visuals?.appearanceThemes;
+  const theme = worldThemes?.length
+    ? worldThemes[rng.int(worldThemes.length)]
+    : (rng.chance(0.6) ? LOOK_THEMES[rng.int(LOOK_THEMES.length)] : undefined);
   const a = app || randomAppearance(rng, raceIdx, true, theme);
   // 年龄：所有可交互角色均为成年人；大部分 18–47，长生种可能出现真正高龄。
   const maxAge = AGE_MAX[raceIdx] || 100;
@@ -864,7 +869,7 @@ export function makeStaff(rng     , id        , isOwner         , app           
   if (!app) {
   }
   return {
-    id, name: name || makeName(rng), sex,
+    id, name: name || makeName(rng, world, { sex, raceId: raceIdx }), sex,
     age, race: RACE_NAMES[raceIdx], raceIdx,
     ht: Math.round([148, 168, 192][a.ht] + rng.range(-6, 6)), wt: Math.round([46, 62, 88][a.bd] + rng.range(-5, 8)),
     traits, skills, exp, wage: isOwner ? 0 : Math.round((18 + skillSum * 0.14 + rng.range(0, 12)) * (traits.includes('frugal') ? 0.88 : 1)),
@@ -1161,9 +1166,10 @@ export class Sim {
     this.pool = [];
     const n = this.econ.day <= 1 ? 1 : this.rng.chance(0.5) ? 1 : 0;
     for (let i = 0; i < n; i++) {
-      const local = this.rng.chance(.6) ? weightedPick(this.rng, this.currentWorld().population || [], (row) => row.weight || 1) : null;
-      const person = makeStaff(this.rng, this.id(), false, undefined, undefined, { lo: 8, hi: 52, race: local?.raceId });
-      this.pool.push(applyRecruitmentWorld(person, this.currentWorld(), this.rng));
+      const host = this.currentWorld();
+      const local = this.rng.chance(.6) ? weightedPick(this.rng, host.population || [], (row) => row.weight || 1) : null;
+      const person = makeStaff(this.rng, this.id(), false, undefined, undefined, { lo: 8, hi: 52, race: local?.raceId, world: host });
+      this.pool.push(applyRecruitmentWorld(person, host, this.rng));
     }
     // 开局赠送一张已生效的传单广告，让玩家看到招募系统长什么样
     if (this.econ.day <= 1 && !this.ads.some((a) => a.spec)) {
@@ -1193,9 +1199,10 @@ export class Sim {
     const customWorldName = String(spec.customWorldName || '').trim().slice(0, 80);
     const birthWorld = customWorldName ? null : WORLD_PROFILES.find((world) => world.id === spec.birthWorldId) || this.currentWorld();
     for (let i = 0; i < n; i++) {
-      const local = spec.race < 0 ? weightedPick(this.rng, (birthWorld || this.currentWorld()).population || [], (row) => row.weight || 1) : null;
+      const origin = birthWorld || this.currentWorld();
+      const local = spec.race < 0 ? weightedPick(this.rng, origin.population || [], (row) => row.weight || 1) : null;
       const person = makeStaff(this.rng, this.id(), false, undefined, undefined, {
-        lo: t.lo, hi: t.hi, race: spec.race >= 0 ? spec.race : local?.raceId, sex: spec.sex || undefined, bias: spec.bias || undefined,
+        lo: t.lo, hi: t.hi, race: spec.race >= 0 ? spec.race : local?.raceId, sex: spec.sex || undefined, bias: spec.bias || undefined, world: origin,
       });
       if (birthWorld) applyRecruitmentWorld(person, birthWorld, this.rng);
       else { person.originWorldId = ''; person.originWorldName = customWorldName; person.homeRegion = ''; }
@@ -2170,12 +2177,13 @@ export class Sim {
         });
         continue;
       }
-      const race = weightedPick(this.rng, memberWorld.population, (row) => row.weight).raceId;
+      const race = pickWorldRace(this.rng, memberWorld);
       const identity = travelIdentity(memberWorld, `${this.econ.seed}:${this.econ.day}:${gid}:${i}`);
       const theme = memberWorld.visuals.appearanceThemes[this.rng.int(memberWorld.visuals.appearanceThemes.length)];
+      const sex = this.rng.chance(0.5) ? '女' : '男';
       members.push({
         id: this.id(), app: randomAppearance(this.rng, race, false, theme),
-        name: makeName(this.rng), race: RACE_NAMES[race],
+        name: makeName(this.rng, memberWorld, { sex, raceId: race }), race: RACE_NAMES[race],
         originWorldId: memberWorld.id, ...identity,
         groupId: gid, x: e.x + (i % 2) * 0.4 - 0.2, y: e.y + 0.2 * i, dir: 0, pose: 'idle', animT: this.rng.next() * 2,
         path: [], seatId: 0, mood: 1, aff: 0, aiChatLog: [],

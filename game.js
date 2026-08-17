@@ -9,7 +9,7 @@ import { hexToNum, mix, PAL, Rng } from './src/pix.js';
 import {
   BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById, worldById,
 } from './src/data.js';
-import { DAY_LEN,            makeStaff, newEcon, Sim, worldIngredientPrice,            } from './src/sim.js';
+import { DAY_LEN, applyRecruitmentWorld, makeStaff, newEcon, Sim, worldIngredientPrice } from './src/sim.js';
 import { canPersistSim } from './src/save-policy.js';
 import { bedDisplayPlacement, bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern } from './src/world.js';
 import {               UI } from './src/ui.js';
@@ -688,7 +688,9 @@ class Game                    {
     owner.job = 'free';
     this.sim.staff.push(owner);
     // 前台必须有人值守：开局送一名前台伙计（不收入职费）
-    const clerk = makeStaff(this.sim.rng, this.sim.id(), false);
+    const host = this.sim.currentWorld();
+    const clerk = makeStaff(this.sim.rng, this.sim.id(), false, undefined, undefined, { world: host });
+    applyRecruitmentWorld(clerk, host, this.sim.rng);
     clerk.job = 'front';
     clerk.x = e.x - 1; clerk.y = e.y + 2;
     this.sim.staff.push(clerk);

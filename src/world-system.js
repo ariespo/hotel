@@ -1,3 +1,5 @@
+import { WORLD_NOTABLE_RACES } from './world-identities.js';
+
 const clamp = (value, min = .85, max = 1.2) => Math.max(min, Math.min(max, Number(value) || 1));
 const named = (rows = []) => rows.map((row, index) => {
   if (typeof row === 'object') return { id: row.id || `entry_${index + 1}`, ...row };
@@ -81,8 +83,8 @@ export const WORLD_ENCYCLOPEDIA = Object.freeze({
   }),
   neon_ring: make({
     genre: '赛博朋克', tagline: '城市永不熄灯，身份、记忆与时间都标有价格。',
-    cosmology: { cosmology: '环形都市包裹行星赤道，现实网络与全感知数据层重叠。', naturalLaws: '数据人格不能无媒介控制物质；义体性能受能源、带宽和维护约束。', powerSystem: '企业权限、黑客协议、军用义体与舆论影响构成四种权力。' },
-    society: { government: '企业董事会控制上层城区，自治街区维持基层生活', languages: ['环城通语', '协议码', '街区黑话'], classes: ['企业公民', '合同工', '无证居民', '数据人格'], faith: '技术救世主义、祖传实体物崇拜和数据灵性并存', family: '合同家庭、街区互助组与云端人格群落', education: '企业定向学院、付费知识包和地下师徒网络', clothing: '机能外套、发光接口、义体遮罩与复古实体饰品', cuisine: '合成蛋白、速食盒、酸味饮料和昂贵天然食材' },
+    cosmology: { cosmology: '环形都市箍住行星赤道，上层公司城与下层雨巷叠在同一夜色里。', naturalLaws: '义体要电、要保养、要零件；权限卡打不开的门，黑客也只能绕，不能空手改现实。', powerSystem: '公司编制、街头义体、黑市渠道和舆论爆料构成四种硬实力。' },
+    society: { government: '企业董事会控制上层城区，码头互助会和街区自治撑着下层', languages: ['环城通语', '码头黑话', '企业公文'], classes: ['企业编制', '合同工', '无证街民', '义体浪人'], faith: '有人信公司能把人升级，有人只信热食和没被收回的义体', family: '合同家庭、合租室友与巷口互助比对血缘更常见', education: '企业定向学院、夜校和地下师徒店', clothing: '挡雨外套、发光接口、义体遮罩和旧皮靴', cuisine: '合成蛋白、巷口热面、酸味饮料和贵到离谱的真菜' },
     history: ['第一次断网｜全球网络崩溃促成环城独立。','九企合并｜巨型企业瓜分城市基础设施。','人格法案｜部分数据人格取得有限公民权。','红雨暴动｜下层街区反抗氧气与水价垄断。','月轨战争｜企业安保争夺轨道电梯控制权。','星门上市｜跨界旅行被包装成最高端消费产品。'],
     factions: ['九环董事会｜控制能源、交通与主网络。','七码头互助会｜为无证居民提供医疗和庇护。','镜面协议｜主张数据人格完整权利。','零点骇客群｜公开企业隐秘但动机复杂。','实体珍藏局｜垄断天然食物与旧时代物件。'],
     economy: { currency: '企业信用点与离线实体券', industries: ['义体', '数据服务', '娱乐', '物流'], exports: ['芯片', '娱乐程序', '义体零件'], imports: ['天然食材', '木材', '未联网工艺品'], labor: '长期企业合同、即时零工和匿名数据劳动', prices: { grain: 1.12, veg: 1.18, meat: 1.2, spice: 1.02, ether: .88 } },
@@ -215,7 +217,11 @@ export function enrichFixedWorld(profile) {
     const source = lore.factions[regions.length % lore.factions.length];
     regions.push({ id: `${profile.id}_region_${regions.length + 1}`, name: `${source.name}辖区`, type: lore.society.government, traits: [lore.genre, lore.society.faith], commonOccupations: profile.travel.occupations.slice(0, 2) });
   }
-  return { ...profile, ...lore, regions, identity: { ...profile.identity, genre: lore.genre, tagline: lore.tagline }, visuals: { ...profile.visuals, atmosphere: lore.atmosphere } };
+  const notableRaces = WORLD_NOTABLE_RACES[profile.id] || [];
+  const notableCharacters = (lore.notableCharacters || []).map((character, index) => (
+    Number.isInteger(character.raceId) ? character : { ...character, raceId: notableRaces[index] }
+  ));
+  return { ...profile, ...lore, regions, notableCharacters, identity: { ...profile.identity, genre: lore.genre, tagline: lore.tagline }, visuals: { ...profile.visuals, atmosphere: lore.atmosphere } };
 }
 
 export const CUSTOM_WORLD_LIMIT = 8;

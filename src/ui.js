@@ -19,6 +19,7 @@ import {
 import { AGE_MAX, effectiveSkill, fairWageRange, jobFocusSkill, PERK_MAX_LEVEL, perkCostAt, perkLevel, perkNeedAt, perkNoteAt, perkTierOf, relatedPerkSkill, restockPlan, skillBonusOf, SKILL_EFFECT_CAP, SKILL_POINT_CAP, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
 import { CONTEST_HEATS, contestHostOf, contestNameOf, equippedTitleOf, stageById, TAVERN_PRESETS, TITLE_TIERS } from './contest.js';
 import { emptyLayoutRefund, START_LAYOUTS, startLayoutPreviewSvg } from './start-layouts.js';
+import { worldRaceIds } from './world-identities.js';
 import { CUSTOM_WORLD_LIMIT, customWorldCreationCost, normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
@@ -1069,7 +1070,11 @@ export class UI {
     if (t.dataset.act === 'adrace') { this.adSpec.race = parseInt(t.value, 10); this.openAdPanel(this.adSlot); }
     if (t.dataset.act === 'adworld') {
       this.adSpec.birthWorldId = t.value;
-      if (t.value !== 'ai_custom') this.adSpec.customWorldName = '';
+      if (t.value !== 'ai_custom') {
+        this.adSpec.customWorldName = '';
+        const allowed = worldRaceIds(WORLD_PROFILES.find((world) => world.id === t.value));
+        if (this.adSpec.race >= 0 && allowed.length && !allowed.includes(this.adSpec.race)) this.adSpec.race = -1;
+      }
       this.openAdPanel(this.adSlot);
     }
     if (t.dataset.act === 'candsort') { this.candidateSort = t.value; this.render(true); }
@@ -1611,7 +1616,7 @@ export class UI {
         return `<div class="card" data-act="worldcard" data-v="${htmlText(world.id)}" style="border-left-color:${world.id === current.id ? '#8DDB4A' : forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}${world.id === current.id ? ' · 当前' : ''}${noticeDot(unseen, '有未读世界资料')}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
           <div>${htmlText(world.identity.summary)}</div>
           <div class="dim">环境：${htmlText(world.identity.environment)}｜文明：${htmlText(world.identity.civilization)}</div>
-          <div class="dim">常见居民：${world.population.slice(0, 4).map((resident) => `${RACE_NAMES[resident.raceId]}（${resident.role}）`).join('、')}｜地区：${world.regions.map((region) => region.name).join('、')}</div>
+          <div class="dim">常见居民：${[...new Map((world.population || []).map((resident) => [resident.raceId, resident])).values()].slice(0, 4).map((resident) => `${RACE_NAMES[resident.raceId]}（${resident.role}）`).join('、')}｜地区：${world.regions.map((region) => region.name).join('、')}</div>
           <div class="dim">礼仪提示：${htmlText(info.level >= 4 ? world.culture.etiquette : world.culture.etiquette.split('；')[0])}</div>
           ${info.level >= 2 ? `<div class="dim">常见需求：${Object.entries(world.hospitality.wantWeights).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([id]) => wantById(id).name).join('、')}｜装修倾向：${world.hospitality.roomStyleLikes.map((id) => STYLES.find((style) => style.id === id)?.name || id).join('、')}</div>` : '<div class="dim">完成首次服务可解锁需求与装修倾向。</div>'}
           ${info.level >= 3 ? `<div class="dim">口味偏好：${world.hospitality.flavorLikes.map((id) => FLAVOR_LABEL[id]).join('、')}｜重视：${world.culture.values.join('、')}</div>` : '<div class="dim">累计接待 3 人可解锁口味偏好。</div>'}
@@ -3123,6 +3128,9 @@ export class UI {
     const t = s.adTier(spec.tier);
     const afford = s.econ.coins >= cost;
     const customBirth = spec.birthWorldId === 'ai_custom';
+    const adWorld = !customBirth ? WORLD_PROFILES.find((world) => world.id === spec.birthWorldId) : null;
+    const raceChoices = adWorld ? worldRaceIds(adWorld) : RACE_NAMES.map((_, id) => id);
+    if (spec.race >= 0 && raceChoices.length && !raceChoices.includes(spec.race)) spec.race = -1;
     const worldOptions = WORLD_PROFILES.map((world) => `<option value="${world.id}" ${spec.birthWorldId === world.id ? 'selected' : ''}>${htmlText(world.icon)} ${htmlText(world.name)}</option>`).join('');
     this.showModal(`<h3>发布招募广告 · 广告位 ${slot + 1}</h3>
       <div class="dim">先指定出生世界：所有应聘者都会来自该世界。价位决定数值区间与日薪；发布后收到 3–5 位符合要求的候选者。</div>
@@ -3136,7 +3144,7 @@ export class UI {
       <div class="row" style="margin-top:8px"><span class="dim" style="width:56px">种族</span>
         <select data-act="adrace" style="flex:1">
           <option value="-1" ${spec.race < 0 ? 'selected' : ''}>不限（便宜）</option>
-          ${RACE_NAMES.map((r, i) => `<option value="${i}" ${spec.race === i ? 'selected' : ''}>${r}</option>`).join('')}
+          ${raceChoices.map((i) => `<option value="${i}" ${spec.race === i ? 'selected' : ''}>${RACE_NAMES[i]}</option>`).join('')}
         </select><span class="dim">×${AD_REQ_MULT.race}</span></div>
       <div class="row"><span class="dim" style="width:56px">性别</span>
         ${[['', '不限'], ['女', '女'], ['男', '男']].map(([v, n]) => `<button data-act="adsex" data-v="${v}" class="${spec.sex === v ? 'on' : ''}">${n}</button>`).join('')}
