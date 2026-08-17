@@ -3,7 +3,7 @@ import { starsOf, WORLD_PROFILES, worldsForStars } from './data.js';
 import { RACE_NAMES } from './chargen.js';
 import { normalizeCustomWorld } from './world-system.js';
 
-export const SAVE_SCHEMA_VERSION = 7;
+export const SAVE_SCHEMA_VERSION = 8;
 
 function stableHash(text) {
   let hash = 2166136261;
@@ -106,6 +106,14 @@ export function migrateGameSaveData(source) {
     econ.recruitmentSeen = econ.recruitmentSeen && typeof econ.recruitmentSeen === 'object' ? econ.recruitmentSeen : {};
     data.meta.version = 7;
     version = 7;
+  }
+  if (version < 8) {
+    const econ = data.sim.econ;
+    const cap = Number(econ.guestCap);
+    econ.guestCap = Number.isFinite(cap) && cap > 0 ? Math.max(1, Math.min(16, Math.round(cap))) : 0;
+    econ.difficulty = econ.difficulty === 'easy' || econ.difficulty === 'hard' ? econ.difficulty : 'normal';
+    data.meta.version = 8;
+    version = 8;
   }
   if (version > SAVE_SCHEMA_VERSION) throw new Error(`存档版本 ${version} 高于当前支持的 ${SAVE_SCHEMA_VERSION}`);
   data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, migratedAt: originalVersion < SAVE_SCHEMA_VERSION ? Date.now() : data.meta.migratedAt || 0 };

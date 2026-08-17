@@ -995,6 +995,10 @@ export class UI {
     else if (act === 'firego') { if (g.fire(parseInt(v, 10))) this.closeModal(); }
     else if (act === 'manual') { g.setManualOwner(v === '1'); this.openSettings(); }
     else if (act === 'materialpack') { g.setMaterialPack(v); this.openSettings(); }
+    else if (act === 'guestcap') { g.sim.setGuestCap(parseInt(v, 10)); g.save(); this.openSettings(); }
+    else if (act === 'guestcapauto') { g.sim.setGuestCap(0); g.save(); this.openSettings(); }
+    else if (act === 'guestcapsuggest') { g.sim.setGuestCap(g.sim.guestCapacityHint().mid); g.save(); this.openSettings(); }
+    else if (act === 'difficulty') { g.sim.setDifficulty(v); g.save(); this.openSettings(); }
     else if (act === 'mobilemanual') g.setManualOwner(!g.sim.manualOwner);
     else if (act === 'overflow-toggle') { this.topOverflowOpen = !this.topOverflowOpen; }
     else if (act === 'confirmnew') this.openConfirmRestart();
@@ -2036,7 +2040,7 @@ export class UI {
         <div class="row" style="margin-top:7px">${guideAction}<button data-act="tutorialrestart">从头重新引导</button></div></div>
       <h3 style="margin-top:10px">快速参考</h3>
       <div class="card"><b>规划期</b><div class="dim">建房与布置家具 → 检查菜单和库存 → 调整员工岗位/负责区域 → 保存 → 开门。</div></div>
-      <div class="card"><b>营业期</b><div class="dim">客人从位面门进入；员工自动执行迎宾、点单、取料、制作、上菜、收台和清洁。用客人页看耐心，用工作页查积压，用日志找离店原因。</div></div>
+      <div class="card"><b>营业期</b><div class="dim">客人从位面门进入；员工自动执行迎宾、点单、取料、制作、上菜、收台和清洁。用客人页看耐心，用工作页查积压，用日志找离店原因。设置里可按员工能力调整同时接待组数，以及轻松/默认/苛刻难度。</div></div>
       <div class="card"><b>常见故障</b><div class="dim">设备黄色使用面必须可达，椅子必须朝向桌子；菜品还需要对应设施、足够食材和技能。卫生/拥堵热图可定位环境问题。</div></div>
       <div class="card"><b>日结与成长</b><div class="dim">营业收入实时入账；日结扣工资、维护和补货。声望升星解锁房型与家具品质，连续 3 次低于信用线会被封印。</div></div>
       <div class="card"><b>角色与 AI</b><div class="dim">点击角色看详情，靠近按 E 互动。AI 设置、模型选择和玩家背景在“设置/提示词”中管理；AI 不会替代真实经营数值结算。</div></div>
@@ -3302,6 +3306,38 @@ export class UI {
     this.openPromptSettings('玩家身份背景与任务模块已保存。', false, tab);
   }
 
+  guestCapSettingsHtml() {
+    const sim = this.g.sim;
+    const hint = sim.guestCapacityHint();
+    const auto = !(sim.econ.guestCap > 0);
+    const cap = sim.effectiveGuestCap();
+    const tone = cap < hint.lo ? '当前偏低，店内容易空闲。' : cap > hint.hi ? '当前偏高，高峰期可能接待不过来。' : '当前落在建议区间内。';
+    return `<div class="row">
+        <span>同时在场客组</span>
+        <button data-act="guestcap" data-v="${cap - 1}" ${cap <= 1 ? 'disabled' : ''}>−</button>
+        <span class="hi">${cap}${auto ? ' · 跟随' : ''}</span>
+        <button data-act="guestcap" data-v="${cap + 1}" ${cap >= 16 ? 'disabled' : ''}>+</button>
+      </div>
+      <div class="row" style="margin-top:6px;justify-content:flex-start;flex-wrap:wrap">
+        <button data-act="guestcapauto" class="${auto ? 'on' : ''}">跟随员工能力</button>
+        <button data-act="guestcapsuggest" class="${!auto && cap === hint.mid ? 'on' : ''}">采用建议 ${hint.mid}</button>
+      </div>
+      <div class="dim">按当前 ${hint.staffCount} 名员工、服务相关技能均分 ${hint.skillAvg} 估算，较稳妥的同时接待区间是 ${hint.lo}–${hint.hi} 组。${tone}</div>`;
+  }
+
+  difficultySettingsHtml() {
+    const current = this.g.sim.econ.difficulty || 'normal';
+    const rows = [
+      { id: 'easy', label: '轻松', note: '客人要求 −20%，等待时间 +20%' },
+      { id: 'normal', label: '默认', note: '保持现有节奏' },
+      { id: 'hard', label: '苛刻', note: '客人要求 +20%，等待时间 −20%' },
+    ];
+    return `<div class="row" style="justify-content:flex-start;flex-wrap:wrap">
+        ${rows.map((row) => `<button data-act="difficulty" data-v="${row.id}" class="${current === row.id ? 'on' : ''}">${row.label}</button>`).join('')}
+      </div>
+      <div class="dim">${rows.find((row) => row.id === current)?.note || rows[1].note}。已在店内的客人不受改档影响，新到客人和新事件即时生效。</div>`;
+  }
+
   openSettings()       {
     const manual = this.g.sim.manualOwner;
     const vols = this.g.audio.curVolumes();
@@ -3334,6 +3370,10 @@ export class UI {
         <span class="dim">${vols.paused ? '已暂停' : vols.bgm === 'auto' ? '正在跟随营业/规划/结算自动换曲' : `正在播放：${htmlText((this.g.audio.tracks?.() || []).find((track) => track.id === vols.bgm)?.name || '背景乐')}`}</span>
       </div>
       <div class="dim">跟随阶段：营业用炉火营业，打烊规划用收盘规划，日结用位面夜航。点某一首会锁定，直到改回跟随或换曲。</div>
+      <h3 style="margin:14px 0 6px">同时接待</h3>
+      ${this.guestCapSettingsHtml()}
+      <h3 style="margin:14px 0 6px">经营难度</h3>
+      ${this.difficultySettingsHtml()}
       <div class="row" style="margin-top:10px"><span style="width:56px">音乐</span><input data-act="volm" type="range" min="0" max="1" step="0.05" value="${vols.m}" style="flex:1"></div>
       <div class="row"><span style="width:56px">音效</span><input data-act="vols" type="range" min="0" max="1" step="0.05" value="${vols.s}" style="flex:1"></div>
       <div class="row" style="margin-top:10px"><span>操作</span><span class="dim">空格暂停 · 1/2/3 变速 · R 旋转 · F 聚焦 · E 与身边的伙计/客人搭话 · 点角色开互动菜单 · 双击伙计看详情 · 鼠标拖拽平移 · 滚轮缩放</span></div>

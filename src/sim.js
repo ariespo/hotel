@@ -365,6 +365,48 @@ export function guestReviewTier(score) {
 
 function clamp(v        , a        , b        )         { return v < a ? a : v > b ? b : v; }
 
+/** 同时在场客组硬上限；建议区间由员工人数与服务技能估算。 */
+export const GUEST_CAP_MAX = 16;
+export const GUEST_CAP_SKILLS = ['serve', 'cook', 'mix', 'clean', 'carry', 'calm'];
+
+export function guestCapacityRange(staffList) {
+  const people = Array.isArray(staffList) ? staffList.filter(Boolean) : [];
+  const n = Math.max(1, people.length);
+  const skillAvg = people.length
+    ? people.reduce((sum, person) => {
+        const skills = person.skills || {};
+        const vals = GUEST_CAP_SKILLS.map((key) => Math.max(0, Number(skills[key]) || 0));
+        return sum + vals.reduce((a, b) => a + b, 0) / vals.length;
+      }, 0) / people.length
+    : 30;
+  const mid = clamp(Math.round(n * (1.1 + skillAvg / 100 * 1.3)), 1, GUEST_CAP_MAX);
+  return {
+    lo: Math.max(1, mid - 2),
+    mid,
+    hi: Math.min(GUEST_CAP_MAX, mid + 2),
+    staffCount: people.length,
+    skillAvg: Math.round(skillAvg),
+  };
+}
+
+export const DIFFICULTY = {
+  easy: { id: 'easy', label: '轻松', demand: 0.8, wait: 1.2, note: '客人要求 −20%，等待时间 +20%' },
+  normal: { id: 'normal', label: '默认', demand: 1, wait: 1, note: '保持现有节奏' },
+  hard: { id: 'hard', label: '苛刻', demand: 1.2, wait: 0.8, note: '客人要求 +20%，等待时间 −20%' },
+};
+
+export function difficultyMods(econ) {
+  return DIFFICULTY[econ?.difficulty] || DIFFICULTY.normal;
+}
+
+export function normalizeGuestSettings(econ) {
+  if (!econ || typeof econ !== 'object') return econ;
+  const cap = Number(econ.guestCap);
+  econ.guestCap = Number.isFinite(cap) && cap > 0 ? clamp(Math.round(cap), 1, GUEST_CAP_MAX) : 0;
+  econ.difficulty = DIFFICULTY[econ.difficulty] ? econ.difficulty : 'normal';
+  return econ;
+}
+
 const LOOK_THEMES = ['cyber', 'ancient', 'magic'];
 
 function stableHash(text) {
@@ -789,6 +831,7 @@ export class Sim {
     this.econ.worldSeenLevels = this.econ.worldSeenLevels && typeof this.econ.worldSeenLevels === 'object' ? this.econ.worldSeenLevels : {};
     this.econ.recruitmentSeen = this.econ.recruitmentSeen && typeof this.econ.recruitmentSeen === 'object' ? this.econ.recruitmentSeen : {};
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.econ.certifiedStars);
+    normalizeGuestSettings(this.econ);
     this.rng = new Rng(econ.seed || 12345);
   }
 
@@ -797,6 +840,26 @@ export class Sim {
   currentWorld() { return this.worldById(this.econ.currentWorldId); }
   currentWorldRule() { return worldRuleForDay(this.currentWorld(), this.econ.day); }
   currentWorldFestival() { return worldFestivalForDay(this.currentWorld(), this.econ.day); }
+
+  difficultyMods() { return difficultyMods(this.econ); }
+
+  guestCapacityHint() { return guestCapacityRange(this.staff); }
+
+  effectiveGuestCap() {
+    const hint = this.guestCapacityHint();
+    return this.econ.guestCap > 0 ? this.econ.guestCap : hint.mid;
+  }
+
+  setGuestCap(n) {
+    const value = Math.round(Number(n));
+    this.econ.guestCap = Number.isFinite(value) && value > 0 ? clamp(value, 1, GUEST_CAP_MAX) : 0;
+    return this.effectiveGuestCap();
+  }
+
+  setDifficulty(id) {
+    this.econ.difficulty = DIFFICULTY[id] ? id : 'normal';
+    return this.econ.difficulty;
+  }
 
   worldFactionRelations(worldId) {
     const world = this.worldById(worldId);
@@ -1722,9 +1785,10 @@ export class Sim {
     // 开局节奏：第一天客人稀疏，之后逐日放开（避免第一天就是中期强度）
     const ease = this.econ.day <= 1 ? 2.4 : this.econ.day === 2 ? 1.7 : this.econ.day === 3 ? 1.3 : 1;
     const waiting = this.groups.filter((g) => g.state === 'wait').length;
-    if (waiting >= (this.econ.day <= 2 ? 2 : 4)) return;
-    const maxGroups = 3 + this.stars() * 2 + Math.min(4, this.econ.day);
-    if (this.groups.length >= maxGroups) return;
+    const guestCap = this.effectiveGuestCap();
+    if (this.groups.length >= guestCap) return;
+    const waitingLimit = Math.max(1, Math.min(guestCap, Math.max(2, Math.ceil(guestCap / 2))));
+    if (waiting >= waitingLimit) return;
     // 厨房积压时不再涌入新客（产能自适应：扩厨房/招厨师直接提高客流）
     const cooks = this.staff.filter((s) => s.job === 'cook' || s.job === 'bartender' || s.job === 'free').length;
     const backlog = this.orders.filter((o) => o.stage === 'queued' || o.stage === 'prep' || o.stage === 'cook').length;
@@ -1833,14 +1897,15 @@ export class Sim {
     const hostDailyRule = this.currentWorldRule()?.effects || {};
     const hostFestival = this.currentWorldFestival()?.effects || {};
     const hostFactor = (key) => clamp(Number(hostEnvironment[key]) || 1, .85, 1.2) * clamp(Number(hostDailyRule[key]) || 1, .85, 1.2) * clamp(Number(hostFestival[key]) || 1, .85, 1.2);
+    const mods = this.difficultyMods();
     const g        = {
       id: gid, members, size, tableId: 0, state: 'wait', want: want.id, greeted: false, seatCd: 0, facId: 0, useT: 0, facT: 0,
       originWorldId: origin.id, worldIds: secondary ? [origin.id, secondary.id] : [origin.id], crossWorld: !!secondary,
       homeRegion: members[0].homeRegion, travelOccupation: members[0].travelOccupation, travelPurpose: members[0].travelPurpose,
       culturalStratum: members[0].culturalStratum, culturalIdentity: members[0].culturalIdentity,
-      maxPatience: Math.round(this.rng.range(78, 135) * worldModifier(origin, 'patience') * hostFactor('patience')), patience: 0,
+      maxPatience: Math.round(this.rng.range(78, 135) * worldModifier(origin, 'patience') * hostFactor('patience') * mods.wait), patience: 0,
       budget: Math.round(this.rng.range(30, 120) * worldModifier(origin, 'budget') * hostFactor('budget')),
-      hygieneSens: this.rng.range(0.4, 1.5) * worldModifier(origin, 'hygiene') * hostFactor('hygiene'), taste, flavors: [f1, f2], orderId: 0,
+      hygieneSens: this.rng.range(0.4, 1.5) * worldModifier(origin, 'hygiene') * hostFactor('hygiene') * mods.demand, taste, flavors: [f1, f2], orderId: 0,
       enterT: this.dayT, orderedT: 0, servedT: 0, eatT: 0, leaveReason: '',
       praised: 0, mocked: 0, intCd: 0, regularId: returning?.id || null,
     };
@@ -2215,7 +2280,7 @@ export class Sim {
     const def = FACILITY_CHALLENGES[g.want];
     if (!def || !this.rng.chance(.2)) return;
     const guest = g.members[0];
-    const challenge = { id: this.id(), groupId: g.id, guestId: guest.id, ...def, state: 'open', age: 0 };
+    const challenge = { id: this.id(), groupId: g.id, guestId: guest.id, ...def, difficulty: Math.round(def.difficulty * this.difficultyMods().demand), state: 'open', age: 0 };
     this.facilityChallenges.push(challenge);
     if (this.dayReport) this.dayReport.facilityChallenges.started++;
     guest.bubble = { text: def.bubble, t: 12 };
@@ -3821,11 +3886,12 @@ export class Sim {
   }
 
   structuredEventCard(plan, eventId, meta = {}) {
+    const demand = this.difficultyMods().demand;
     return {
       id: eventId, title: plan.title, text: plan.premise, kind: plan.kind || 'mystery', ...meta,
       choices: plan.choices.map((choice) => ({
         label: choice.label, note: choice.note, skill: choice.skill,
-        base: clamp(95 - Number(choice.difficulty || 55), 18, 70),
+        base: clamp(95 - Number(choice.difficulty || 55) * demand, 18, 70),
         ok: () => { this.applyEventEffects(choice.successEffects); return choice.successText; },
         fail: () => { this.applyEventEffects(choice.failureEffects); return choice.failureText; },
       })),
@@ -3914,7 +3980,8 @@ export class Sim {
     }
     const best = this.bestSkill(choice.skill);
     const stoic = this.staff.some((s) => s.traits.includes('stoic')) ? 10 : 0;
-    return clamp(Math.round((choice.base || 50) * 0.5 + best.value * 0.6 + stoic), 5, 96);
+    const demand = this.difficultyMods().demand;
+    return clamp(Math.round((choice.base || 50) * 0.5 / demand + best.value * 0.6 + stoic), 5, 96);
   }
 
   customEventFacts(action        )           {
@@ -4116,6 +4183,7 @@ export class Sim {
     if (!this.econ.factionRelations || typeof this.econ.factionRelations !== 'object') this.econ.factionRelations = {};
     if (!this.econ.worldSeenLevels || typeof this.econ.worldSeenLevels !== 'object') this.econ.worldSeenLevels = {};
     if (!this.econ.recruitmentSeen || typeof this.econ.recruitmentSeen !== 'object') this.econ.recruitmentSeen = {};
+    normalizeGuestSettings(this.econ);
     if (!this.econ.dishMastery || typeof this.econ.dishMastery !== 'object') this.econ.dishMastery = {};
     this.econ.restockTargets = { ...DEFAULT_RESTOCK_TARGETS, ...(this.econ.restockTargets || {}) };
     this.econ.restockBudget = Math.max(0, Math.round(Number(this.econ.restockBudget) || 0));
@@ -4192,6 +4260,7 @@ export function newEcon(seed        )       {
     currentWorldId: 'hearth_coast', pendingWorldSwitch: null, customWorlds: [], archivedWorlds: [], worldVisits: { hearth_coast: 1 }, notableVisits: {},
     factionRelations: {}, worldSeenLevels: {}, recruitmentSeen: {},
     worldKnowledge: blankWorldKnowledge(), worldForecast: worldForecastForDay(seed, 1, 0),
+    guestCap: 0, difficulty: 'normal',
     revenue: 0, served: 0, lost: 0, seed,
   };
 }
