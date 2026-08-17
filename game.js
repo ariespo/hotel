@@ -28,21 +28,52 @@ const normalizeMaterialPack = (pack) => pack === 'classic' ? 'classic' : 'hd';
 const WORLD_ART_SCALE = 4;
 const WORLD_MATERIALS = {
   'floor-wood': 'assets/world-materials/floor-walnut-v2.webp',
+  'floor-wood2': 'assets/world-materials/floor-walnut-q2.webp',
+  'floor-wood3': 'assets/world-materials/floor-walnut-q3.webp',
   'floor-kitchen': 'assets/world-materials/floor-kitchen-v2.webp',
+  'floor-kitchen2': 'assets/world-materials/floor-kitchen-q2.webp',
+  'floor-kitchen3': 'assets/world-materials/floor-kitchen-q3.webp',
   rug: 'assets/world-materials/rug-wine-v2.webp',
   wall: 'assets/world-materials/wall-beam-v2.webp',
+  wall2: 'assets/world-materials/wall-beam-q2.webp',
+  wall3: 'assets/world-materials/wall-beam-q3.webp',
   door: 'assets/world-materials/door-frame-v2.webp',
   'floor-storage': 'assets/world-materials/floor-storage-v3.webp',
+  'floor-storage2': 'assets/world-materials/floor-storage-q2.webp',
+  'floor-storage3': 'assets/world-materials/floor-storage-q3.webp',
   'floor-carpet': 'assets/world-materials/floor-carpet-v3.webp',
+  'floor-carpet2': 'assets/world-materials/floor-carpet-q2.webp',
+  'floor-carpet3': 'assets/world-materials/floor-carpet-q3.webp',
   'floor-tatami': 'assets/world-materials/floor-tatami-v3.webp',
+  'floor-tatami2': 'assets/world-materials/floor-tatami-q2.webp',
+  'floor-tatami3': 'assets/world-materials/floor-tatami-q3.webp',
   'floor-neon': 'assets/world-materials/floor-neon-v3.webp',
+  'floor-neon2': 'assets/world-materials/floor-neon-q2.webp',
+  'floor-neon3': 'assets/world-materials/floor-neon-q3.webp',
   'floor-astral': 'assets/world-materials/floor-astral-v3.webp',
+  'floor-astral2': 'assets/world-materials/floor-astral-q2.webp',
+  'floor-astral3': 'assets/world-materials/floor-astral-q3.webp',
   'floor-forge': 'assets/world-materials/floor-forge-v3.webp',
+  'floor-forge2': 'assets/world-materials/floor-forge-q2.webp',
+  'floor-forge3': 'assets/world-materials/floor-forge-q3.webp',
   'floor-frost': 'assets/world-materials/floor-frost-v3.webp',
+  'floor-frost2': 'assets/world-materials/floor-frost-q2.webp',
+  'floor-frost3': 'assets/world-materials/floor-frost-q3.webp',
   'floor-onsen': 'assets/world-materials/floor-onsen-v3.webp',
+  'floor-onsen2': 'assets/world-materials/floor-onsen-q2.webp',
+  'floor-onsen3': 'assets/world-materials/floor-onsen-q3.webp',
   'floor-parquet': 'assets/world-materials/floor-parquet-v3.webp',
+  'floor-parquet2': 'assets/world-materials/floor-parquet-q2.webp',
+  'floor-parquet3': 'assets/world-materials/floor-parquet-q3.webp',
   'floor-garden': 'assets/world-materials/floor-garden-v3.webp',
+  'floor-garden2': 'assets/world-materials/floor-garden-q2.webp',
+  'floor-garden3': 'assets/world-materials/floor-garden-q3.webp',
   furniture: 'assets/world-materials/furniture-target-v3.webp',
+};
+const hdQualityName = (base, quality, materials) => {
+  if (quality >= 3 && materials.has(base + '3')) return base + '3';
+  if (quality >= 2 && materials.has(base + '2')) return base + '2';
+  return base;
 };
 const saveKeyFor = (slot        ) => slot === 1 ? SAVE_KEY : `wjbdy.save.v2.slot.${slot}`;
 const morningKeyFor = (slot        ) => slot === 1 ? MORNING_KEY : `wjbdy.morning.v2.slot.${slot}`;
@@ -115,10 +146,13 @@ const furnTex = new Map                      ();
 const FURNITURE_ATLAS_FRAMES = {
   table: [0, 0, 128, 128], table2: [640, 0, 128, 128], table3: [768, 0, 128, 128],
   chair: [128, 0, 128, 128], plant: [256, 0, 128, 128],
-  desk: [384, 0, 256, 128], prep: [0, 128, 256, 128], stove: [256, 128, 256, 128],
+  desk: [384, 0, 256, 128], desk2: [640, 128, 256, 128], desk3: [896, 128, 256, 128],
+  prep: [0, 128, 256, 128], stove: [256, 128, 256, 128],
   sconce: [512, 128, 128, 128],
-  sink: [0, 256, 256, 128], pass: [256, 256, 256, 128], shelf: [512, 256, 256, 128], bed: [768, 256, 256, 128],
-  lamp: [0, 384, 128, 128], couch: [128, 384, 256, 128], bunk: [384, 384, 256, 128],
+  sink: [0, 256, 256, 128], pass: [256, 256, 256, 128], shelf: [512, 256, 256, 128],
+  bed: [768, 256, 256, 128], bed2: [1152, 0, 256, 128], bed3: [1408, 0, 256, 128],
+  lamp: [0, 384, 128, 128], lamp2: [896, 0, 128, 128], lamp3: [1024, 0, 128, 128],
+  couch: [128, 384, 256, 128], bunk: [384, 384, 256, 128],
   bookshelf: [640, 384, 256, 128], teatable: [896, 384, 128, 128], vanity: [0, 512, 128, 128],
   keg: [0, 640, 128, 128], lightcol: [128, 640, 128, 128], statue: [256, 640, 128, 128],
   clock: [384, 640, 128, 128], banner: [512, 640, 128, 128], arcadem: [640, 640, 128, 128],
@@ -2085,7 +2119,9 @@ class Game                    {
           const hash = ((x * 73856093) ^ (y * 19349663) ^ (r.id * 83492791)) >>> 0;
           const roll = hash % 100;
           const v = roll < 62 ? 0 : 1 + (hash >>> 7) % (FLOOR_VARIANTS - 1);
-          const hd = this.materialPack === 'hd' ? materialFrame(name, x - r.x, y - r.y) : null;
+          const hdName = this.materialPack === 'hd' ? hdQualityName(name, r.quality, this.worldMaterials) : name;
+          const deluxeFloor = hdName !== name;
+          const hd = this.materialPack === 'hd' ? materialFrame(hdName, x - r.x, y - r.y) : null;
           const sp = new PIXI.Sprite(hd || floorTex(name, v));
           sp.width = T; sp.height = T;
           if (name === 'floor-tatami' && this.materialPack !== 'hd' && ((x + y) & 1)) {
@@ -2095,9 +2131,10 @@ class Game                    {
             sp.x = x * T + T / 2; sp.y = y * T + T / 2;
           } else {
             sp.x = x * T; sp.y = y * T;
-            // 房间品质换材质：II 提亮、III 暖金光泽（与厨房棋盘格做通道叠加）
+            // 高清有豪华地面帧就换贴图；经典或还没豪华帧时才用暖金调色。
             let tint = (name === 'floor-kitchen' && ((x + y) & 1)) ? 0xE4EAF0 : 0xFFFFFF;
-            const qt = this.materialPack === 'hd'
+            const qt = deluxeFloor ? 0xFFFFFF
+              : this.materialPack === 'hd'
               ? (r.quality >= 3 ? 0xFFD890 : r.quality >= 2 ? 0xFFE8C4 : 0xFFFFFF)
               : (r.quality >= 3 ? 0xFFF0D2 : r.quality >= 2 ? 0xFBF6EA : 0xFFFFFF);
             tint = (((tint >> 16 & 255) * (qt >> 16 & 255) / 255) << 16) | (((tint >> 8 & 255) * (qt >> 8 & 255) / 255) << 8) | Math.round((tint & 255) * (qt & 255) / 255);
@@ -2171,11 +2208,12 @@ class Game                    {
       if (!tex) { tex = texFromCanvas(doorPix(horiz).canvas); this.pixTex.set(key, tex); }
       return tex;
     };
-    const beamStrip = (x) => {
-      const base = this.worldMaterials.get('wall');
+    const beamStrip = (x, quality = 1) => {
+      const wallName = hdQualityName('wall', quality, this.worldMaterials);
+      const base = this.worldMaterials.get(wallName);
       if (!base) return null;
       const fx = ((x % WORLD_ART_SCALE) + WORLD_ART_SCALE) % WORLD_ART_SCALE;
-      const key = `beamstrip|${fx}`;
+      const key = `beamstrip|${wallName}|${fx}`;
       let tex = this.pixTex.get(key);
       if (!tex) {
         tex = new PIXI.Texture({
@@ -2216,17 +2254,20 @@ class Game                    {
           else if (side === 1) { sp.x = x * T; sp.y = (y + 1) * T; sp.scale.y = -1; }
           else if (side === 2) { sp.x = x * T; sp.y = y * T; }
           else { sp.x = (x + 1) * T; sp.y = y * T; sp.scale.x = -1; }
-          const beam = this.materialPack === 'hd' ? beamStrip(x) : null;
+          const beam = this.materialPack === 'hd' ? beamStrip(x, r.quality) : null;
           if (beam) {
             const trim = new PIXI.Sprite(beam);
             trim.anchor.set(0.5); trim.width = T; trim.height = th;
             trim.rotation = horiz ? 0 : Math.PI / 2;
             trim.x = side === 2 ? x * T + th / 2 : side === 3 ? (x + 1) * T - th / 2 : x * T + T / 2;
             trim.y = side === 0 ? y * T + th / 2 : side === 1 ? (y + 1) * T - th / 2 : y * T + T / 2;
+            const deluxeWall = r.quality >= 2 && this.worldMaterials.has(hdQualityName('wall', r.quality, this.worldMaterials))
+              && hdQualityName('wall', r.quality, this.worldMaterials) !== 'wall';
             const beamStyle = styleById(this.tavern.roomStyle(r));
-            let beamHex = r.quality >= 3 ? mix('#FFFFFF', '#E8B44A', 0.52)
+            let beamHex = deluxeWall ? '#FFFFFF'
+              : r.quality >= 3 ? mix('#FFFFFF', '#E8B44A', 0.52)
               : r.quality >= 2 ? mix('#FFFFFF', '#C9922F', 0.3) : '#FFFFFF';
-            if (beamStyle.id !== 'rustic') beamHex = mix(beamHex, beamStyle.trim || beamStyle.accent, 0.45);
+            if (!deluxeWall && beamStyle.id !== 'rustic') beamHex = mix(beamHex, beamStyle.trim || beamStyle.accent, 0.45);
             if (beamHex !== '#FFFFFF') trim.tint = hexToNum(beamHex);
             this.wallSprites.addChild(trim);
           } else {
