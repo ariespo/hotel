@@ -21,7 +21,13 @@ export const PORTRAIT_V2_SPEC = Object.freeze({
     earLeft: Object.freeze([91, 207]),
     earRight: Object.freeze([293, 207]),
     chin: Object.freeze([192, 322]),
+    neck: Object.freeze([192, 340]),
     shoulderY: 382,
+  }),
+  view: Object.freeze({
+    top: 0,
+    // 展示底边：下巴底部以下、当前面部脖子底部以上，用于裁掉服装与领口。
+    bottom: 331,
   }),
   layers: Object.freeze([
     'backdrop', 'raceBack', 'hairBack', 'body', 'faceBase', 'eyes',
@@ -400,6 +406,20 @@ function drawFinish(ctx) {
   ctx.fillStyle = vignette; ctx.fillRect(0, 0, W, H);
 }
 
+function presentPortrait(canvas) {
+  const top = PORTRAIT_V2_SPEC.view.top;
+  const bottom = PORTRAIT_V2_SPEC.view.bottom;
+  const height = Math.max(1, bottom - top);
+  if (top <= 0 && bottom >= canvas.height) return canvas;
+  const out = document.createElement('canvas');
+  out.width = canvas.width;
+  out.height = height;
+  const ctx = out.getContext('2d');
+  if (!ctx) return canvas;
+  ctx.drawImage(canvas, 0, top, canvas.width, height, 0, 0, canvas.width, height);
+  return out;
+}
+
 export function drawIllustratedPortrait(a) {
   const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = H;
   const ctx = canvas.getContext('2d');
@@ -409,8 +429,7 @@ export function drawIllustratedPortrait(a) {
   drawBackdrop(ctx, pal);
   drawRaceBack(ctx, race, pal);
   drawHairBack(ctx, hair, pal);
-  drawBody(ctx, a, pal);
-  // 颈部属于脸型肤色体系。
+  // 服装已放弃：不再绘制身体/衣领，颈部仍属脸型肤色。
   const neck = ctx.createLinearGradient(0, 315, 0, 380); neck.addColorStop(0, pal.skin); neck.addColorStop(1, mix(pal.skin, '#70495B', .26));
   path(ctx, [['M', 160, 291], ['C', 164, 332, 159, 352, 143, 363], ['C', 164, 386, 220, 386, 241, 363], ['C', 225, 352, 220, 332, 224, 291]], neck, INK, 3);
   drawFaceBase(ctx, a.face, pal);
@@ -419,7 +438,7 @@ export function drawIllustratedPortrait(a) {
   drawRaceFront(ctx, race, pal);
   drawAccessory(ctx, a, pal);
   drawFinish(ctx);
-  return canvas;
+  return presentPortrait(canvas);
 }
 
 const layerImages = new Map();
@@ -530,7 +549,6 @@ function drawLayeredPortrait(a) {
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   drawBackdrop(ctx, pal);
-  drawBody(ctx, a, pal);
   ctx.drawImage(tintLayer(face, 'skin', pal.skin), 0, 0);
   ctx.drawImage(tintLayer(ears, 'skin', pal.skin), 0, 0);
   ctx.drawImage(tintLayer(eyes, 'iris', pal.iris), 0, 0);
@@ -538,7 +556,7 @@ function drawLayeredPortrait(a) {
   drawRaceFront(ctx, safeIndex(a.race, 19), pal);
   drawAccessory(ctx, a, pal);
   drawFinish(ctx);
-  return canvas;
+  return presentPortrait(canvas);
 }
 
 const cache = new Map();
