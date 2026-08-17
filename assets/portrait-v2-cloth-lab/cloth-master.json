@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": "gothic",
+  "canvas": {
+    "width": 384,
+    "height": 512
+  },
+  "layer": "body",
+  "drawOrder": ["cloth", "face", "eyes", "hair", "ears"],
+  "faceAnchors": {
+    "crown": [192, 48],
+    "chin": [192, 322],
+    "neck": [192, 340],
+    "shoulderY": 382
+  },
+  "note": "后续服装必须使用同一张 384×512 透明画布。相对脸部的 x/y/scale 以本页导出的 gothic 定位为母版标准。",
+  "transform": {
+    "x": 0,
+    "y": 0,
+    "scale": 100
+  }
+}
