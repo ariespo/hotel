@@ -251,7 +251,9 @@ class Audio2 {
       ['error', 'assets/sfx-error.wav'], ['chime', 'assets/sfx-chime.wav'], ['happy', 'assets/sfx-happy.wav'],
       ['world-travel', 'assets/world-travel.mp3'],
       ['angry', 'assets/sfx-angry.wav'], ['clean', 'assets/sfx-clean.wav'], ['sizzle', 'assets/sfx-sizzle.wav'],
-      ['upgrade', 'assets/sfx-upgrade.wav'], ['alert', 'assets/sfx-alert.wav'], ['daybell', 'assets/sfx-daybell.wav'],
+      ['upgrade', 'assets/sfx-upgrade.wav'], ['upgrade-furn', 'assets/sfx-upgrade-furn.wav'],
+      ['upgrade-room', 'assets/sfx-upgrade-room.wav'],
+      ['alert', 'assets/sfx-alert.wav'], ['daybell', 'assets/sfx-daybell.wav'],
       ['splash', 'assets/sfx-splash.wav'], ['cue', 'assets/sfx-cue.wav'], ['snore', 'assets/sfx-snore.wav'],
       ['amb', 'assets/amb-tavern.wav'], ['amb-night', 'assets/amb-night.wav'],
     ];
@@ -1734,7 +1736,7 @@ class Game                    {
       });
     }
     this.sim.toast(`${ROOM_LABEL[r.kind]}升级到品质 ${'I'.repeat(r.quality)}`);
-    this.audio.play('upgrade');
+    this.audio.play('upgrade-room', r.quality >= 3 ? 1 : 0.88);
     this.recordBuildState('升级房间');
     this.save();
   }
@@ -1807,7 +1809,7 @@ class Game                    {
         kind: 'spark',
       });
     }
-    this.audio.play('upgrade');
+    this.audio.play('upgrade-furn', f.quality >= 3 ? 1 : 0.88);
     this.recordBuildState('升级家具');
     this.save();
   }
