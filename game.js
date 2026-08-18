@@ -3,6 +3,13 @@ import { ACC_NAMES,                  appKey, avatarURL, defaultAppearance, drawA
 import { furnPix, dirtPix, doorPix, equipAnimPix, platePix, ROOM_WALL, T, wallPix } from './src/furniture.js';
 
 const ACTOR_S = 0.5;          // 世界里的小人按 50% 画（美术画布 64×72 → 场内 32×36）
+
+export function tickerDt(tk) {
+  if (typeof tk === 'number' && Number.isFinite(tk) && tk > 0) return Math.min(tk / 60, 0.05);
+  const ms = Number(tk?.deltaMS);
+  if (Number.isFinite(ms) && ms > 0) return Math.min(ms / 1000, 0.05);
+  return 1 / 60;
+}
 import { FLOOR_VARIANTS, floorVariant, glowPix, lightPoolPix, rugTile, wallDecoPix } from './src/floor.js';
 import { contactShadow, edgeOcclusion, floorLightTint, nightShadeAlpha, tileWarmth, worldLights } from './src/light.js';
 import { hexToNum, mix, PAL, Rng } from './src/pix.js';
@@ -592,7 +599,7 @@ class Game                    {
 
     this.app.ticker.add((tk) => {
       // pixi 的 ticker 一旦在回调里抛异常就不会再申请下一帧 —— 整个游戏会静默冻结。
-      try { this.frame(Math.min(tk.deltaMS / 1000, 0.05)); }
+      try { this.frame(tickerDt(tk)); }
       catch (err) { this.frameErrors++; if (this.frameErrors <= 3) console.error('frame error', err); }
     });
     this.ui.render(true);
@@ -2001,11 +2008,11 @@ class Game                    {
     const down = this.keys.has('s') || this.keys.has('arrowdown');
     const left = this.keys.has('a') || this.keys.has('arrowleft');
     const right = this.keys.has('d') || this.keys.has('arrowright');
+    const own = this.sim.staff.find((x) => x.isOwner);
     if (this.sim.manualOwner) {
       // 直控店主：按键给方向，镜头缓动跟随
       this.sim.manualVec.x = Math.max(-1, Math.min(1, (right ? 1 : 0) - (left ? 1 : 0) + this.manualInput.x));
       this.sim.manualVec.y = Math.max(-1, Math.min(1, (down ? 1 : 0) - (up ? 1 : 0) + this.manualInput.y));
-      const own = this.sim.staff.find((x) => x.isOwner);
       if (own) { this.cam.x += (own.x - this.cam.x) * Math.min(1, dt * 6); this.cam.y += (own.y - this.cam.y) * Math.min(1, dt * 6); }
     } else {
       const pan = 14 * dt;
@@ -2020,8 +2027,10 @@ class Game                    {
     this.sim.uiTick(dt);
     if (active) this.sim.update(dt * this.speed);
     else {
+      // 暂停/弹窗冻结经营，但直控店主仍按真实时间走路，避免安卓上原地踏步。
+      if (this.sim.manualOwner && own && !this.titleActive && !this.creatorPending) this.sim.driveOwner(own, dt);
       this.sim.update(0);
-      // 结算弹窗会冻结经营逻辑，但已被送客的角色仍应走完离场路径。
+      if (this.sim.manualOwner && own) this.sim.tickAnim(dt);
       if (this.blocked && !this.sim.running) this.sim.tickDepartures(dt);
     }
     // 接入 AI 后，在收尾前一分钟后台生成一张严格结构化的当日专属经营事件。

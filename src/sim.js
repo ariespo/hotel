@@ -518,6 +518,12 @@ export function plannedStaffPriority(skills                         , traits    
   return score >= 74 ? 3 : score >= 58 ? 2 : score >= 42 ? 1 : 0;
 }
 
+export function normalizeSimDt(dt, fallback = 1 / 60) {
+  const n = Number(dt);
+  if (!Number.isFinite(n) || n <= 0) return fallback;
+  return Math.min(n, 0.05);
+}
+
 /** 将旧档或外部输入中的异常技能值收敛到可玩的有限数值。 */
 export function normalizedSkills(input = {}, fallback = 38) {
   return Object.fromEntries(SKILL_KEYS.map((key) => {
@@ -3354,17 +3360,21 @@ export class Sim {
   }
 
   /** 玩家直控：逐轴推进，撞墙只挡住那一轴（斜向贴墙才不会卡住） */
-          driveOwner(s       , dt        )       {
+  driveOwner(s, dt) {
     s.task = null; s.path = [];
     const v = this.manualVec;
     const len = Math.hypot(v.x, v.y);
     if (len < 0.01) { s.pose = 'idle'; return; }
+    const safeDt = normalizeSimDt(dt);
     const R = 0.16;
-    const step = this.staffSpeed(s) * 1.2 * dt;
+    const step = Math.max(this.staffSpeed(s) * 1.2 * safeDt, 0.12);
+    const hereX = Math.round(s.x), hereY = Math.round(s.y);
+    if (!this.tavern.walkable(hereX, hereY, false)) {
+      const out = this.nearestWalkableTile(hereX, hereY, v);
+      if (out) { s.x = out.x; s.y = out.y; }
+    }
     // 站在椅子/床/汤池上时先放宽，否则玩家会被自己脚下的家具锁死
     const strict = this.tavern.bodyFree(s.x, s.y, s.x, s.y, R, true);
-    // ① 先沿"前进方向的垂直轴"向格心回正：门只有一格宽，斜着挤门口时不先对准就永远进不去
-    //    朝自己所在格的中心走一定还在同一格内，不需要再判碰撞
     const snap = step * 1.6;
     if (Math.abs(v.x) > 0.01) {
       const cy = Math.round(s.y), d = cy - s.y;
@@ -3374,12 +3384,36 @@ export class Sim {
       const cx = Math.round(s.x), d = cx - s.x;
       if (Math.abs(d) > 0.02) s.x += Math.sign(d) * Math.min(Math.abs(d), snap);
     }
-    // ② 再逐轴推进：撞墙只挡住那一轴，斜向贴墙不会整个卡死
     const dx = (v.x / len) * step, dy = (v.y / len) * step;
-    if (Math.abs(v.x) > 0.01 && this.tavern.bodyFree(s.x, s.y, s.x + dx, s.y, R, strict)) s.x += dx;
-    if (Math.abs(v.y) > 0.01 && this.tavern.bodyFree(s.x, s.y, s.x, s.y + dy, R, strict)) s.y += dy;
+    let moved = false;
+    if (Math.abs(v.x) > 0.01 && this.tavern.bodyFree(s.x, s.y, s.x + dx, s.y, R, strict)) { s.x += dx; moved = true; }
+    if (Math.abs(v.y) > 0.01 && this.tavern.bodyFree(s.x, s.y, s.x, s.y + dy, R, strict)) { s.y += dy; moved = true; }
+    if (!moved) {
+      const nx = hereX + (v.x > 0.2 ? 1 : v.x < -0.2 ? -1 : 0);
+      const ny = hereY + (v.y > 0.2 ? 1 : v.y < -0.2 ? -1 : 0);
+      if (nx !== hereX && this.tavern.walkable(nx, hereY) && this.tavern.connected(hereX, hereY, nx, hereY)) s.x = nx;
+      else if (ny !== hereY && this.tavern.walkable(hereX, ny) && this.tavern.connected(hereX, hereY, hereX, ny)) s.y = ny;
+    }
     s.pose = 'walk';
     if (Math.abs(v.x) > Math.abs(v.y)) s.dir = v.x > 0 ? 3 : 1; else s.dir = v.y > 0 ? 0 : 2;
+  }
+
+  nearestWalkableTile(x, y, prefer = { x: 0, y: 0 }) {
+    if (this.tavern.walkable(x, y)) return { x, y };
+    const dirs = [
+      [Math.sign(prefer.x) || 0, Math.sign(prefer.y) || 0],
+      [0, -1], [0, 1], [-1, 0], [1, 0], [-1, -1], [1, -1], [-1, 1], [1, 1],
+    ];
+    const seen = new Set(['0,0']);
+    for (const [dx, dy] of dirs) {
+      const key = `${dx},${dy}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (this.tavern.walkable(x + dx, y + dy)) return { x: x + dx, y: y + dy };
+    }
+    const e = this.tavern.entrance();
+    if (this.tavern.walkable(e.x, e.y + 1)) return { x: e.x, y: e.y + 1 };
+    return this.tavern.walkable(e.x, e.y) ? e : null;
   }
 
   /** 该员工可以用的休息家具：自己卧室里的，或还空着的休息室里的（绝不进别人卧室） */
