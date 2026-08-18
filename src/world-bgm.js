@@ -1,17 +1,48 @@
 export const FALLBACK_WORLD_IDS = ['verdant_court', 'hearth_coast', 'neon_ring', 'moonsea'];
 
+const HEARTH_OPEN = [
+  { id: 'hearth-open-dance', file: 'assets/bgm/hearth-open-dance.mp3', name: '炉边小舞', note: '艾泽/蜜昼日常堂食', role: 'default' },
+  { id: 'hearth-open-cheer', file: 'assets/bgm/hearth-open-cheer.mp3', name: '庆祝', note: '归旗、使团与宴会', role: 'gather', festivals: ['冒险者归旗日', '停泊礼'] },
+  { id: 'hearth-open-harvest', file: 'assets/bgm/hearth-open-harvest.mp3', name: '丰收日', note: '七曜巡礼、羽桥巡游', role: 'festive', festivals: ['七曜巡礼', '羽桥巡游'] },
+];
+const HEARTH_CLOSE = [
+  { id: 'hearth-close-warmth', file: 'assets/bgm/hearth-close-warmth.mp3', name: '余温', note: '盘账、改房间', role: 'default' },
+  { id: 'hearth-close-summer', file: 'assets/bgm/hearth-close-summer.mp3', name: '夏夜', note: '日结与更晚点的打烊', role: 'late' },
+];
+const GRIM_OPEN = [
+  { id: 'grim-open-prayer', file: 'assets/bgm/grim-open-prayer.mp3', name: '用餐祷告', note: '铁血/永夜/龙庭日常堂食', role: 'default' },
+  { id: 'grim-open-vigil', file: 'assets/bgm/grim-open-vigil.mp3', name: '守线日', note: '纪念日与王宴', role: 'gather', festivals: ['守线纪念日', '铸造初火节', '百年夜宴', '守名节', '黑金王宴', '七炉竞锻'] },
+];
+const GRIM_CLOSE = [
+  { id: 'grim-close-watch', file: 'assets/bgm/grim-close-watch.mp3', name: '守望者', note: '盘账、改房间', role: 'default' },
+  { id: 'grim-close-sleep', file: 'assets/bgm/grim-close-sleep.mp3', name: '安眠之前', note: '日结与更晚点的打烊', role: 'late' },
+];
+const DREAM_OPEN = [
+  { id: 'dream-open-dock', file: 'assets/bgm/dream-open-dock.mp3', name: '幻觉码头', note: '梦海/无时日常堂食', role: 'default' },
+  { id: 'dream-open-feast', file: 'assets/bgm/dream-open-feast.mp3', name: '失谐灯宴', note: '倒雨嘉年华、零时开市', role: 'festive', festivals: ['倒雨嘉年华', '鲸梦渡日', '零时开市', '失刻纪念日'] },
+];
+const DREAM_CLOSE = [
+  { id: 'dream-close-bottle', file: 'assets/bgm/dream-close-bottle.mp3', name: '漂流瓶', note: '盘账、改房间', role: 'default' },
+  { id: 'dream-close-lighthouse', file: 'assets/bgm/dream-close-lighthouse.mp3', name: '倒置灯塔', note: '日结与更晚点的打烊', role: 'late' },
+];
+const MASK_OPEN = [
+  { id: 'mask-open-banquet', file: 'assets/bgm/mask-open-banquet.mp3', name: '假面宴会', note: '千面日常堂食', role: 'default' },
+  { id: 'mask-open-premiere', file: 'assets/bgm/mask-open-premiere.mp3', name: '盛大的首演夜', note: '全国首演、无名面具节', role: 'festive', festivals: ['全国首演夜', '无名面具节'] },
+];
+const MASK_CLOSE = [
+  { id: 'mask-close-scheme', file: 'assets/bgm/mask-close-scheme.mp3', name: '阴谋与窃笑', note: '盘账、改房间', role: 'default' },
+  { id: 'mask-close-mask', file: 'assets/bgm/mask-close-mask.mp3', name: '无名面具', note: '日结与更晚点的打烊', role: 'late' },
+];
+
 export const WORLD_BGM = {
-  hearth_coast: {
-    name: '艾泽普利斯',
-    open: [
-      { id: 'hearth-open-jig', file: 'assets/bgm/hearth-open-jig.mp3', name: '炉边 Jig', note: '艾泽日常堂食', role: 'default' },
-      { id: 'hearth-open-table', file: 'assets/bgm/hearth-open-table.mp3', name: '公会长桌', note: '小队到店、委托热闹', role: 'gather', festivals: ['冒险者归旗日'] },
-    ],
-    close: [
-      { id: 'hearth-close-flag', file: 'assets/bgm/hearth-close-flag.mp3', name: '收旗余温', note: '盘账、改房间', role: 'default' },
-      { id: 'hearth-close-ember', file: 'assets/bgm/hearth-close-ember.mp3', name: '客栈余烬', note: '日结与更晚点的打烊', role: 'late' },
-    ],
-  },
+  hearth_coast: { name: '艾泽普利斯', open: HEARTH_OPEN, close: HEARTH_CLOSE },
+  honey_sky: { name: '蜜昼浮岛', open: HEARTH_OPEN, close: HEARTH_CLOSE },
+  iron_hive: { name: '铁血燃烬', open: GRIM_OPEN, close: GRIM_CLOSE },
+  evernight: { name: '永夜墓都', open: GRIM_OPEN, close: GRIM_CLOSE },
+  ash_dragoncourt: { name: '灰烬龙庭', open: GRIM_OPEN, close: GRIM_CLOSE },
+  inverted_dreamsea: { name: '倒悬梦海', open: DREAM_OPEN, close: DREAM_CLOSE },
+  timeless_bazaar: { name: '无时集市', open: DREAM_OPEN, close: DREAM_CLOSE },
+  mask_realm: { name: '千面戏国', open: MASK_OPEN, close: MASK_CLOSE },
   magma_ridge: {
     name: '玄黄大世界',
     open: [
