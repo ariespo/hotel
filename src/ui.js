@@ -234,8 +234,9 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui.compact #top .sep{height:16px}
 #ui.compact #left{top:38px;bottom:0;left:0;max-height:none;width:min(78vw,320px);z-index:14;border-radius:0 14px 14px 0}
 #ui.compact #right{top:38px;bottom:0;right:0;max-height:none;width:min(78vw,320px);z-index:14;border-radius:14px 0 0 14px}
-#ui.compact .rail{top:44px}
-#ui.compact .rail button{width:48px;height:48px;border-radius:14px}
+#ui.compact .rail{top:44px;padding:6px 4px;gap:6px}
+#ui.compact .rail button{width:44px;height:44px;padding:0;border-radius:8px;display:grid;place-items:center;box-sizing:border-box;transform:none}
+#ui.compact .rail button .ui-icon{width:22px;height:22px;margin:0;vertical-align:0}
 #ui.compact #bottom{min-height:0;max-height:28vh;overflow:auto;padding:6px 8px;font-size:13px}#ui.compact #bottom.bottom-expanded{height:auto;max-height:min(56vh,calc(100dvh - 88px));overflow:auto;-webkit-overflow-scrolling:touch;align-items:flex-start}#ui.compact #bottom.bottom-collapsed{height:44px}
 #ui.compact #chatter{bottom:30vh;font-size:12px;max-width:86vw}
 #ui.compact .toasts{top:36px;font-size:12px}
@@ -326,6 +327,10 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #bottom{bottom:max(8px,env(safe-area-inset-bottom,0px),var(--vv-bottom,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px))}
 #ui.compact #bottom.bottom-expanded{min-height:108px;max-height:min(48vh,calc(100dvh - 120px - var(--vv-bottom,0px)))}
 #ui.compact #bottom .bottom-content{overflow:visible}
+#ui.compact .rail,#ui.compact.material-hd .rail{padding:6px 4px}
+#ui.compact .rail button,#ui.compact.material-hd .rail button{width:44px;height:44px;padding:0!important;display:grid;place-items:center;border-radius:8px;transform:none}
+#ui.compact .rail button .ui-icon,#ui.compact.material-hd .rail button .ui-icon{width:22px;height:22px;margin:0}
+#ui.compact .rail button:hover,#ui.compact .rail button:active{transform:none}
 @media (max-width:1899px){.top-actions-secondary{display:none}.top-overflow{display:inline-flex}}
 @media (max-width:1040px) and (orientation:landscape){#ui.compact.manual-owner #owner-stick{left:max(96px,calc(env(safe-area-inset-left) + 88px))}#ui.compact.manual-owner.left-open #owner-stick{left:auto;right:max(14px,env(safe-area-inset-right))}}
 #star-cele{position:fixed;inset:0;z-index:40;display:none;pointer-events:auto;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,#3a2414cc 0%,#120904e6 72%);overflow:hidden;cursor:pointer}

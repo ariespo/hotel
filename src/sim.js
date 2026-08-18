@@ -3359,41 +3359,39 @@ export class Sim {
     if (this.rng.chance(0.05)) s.path = this.tavern.path(Math.round(s.x), Math.round(s.y), spot.x, spot.y) || [];
   }
 
-  /** 玩家直控：逐轴推进，撞墙只挡住那一轴（斜向贴墙才不会卡住） */
+  /** 玩家直控：逐轴推进，撞墙只挡住那一轴。dt<=0 只改姿态，绝不补步，避免暂停帧把人弹到另一侧。 */
   driveOwner(s, dt) {
     s.task = null; s.path = [];
     const v = this.manualVec;
     const len = Math.hypot(v.x, v.y);
-    if (len < 0.01) { s.pose = 'idle'; return; }
-    const safeDt = normalizeSimDt(dt);
+    if (len < 0.08) { s.pose = 'idle'; return; }
+    if (!(dt > 0) || !Number.isFinite(dt)) { s.pose = 'walk'; return; }
+    const safeDt = Math.min(dt, 0.05);
     const R = 0.16;
-    const step = Math.max(this.staffSpeed(s) * 1.2 * safeDt, 0.12);
+    const step = this.staffSpeed(s) * 1.15 * Math.min(1, len) * safeDt;
     const hereX = Math.round(s.x), hereY = Math.round(s.y);
     if (!this.tavern.walkable(hereX, hereY, false)) {
       const out = this.nearestWalkableTile(hereX, hereY, v);
-      if (out) { s.x = out.x; s.y = out.y; }
+      if (out) {
+        const ax = out.x - s.x, ay = out.y - s.y;
+        const ad = Math.hypot(ax, ay) || 1;
+        const slide = Math.min(Math.max(step, 0.04), ad);
+        s.x += (ax / ad) * slide;
+        s.y += (ay / ad) * slide;
+      }
     }
-    // 站在椅子/床/汤池上时先放宽，否则玩家会被自己脚下的家具锁死
-    const strict = this.tavern.bodyFree(s.x, s.y, s.x, s.y, R, true);
-    const snap = step * 1.6;
-    if (Math.abs(v.x) > 0.01) {
+    const snap = Math.min(step * 1.2, 0.08);
+    if (Math.abs(v.x) > 0.08) {
       const cy = Math.round(s.y), d = cy - s.y;
       if (Math.abs(d) > 0.02) s.y += Math.sign(d) * Math.min(Math.abs(d), snap);
     }
-    if (Math.abs(v.y) > 0.01) {
+    if (Math.abs(v.y) > 0.08) {
       const cx = Math.round(s.x), d = cx - s.x;
       if (Math.abs(d) > 0.02) s.x += Math.sign(d) * Math.min(Math.abs(d), snap);
     }
     const dx = (v.x / len) * step, dy = (v.y / len) * step;
-    let moved = false;
-    if (Math.abs(v.x) > 0.01 && this.tavern.bodyFree(s.x, s.y, s.x + dx, s.y, R, strict)) { s.x += dx; moved = true; }
-    if (Math.abs(v.y) > 0.01 && this.tavern.bodyFree(s.x, s.y, s.x, s.y + dy, R, strict)) { s.y += dy; moved = true; }
-    if (!moved) {
-      const nx = hereX + (v.x > 0.2 ? 1 : v.x < -0.2 ? -1 : 0);
-      const ny = hereY + (v.y > 0.2 ? 1 : v.y < -0.2 ? -1 : 0);
-      if (nx !== hereX && this.tavern.walkable(nx, hereY) && this.tavern.connected(hereX, hereY, nx, hereY)) s.x = nx;
-      else if (ny !== hereY && this.tavern.walkable(hereX, ny) && this.tavern.connected(hereX, hereY, hereX, ny)) s.y = ny;
-    }
+    if (Math.abs(v.x) > 0.08 && this.tavern.bodyFree(s.x, s.y, s.x + dx, s.y, R, false)) s.x += dx;
+    if (Math.abs(v.y) > 0.08 && this.tavern.bodyFree(s.x, s.y, s.x, s.y + dy, R, false)) s.y += dy;
     s.pose = 'walk';
     if (Math.abs(v.x) > Math.abs(v.y)) s.dir = v.x > 0 ? 3 : 1; else s.dir = v.y > 0 ? 0 : 2;
   }
