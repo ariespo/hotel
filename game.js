@@ -347,8 +347,9 @@ class Audio2 {
     this.curTrack = key;
   }
 
-  playTrack(name        )       {
+  playTrack(name        , force = false)       {
     this.wantTrack = name;
+    if (force) this.curTrack = '';
     this.applyMusic();
   }
 
@@ -843,14 +844,22 @@ class Game                    {
     return true;
   }
 
-  playStageMusic(phase) {
+  playStageMusic(phase, force = false) {
     const world = this.sim?.currentWorld?.();
     const festival = this.sim?.currentWorldFestival?.();
-    this.audio.playTrack(resolveWorldBgm({
+    const id = resolveWorldBgm({
       worldId: world?.id,
       phase,
       festivalName: festival?.name,
-    }));
+    });
+    if (force) {
+      const locked = this.audio.musicPref;
+      this.audio.musicPref = 'auto';
+      this.audio.playTrack(id, true);
+      this.audio.musicPref = locked;
+      return;
+    }
+    this.audio.playTrack(id);
   }
 
   setManualOwner(v         )       {
@@ -1598,6 +1607,7 @@ class Game                    {
     if (this.worldTravelActive || !this.sim.requestWorldSwitch(id)) return false;
     const target = this.sim.worldById(id);
     this.worldTravelActive = true; this.ui.closeModal(); this.save();
+    this.audio.stopMusic();
     this.sim.toast(`位面航路已启动：正在前往${target.name}`);
     const targetLoad = this.preloadWorldBackground(id).catch(() => null);
     try {
@@ -1617,7 +1627,6 @@ class Game                    {
         this.worldBackgroundId = '';
         this.ensureWorldBackground();
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-        this.playStageMusic(this.sim.dayActive ? 'open' : 'close');
         this.ui.render(true); this.save();
       }
       await this.fadeWorldTravel(0, 900);
@@ -1625,12 +1634,14 @@ class Game                    {
     } catch (err) {
       const arrived = this.sim.activatePendingWorldSwitch();
       this.worldBackgroundId = ''; this.ensureWorldBackground();
-      if (arrived) this.playStageMusic(this.sim.dayActive ? 'open' : 'close');
       this.ui.render(true); this.save();
       this.sim.toast(`${arrived ? '已抵达目标世界，但穿越动画未能完整播放' : '穿越失败'}：${err?.message || '未知错误'}`);
       return !!arrived;
     } finally {
-      this.cleanupWorldTravel(); this.worldTravelActive = false;
+      this.cleanupWorldTravel();
+      this.worldTravelActive = false;
+      this.playStageMusic(this.sim.dayActive ? 'open' : 'close', true);
+      this.audio.setMusicLevel(this.sim.dayActive ? 0.72 : 0.4);
     }
   }
 
