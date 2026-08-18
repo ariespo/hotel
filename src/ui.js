@@ -3488,7 +3488,7 @@ export class UI {
         <button data-act="bgmpause" class="${vols.paused ? 'on' : ''}">Ⅱ 暂停</button>
         <span class="dim">${vols.paused ? '已暂停' : vols.bgm === 'auto' ? '正在跟随驻留世界与营业/打烊/日结自动换曲' : `正在播放：${htmlText((this.g.audio.tracks?.() || []).find((track) => track.id === vols.bgm)?.name || '背景乐')}`}</span>
       </div>
-      <div class="dim">跟随阶段：按当前驻留世界选曲。艾泽、玄黄、森冠、霓虹已有专属曲，节日日会切到热闹曲；其他世界暂用通用三首。点某一首会锁定。</div>
+      <div class="dim">跟随阶段：加载后按当前驻留世界播放对应时段曲目。节日日会切到热闹曲；自定义世界或尚未配乐的世界，会从森冠、艾泽、霓虹、海国的同时段曲目里随机抽一首。点某一首会锁定。</div>
       <h3 style="margin:14px 0 6px">同时接待</h3>
       ${this.guestCapSettingsHtml()}
       <h3 style="margin:14px 0 6px">酒馆称号</h3>

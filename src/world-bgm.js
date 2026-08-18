@@ -1,8 +1,4 @@
-export const GENERIC_BGM = [
-  { id: 'bgm', file: 'assets/bgm-tavern.wav', name: '炉火营业', note: '未专属配乐的世界：营业暖曲', phase: 'open' },
-  { id: 'bgm-plan', file: 'assets/bgm-plan.wav', name: '收盘规划', note: '未专属配乐的世界：打烊小调', phase: 'close' },
-  { id: 'bgm-night', file: 'assets/bgm-night.wav', name: '位面夜航', note: '未专属配乐的世界：日结夜曲', phase: 'settle' },
-];
+export const FALLBACK_WORLD_IDS = ['verdant_court', 'hearth_coast', 'neon_ring', 'moonsea'];
 
 export const WORLD_BGM = {
   hearth_coast: {
@@ -50,6 +46,17 @@ export const WORLD_BGM = {
       { id: 'neon-close-rain', file: 'assets/bgm/neon-close-rain.mp3', name: '酸雨夜', note: '日结与更晚点的打烊', role: 'late' },
     ],
   },
+  moonsea: {
+    name: '月沉海国',
+    open: [
+      { id: 'moon-open-harbor', file: 'assets/bgm/moon-open-harbor.mp3', name: '泡泡街早潮', note: '海国日常堂食', role: 'default' },
+      { id: 'moon-open-sail', file: 'assets/bgm/moon-open-sail.mp3', name: '浮岛开帆', note: '浮岛开帆日、沉月祭', role: 'gather', festivals: ['浮岛开帆日', '沉月祭'] },
+    ],
+    close: [
+      { id: 'moon-close-ledger', file: 'assets/bgm/moon-close-ledger.mp3', name: '退潮', note: '盘账、改房间', role: 'default' },
+      { id: 'moon-close-whale', file: 'assets/bgm/moon-close-whale.mp3', name: '鲸歌', note: '日结与更晚点的打烊', role: 'late' },
+    ],
+  },
 };
 
 const worldTracks = (worldId, phase) => WORLD_BGM[worldId]?.[phase] || [];
@@ -62,7 +69,6 @@ export function allBgmTracks() {
     seen.add(track.id);
     out.push(track);
   };
-  for (const track of GENERIC_BGM) push(track);
   for (const world of Object.values(WORLD_BGM)) {
     for (const track of [...(world.open || []), ...(world.close || [])]) push(track);
   }
@@ -78,14 +84,11 @@ export function bgmTrackById(id) {
 }
 
 export function bgmSettingsGroups() {
-  return [
-    ...Object.entries(WORLD_BGM).map(([worldId, world]) => ({
-      worldId,
-      name: world.name,
-      tracks: [...(world.open || []), ...(world.close || [])],
-    })),
-    { worldId: 'generic', name: '通用', tracks: GENERIC_BGM },
-  ];
+  return Object.entries(WORLD_BGM).map(([worldId, world]) => ({
+    worldId,
+    name: world.name,
+    tracks: [...(world.open || []), ...(world.close || [])],
+  }));
 }
 
 function festivalHit(track, festivalName) {
@@ -94,18 +97,43 @@ function festivalHit(track, festivalName) {
   return (track.festivals || []).some((tag) => name.includes(tag) || tag.includes(name));
 }
 
-/** phase: open | close | settle */
-export function resolveWorldBgm({ worldId, phase, festivalName } = {}) {
+function pickFromPool(pool, phase, festivalName) {
+  if (!pool.length) return null;
   if (phase === 'open') {
-    const pool = worldTracks(worldId, 'open');
-    const festive = pool.find((track) => festivalHit(track, festivalName));
-    if (festive) return festive.id;
-    return (pool.find((track) => track.role === 'default') || pool[0] || GENERIC_BGM[0]).id;
+    return pool.find((track) => festivalHit(track, festivalName))
+      || pool.find((track) => track.role === 'default')
+      || pool[0];
   }
   if (phase === 'settle') {
-    const pool = worldTracks(worldId, 'close');
-    return (pool.find((track) => track.role === 'late') || pool[1] || pool[0] || GENERIC_BGM[2]).id;
+    return pool.find((track) => track.role === 'late') || pool[1] || pool[0];
   }
-  const pool = worldTracks(worldId, 'close');
-  return (pool.find((track) => track.role === 'default') || pool[0] || GENERIC_BGM[1]).id;
+  return pool.find((track) => track.role === 'default') || pool[0];
+}
+
+function fallbackPool(phase) {
+  const key = phase === 'open' ? 'open' : 'close';
+  const rows = FALLBACK_WORLD_IDS.flatMap((id) => worldTracks(id, key));
+  if (phase === 'settle') {
+    const late = rows.filter((track) => track.role === 'late');
+    return late.length ? late : rows;
+  }
+  if (phase === 'close') {
+    const def = rows.filter((track) => track.role === 'default');
+    return def.length ? def : rows;
+  }
+  return rows;
+}
+
+function pickRandom(list, random) {
+  if (!list.length) return null;
+  const n = Number(random());
+  const index = Math.min(list.length - 1, Math.max(0, Math.floor((Number.isFinite(n) ? n : 0) * list.length)));
+  return list[index];
+}
+
+/** phase: open | close | settle */
+export function resolveWorldBgm({ worldId, phase, festivalName, random = Math.random } = {}) {
+  const own = pickFromPool(worldTracks(worldId, phase === 'open' ? 'open' : 'close'), phase, festivalName);
+  if (own) return own.id;
+  return pickRandom(fallbackPool(phase), random)?.id || '';
 }

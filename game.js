@@ -309,8 +309,8 @@ class Audio2 {
     this.ambGain.gain.setTargetAtTime(name === 'amb' ? 0.34 : 0.22, this.ctx.currentTime, 0.6);
   }
 
-  /** 分阶段 BGM：营业/打烊/日结按驻留世界选专属曲，没有专属时回落通用三首。 */
-  wantTrack = 'bgm-plan';
+  /** 分阶段 BGM：按驻留世界选曲；自定义或缺曲时从森冠/艾泽/霓虹/海国同时段随机抽。 */
+  wantTrack = '';
   curTrack = '';
   musicPref = 'auto';
   musicPaused = false;
@@ -320,9 +320,10 @@ class Audio2 {
 
   resolveTrack(name = this.wantTrack) {
     const requested = this.musicPref !== 'auto' ? this.musicPref : name;
-    if (this.buffers.has(requested)) return requested;
-    if (this.buffers.has('bgm')) return 'bgm';
-    return BGM_TRACKS.map((track) => track.id).find((id) => this.buffers.has(id)) || '';
+    if (requested && this.buffers.has(requested)) return requested;
+    const loaded = BGM_TRACKS.filter((track) => this.buffers.has(track.id));
+    if (!loaded.length) return '';
+    return loaded[Math.floor(Math.random() * loaded.length)].id;
   }
 
   stopMusic() {
@@ -712,6 +713,7 @@ class Game                    {
     this.resetBuildHistory('开局布局');
     this.saveMorning();
     this.save();
+    this.playStageMusic('close');
     this.ui.startTutorial(true);
   }
 
@@ -926,6 +928,7 @@ class Game                    {
     this.sim.econ.strikes = 0;
     this.ui.closeModal();
     this.creatorPending = false;
+    this.playStageMusic(this.sim.dayActive ? 'open' : 'close');
     this.sim.toast('已读取晨间存档');
     this.save();
     this.ui.resumeTutorial();
