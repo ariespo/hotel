@@ -221,10 +221,10 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .rail button:hover{border-color:#C97F2B}
 .rail img{width:100%;height:100%;object-fit:contain;display:block}
 #scrim{position:fixed;inset:0;background:rgba(40,28,20,.38);z-index:13;display:none;pointer-events:auto}
-#owner-stick{position:fixed;left:max(14px,env(safe-area-inset-left));bottom:calc(96px + env(safe-area-inset-bottom));width:104px;height:104px;display:none;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;z-index:7;border:3px solid #B0895E;border-radius:50%;background:radial-gradient(circle,#F5E6C899 0 45%,#8A5A3877 47% 100%);box-shadow:0 5px 16px #3a2c2066,inset 0 0 0 2px #fff6;overscroll-behavior:contain}
+#owner-stick{position:fixed;left:max(14px,env(safe-area-inset-left,0px));bottom:calc(96px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)));width:120px;height:120px;display:none;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;-ms-touch-action:none;z-index:18;border:3px solid #B0895E;border-radius:50%;background:radial-gradient(circle,#F5E6C899 0 45%,#8A5A3877 47% 100%);box-shadow:0 5px 16px #3a2c2066,inset 0 0 0 2px #fff6;overscroll-behavior:contain}
 #owner-stick:after{content:'移动';position:absolute;top:calc(100% + 3px);left:50%;transform:translateX(-50%);padding:1px 7px;border-radius:9px;background:#3A2C20AA;color:#FFF8E6;font-size:11px;white-space:nowrap}
 .owner-stick-knob{width:42px;height:42px;border:3px solid #725129;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f6ddb0,#b88945 60%,#6f4a21);box-shadow:0 3px 7px #32200f88;will-change:transform}
-#ui.manual-owner #owner-stick{display:flex;z-index:16}
+#ui.manual-owner #owner-stick{display:flex;z-index:18}
 .mobile-manual{display:none}
 #ui.compact .mobile-manual,#ui.touch-ui .mobile-manual{display:inline-block}
 #ui.touch-ui.manual-owner:not(.compact) #owner-stick{left:max(108px,calc(env(safe-area-inset-left) + 100px))}
@@ -322,6 +322,10 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .creator-footer{position:sticky;bottom:0;z-index:6;margin:10px -14px -14px;padding:10px 14px;background:linear-gradient(#fff8eae8,#f5e6c8);border-top:1px solid var(--line)}
 .creator-footer .creator-done{width:100%;margin-top:0}
 .creator-footer [data-act="closemodal"]{width:100%;margin-top:6px}
+#top{top:max(8px,env(safe-area-inset-top,0px),var(--vv-top,0px))}
+#bottom{bottom:max(8px,env(safe-area-inset-bottom,0px),var(--vv-bottom,0px));left:max(8px,env(safe-area-inset-left,0px));right:max(8px,env(safe-area-inset-right,0px))}
+#ui.compact #bottom.bottom-expanded{min-height:108px;max-height:min(48vh,calc(100dvh - 120px - var(--vv-bottom,0px)))}
+#ui.compact #bottom .bottom-content{overflow:visible}
 @media (max-width:1899px){.top-actions-secondary{display:none}.top-overflow{display:inline-flex}}
 @media (max-width:1040px) and (orientation:landscape){#ui.compact.manual-owner #owner-stick{left:max(96px,calc(env(safe-area-inset-left) + 88px))}#ui.compact.manual-owner.left-open #owner-stick{left:auto;right:max(14px,env(safe-area-inset-right))}}
 #star-cele{position:fixed;inset:0;z-index:40;display:none;pointer-events:auto;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,#3a2414cc 0%,#120904e6 72%);overflow:hidden;cursor:pointer}
@@ -559,6 +563,7 @@ export class UI {
     this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim, this.ownerStick, this.tutorialLayer, this.starCele);
     this.starCele.addEventListener('click', () => this.finishStarCelebration());
     this.bindOwnerStick();
+    this.bindVisualViewport();
     this.scrim.addEventListener('click', () => { this.collapsed.left = this.collapsed.right = true; this.render(true); });
     // 小屏/竖屏：抽屉式侧栏，进入时双栏折起、视野适配整店
     const mm = window.matchMedia('(max-width: 1040px)');
@@ -627,6 +632,22 @@ export class UI {
     });
   }
 
+  bindVisualViewport() {
+    const apply = () => {
+      const vv = window.visualViewport;
+      const layoutH = window.innerHeight || document.documentElement.clientHeight || 0;
+      const visualBottom = vv ? vv.offsetTop + vv.height : layoutH;
+      const bottom = Math.max(0, Math.round(layoutH - visualBottom));
+      const top = Math.max(0, Math.round(vv?.offsetTop || 0));
+      this.root.style.setProperty('--vv-top', `${top}px`);
+      this.root.style.setProperty('--vv-bottom', `${bottom}px`);
+    };
+    apply();
+    window.visualViewport?.addEventListener('resize', apply);
+    window.visualViewport?.addEventListener('scroll', apply);
+    window.addEventListener('resize', apply);
+  }
+
   bindOwnerStick() {
     const knob = this.ownerStick.querySelector('.owner-stick-knob');
     let pointerId = null;
@@ -640,57 +661,55 @@ export class UI {
       this.g.setManualInput(0, 0);
       knob.style.transform = '';
     };
-    const move = (e) => {
-      if (pointerId === null || e.pointerId !== pointerId) return;
-      e.preventDefault(); e.stopPropagation();
-      apply(e.clientX, e.clientY);
-    };
-    const stop = (e) => {
-      if (pointerId === null || e.pointerId !== pointerId) return;
-      e.preventDefault(); e.stopPropagation();
-      try { this.ownerStick.releasePointerCapture?.(pointerId); } catch { /* 已释放或从未捕获 */ }
-      pointerId = null;
-      reset();
-    };
-    this.ownerStick.addEventListener('pointerdown', (e) => {
-      if (!this.g.sim.manualOwner || pointerId !== null) return;
+    const onPointerDown = (e) => {
+      if (!this.g.sim.manualOwner) return;
       if (e.button != null && e.button !== 0) return;
       pointerId = e.pointerId;
-      touchId = null;
-      e.preventDefault(); e.stopPropagation();
-      try { this.ownerStick.setPointerCapture?.(pointerId); } catch { /* Edge/Android 可无捕获，改走 window 监听 */ }
+      e.preventDefault();
+      e.stopPropagation();
       apply(e.clientX, e.clientY);
-    });
-    this.ownerStick.addEventListener('pointermove', move);
-    window.addEventListener('pointermove', move, { passive: false });
-    window.addEventListener('pointerup', stop);
-    window.addEventListener('pointercancel', stop);
-    // 不监听 lostpointercapture：Edge Android 在 setPointerCapture 后会误发，把方向立刻清零。
-
-    const activeTouch = (touches) => Array.from(touches).find((touch) => touch.identifier === touchId);
-    this.ownerStick.addEventListener('touchstart', (e) => {
-      if (pointerId !== null || !this.g.sim.manualOwner || touchId !== null || !e.changedTouches.length) return;
-      const touch = e.changedTouches[0];
-      touchId = touch.identifier;
-      e.preventDefault(); e.stopPropagation();
-      apply(touch.clientX, touch.clientY);
-    }, { passive: false });
-    window.addEventListener('touchmove', (e) => {
-      if (pointerId !== null) return;
-      const touch = activeTouch(e.touches);
-      if (!touch) return;
-      e.preventDefault(); e.stopPropagation();
-      apply(touch.clientX, touch.clientY);
-    }, { passive: false });
-    const stopTouch = (e) => {
-      if (pointerId !== null) return;
-      if (!activeTouch(e.changedTouches)) return;
-      e.preventDefault(); e.stopPropagation();
-      touchId = null;
+    };
+    const onPointerMove = (e) => {
+      if (pointerId === null || e.pointerId !== pointerId || touchId !== null) return;
+      e.preventDefault();
+      apply(e.clientX, e.clientY);
+    };
+    const onPointerUp = (e) => {
+      if (pointerId === null || e.pointerId !== pointerId) return;
+      pointerId = null;
+      if (touchId !== null) return;
+      e.preventDefault();
       reset();
     };
-    window.addEventListener('touchend', stopTouch, { passive: false });
-    window.addEventListener('touchcancel', stopTouch, { passive: false });
+    this.ownerStick.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp, { passive: false });
+    window.addEventListener('pointercancel', onPointerUp, { passive: false });
+
+    const activeTouch = (touches) => Array.from(touches || []).find((touch) => touch.identifier === touchId);
+    this.ownerStick.addEventListener('touchstart', (e) => {
+      if (!this.g.sim.manualOwner || touchId !== null || !e.changedTouches.length) return;
+      const touch = e.changedTouches[0];
+      touchId = touch.identifier;
+      e.preventDefault();
+      e.stopPropagation();
+      apply(touch.clientX, touch.clientY);
+    }, { passive: false, capture: true });
+    window.addEventListener('touchmove', (e) => {
+      const touch = activeTouch(e.touches);
+      if (!touch) return;
+      e.preventDefault();
+      apply(touch.clientX, touch.clientY);
+    }, { passive: false, capture: true });
+    const stopTouch = (e) => {
+      if (touchId === null || !activeTouch(e.changedTouches)) return;
+      touchId = null;
+      pointerId = null;
+      e.preventDefault();
+      reset();
+    };
+    window.addEventListener('touchend', stopTouch, { passive: false, capture: true });
+    window.addEventListener('touchcancel', stopTouch, { passive: false, capture: true });
   }
 
   setPanelHTML(node        , html        )       {
