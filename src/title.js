@@ -166,6 +166,11 @@ const TITLE_CSS = `
   linear-gradient(108deg,transparent 0 34%,#fff6d13a 45%,transparent 57%),
   linear-gradient(180deg,#a25c5ce8,#734050f3 48%,#40243af4 52%,#814851eb)}
 .title-status{margin-top:4px;padding:3px 9px;background:#07060aa3;color:#efcf89;text-shadow:0 2px #0a070d,0 0 8px #ffbf5455}
+.title-load{width:100%;margin:10px 0 0;text-align:left}
+.title-load[hidden]{display:none!important}
+.title-load-track{position:relative;height:12px;border:1px solid #e8b975;border-radius:3px;background:#100d18;box-shadow:0 0 0 3px #07060dcc,inset 0 0 0 1px #a9685066;overflow:hidden}
+.title-load-fill{display:block;height:100%;width:0;background:linear-gradient(90deg,#8a4f4e,#e0a15b 55%,#ffe7a3);box-shadow:inset 0 1px #fff6c388;transition:width .18s ease-out}
+.title-load-pct{display:block;margin-top:5px;color:#efcf89;font-size:12px;letter-spacing:.12em;text-align:right}
 .title-author{bottom:17px;padding:6px 20px;border:1px solid #7c544c99;background:#07060bbf;box-shadow:0 0 18px #020207cc;backdrop-filter:blur(3px)}
 .title-slots{background:#080711eb;backdrop-filter:blur(6px)}
 .title-image-fx{position:absolute;z-index:2;inset:0;overflow:hidden;pointer-events:none;mix-blend-mode:screen}
@@ -284,7 +289,7 @@ export class TitleScreen {
       <div class="title-image-fx" aria-hidden="true"><i class="title-fx-inn"></i><i class="title-local-glow title-fx-portal"></i><i class="title-local-glow title-fx-interior"></i><i class="title-local-glow title-fx-window wl1"></i><i class="title-local-glow title-fx-window wl2"></i><i class="title-local-glow title-fx-window wl3"></i><i class="title-local-glow title-fx-window wl4"></i><i class="title-local-glow title-fx-window wl5"></i><i class="title-local-glow title-fx-window wl6"></i><i class="title-local-glow title-fx-lamp lp1"></i><i class="title-local-glow title-fx-lamp lp2"></i><i class="title-local-glow title-fx-lamp lp3"></i><i class="title-fx-horizon"></i><i class="title-local-glow title-fx-galaxy"></i><i class="title-fx-stars"></i></div>
       <main class="title-content"><div class="title-logo"><h1>多元便携旅店</h1><div class="en">MULTIVERSE PORTABLE INN</div></div>
         <div class="title-tagline">让每一次营业，都成为独一无二的故事</div>
-        <div class="title-menu"><button class="title-button" data-title-action="newmenu" disabled>开始新游戏</button><button class="title-button" data-title-action="continuemenu" disabled>继续游戏</button><div class="title-slots" data-title-slots></div><div class="title-status" role="status">正在点亮旅店灯火…</div></div>
+        <div class="title-menu"><button class="title-button" data-title-action="newmenu" disabled>开始新游戏</button><button class="title-button" data-title-action="continuemenu" disabled>继续游戏</button><div class="title-slots" data-title-slots></div><div class="title-load" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="加载进度"><span class="title-load-track"><i class="title-load-fill"></i></span><span class="title-load-pct">0%</span></div><div class="title-status" role="status">正在点亮旅店灯火…</div></div>
         <div class="title-author">作者：<b>Poaries</b></div></main>`;
     root.addEventListener('click', (event) => this.handleClick(event));
     const motionDisabled = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -346,13 +351,30 @@ export class TitleScreen {
     if (resume) resume.disabled = !this.hasSave;
     if (resume && this.hasSave) resume.classList.add('primary');
     else if (fresh) fresh.classList.add('primary');
-    this.status(this.hasSave ? '检测到旅店存档，可以继续上次营业。' : '尚无存档，请从新旅店开始。');
+    this.setProgress(1, this.hasSave ? '检测到旅店存档，可以继续上次营业。' : '尚无存档，请从新旅店开始。');
+    const load = this.root?.querySelector('.title-load');
+    if (load) load.hidden = true;
     setTimeout(() => (this.hasSave ? resume : fresh)?.focus({ preventScroll: true }), 80);
   }
 
   status(message) {
     const node = this.root?.querySelector('.title-status');
     if (node) node.textContent = message;
+  }
+
+  setProgress(ratio, message) {
+    const n = Math.max(0, Math.min(1, Number(ratio) || 0));
+    const pct = Math.round(n * 100);
+    const bar = this.root?.querySelector('.title-load');
+    const fill = this.root?.querySelector('.title-load-fill');
+    const label = this.root?.querySelector('.title-load-pct');
+    if (bar) {
+      bar.hidden = false;
+      bar.setAttribute('aria-valuenow', String(pct));
+    }
+    if (fill) fill.style.width = `${pct}%`;
+    if (label) label.textContent = `${pct}%`;
+    if (message) this.status(message);
   }
 
   renderSlotMenu(mode) {

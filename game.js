@@ -112,6 +112,19 @@ const WORLD_BACKGROUND_MOTION = {
 const cloneData = (value) => JSON.parse(JSON.stringify(value));
 const BGM_TRACKS = allBgmTracks();
 const BGM_MANIFEST = bgmManifest();
+const AUDIO_CATALOG = [
+  ...BGM_MANIFEST,
+  ['build', 'assets/sfx-build.wav'], ['place', 'assets/sfx-place.wav'],
+  ['serve', 'assets/sfx-serve.wav'], ['coin', 'assets/sfx-coin.wav'], ['portal', 'assets/sfx-portal.wav'],
+  ['error', 'assets/sfx-error.wav'], ['chime', 'assets/sfx-chime.wav'], ['happy', 'assets/sfx-happy.wav'],
+  ['world-travel', 'assets/world-travel.mp3'],
+  ['angry', 'assets/sfx-angry.wav'], ['clean', 'assets/sfx-clean.wav'], ['sizzle', 'assets/sfx-sizzle.wav'],
+  ['upgrade', 'assets/sfx-upgrade.wav'], ['upgrade-furn', 'assets/sfx-upgrade-furn.wav'],
+  ['upgrade-room', 'assets/sfx-upgrade-room.wav'],
+  ['alert', 'assets/sfx-alert.wav'], ['daybell', 'assets/sfx-daybell.wav'],
+  ['splash', 'assets/sfx-splash.wav'], ['cue', 'assets/sfx-cue.wav'], ['snore', 'assets/sfx-snore.wav'],
+  ['amb', 'assets/amb-tavern.wav'], ['amb-night', 'assets/amb-night.wav'],
+];
 
 // ---------- 纹理缓存 ----------
 const actorTex = new Map                      ();
@@ -240,14 +253,36 @@ class Audio2 {
   musicGain                  = null;
   last = new Map                ();
   unlocked = false;
+  raws = new Map();
 
   constructor() { this.loadPrefs(); }
+
+  async prepare(onProgress) {
+    const files = AUDIO_CATALOG;
+    let done = 0;
+    const tick = () => {
+      done += 1;
+      onProgress?.(done / files.length, `正在备妥乐曲与音效 ${done}/${files.length}`);
+    };
+    const queue = files.slice();
+    await Promise.all(Array.from({ length: 4 }, async () => {
+      while (queue.length) {
+        const item = queue.shift();
+        if (!item) return;
+        const [key, url] = item;
+        try {
+          const res = await fetch(url);
+          if (res.ok) this.raws.set(key, await res.arrayBuffer());
+        } catch { /* 资源缺失时静音降级 */ }
+        tick();
+      }
+    }));
+  }
 
   async unlock()                {
     if (this.unlocked) return;
     this.unlocked = true;
-                                        
-    const W = window                                                                 ;
+    const W = window;
     const C = W.AudioContext || W.webkitAudioContext;
     if (!C) return;
     this.ctx = new C();
@@ -258,27 +293,23 @@ class Audio2 {
     this.musicGain = this.ctx.createGain();
     this.musicGain.gain.value = this.musicBase * this.musicVol;
     this.musicGain.connect(this.ctx.destination);
-    const files                     = [
-      ...BGM_MANIFEST,
-      ['build', 'assets/sfx-build.wav'], ['place', 'assets/sfx-place.wav'],
-      ['serve', 'assets/sfx-serve.wav'], ['coin', 'assets/sfx-coin.wav'], ['portal', 'assets/sfx-portal.wav'],
-      ['error', 'assets/sfx-error.wav'], ['chime', 'assets/sfx-chime.wav'], ['happy', 'assets/sfx-happy.wav'],
-      ['world-travel', 'assets/world-travel.mp3'],
-      ['angry', 'assets/sfx-angry.wav'], ['clean', 'assets/sfx-clean.wav'], ['sizzle', 'assets/sfx-sizzle.wav'],
-      ['upgrade', 'assets/sfx-upgrade.wav'], ['upgrade-furn', 'assets/sfx-upgrade-furn.wav'],
-      ['upgrade-room', 'assets/sfx-upgrade-room.wav'],
-      ['alert', 'assets/sfx-alert.wav'], ['daybell', 'assets/sfx-daybell.wav'],
-      ['splash', 'assets/sfx-splash.wav'], ['cue', 'assets/sfx-cue.wav'], ['snore', 'assets/sfx-snore.wav'],
-      ['amb', 'assets/amb-tavern.wav'], ['amb-night', 'assets/amb-night.wav'],
-    ];
-    for (const [k, url] of files) {
-      try {
-        const res = await fetch(url);
-        if (!res.ok) continue;
-        const buf = await res.arrayBuffer();
-        this.buffers.set(k, await (this.ctx                ).decodeAudioData(buf));
-      } catch (e) { /* 资源缺失时静音降级 */ }
+    try { await this.ctx.resume?.(); } catch { /* 部分浏览器需手势后才真正出声 */ }
+    const pending = this.raws.size ? [...this.raws] : [];
+    if (!pending.length) {
+      for (const [key, url] of AUDIO_CATALOG) {
+        try {
+          const res = await fetch(url);
+          if (res.ok) pending.push([key, await res.arrayBuffer()]);
+        } catch { /* 资源缺失时静音降级 */ }
+      }
     }
+    for (const [key, raw] of pending) {
+      try {
+        const copy = raw.slice(0);
+        this.buffers.set(key, await this.ctx.decodeAudioData(copy));
+      } catch { /* 解码失败则跳过该轨 */ }
+    }
+    this.raws.clear();
     this.applyMusic();
     this.playAmb(this.wantAmb);
   }
@@ -538,17 +569,23 @@ class Game                    {
     document.documentElement.dataset.materialPack = this.materialPack;
     const host = document.getElementById('app')               ;
     this.titleScreen = new TitleScreen(document.body);
+    const note = (ratio, text) => this.titleScreen.setProgress(ratio, text);
+    note(0.04, '正在打开位面门…');
     this.app = new PIXI.Application();
     await this.app.init({ resizeTo: host, background: PAL.voidBg, antialias: false, roundPixels: true });
     host.appendChild(this.app.canvas);
+    note(0.1, '正在点亮旅店灯火…');
     try {
       const f = new FontFace('FusionPixel', "url('assets/lib/fusion-pixel/FusionPixel-12px-zh_hans.woff2')");
       await f.load();
       document.fonts.add(f);
     } catch (e) { /* 字体缺失时回退系统字体 */ }
-    for (const name of ['floor-wood', 'floor-kitchen', 'floor-storage', 'floor-carpet',
+    note(0.16, '正在安放招牌字体…');
+    const floors = ['floor-wood', 'floor-kitchen', 'floor-storage', 'floor-carpet',
       'floor-neon', 'floor-astral', 'floor-forge', 'floor-frost',
-      'floor-tatami', 'floor-onsen', 'floor-parquet', 'floor-garden']) {
+      'floor-tatami', 'floor-onsen', 'floor-parquet', 'floor-garden'];
+    for (let i = 0; i < floors.length; i++) {
+      const name = floors[i];
       try {
         const tex = await PIXI.Assets.load(`assets/${name}.png`);
         tex.source.scaleMode = 'nearest';
@@ -557,14 +594,20 @@ class Game                    {
         const res = (tex.source                                     ).resource;
         if (res) this.floorBase.set(name, res                     );
       } catch (e) { /* 缺失贴图用纯色兜底 */ }
+      note(0.16 + ((i + 1) / floors.length) * 0.18, `正在铺设地板 ${i + 1}/${floors.length}`);
     }
-    for (const [name, url] of Object.entries(WORLD_MATERIALS)) {
+    const mats = Object.entries(WORLD_MATERIALS);
+    for (let i = 0; i < mats.length; i++) {
+      const [name, url] = mats[i];
       try {
         const tex = await PIXI.Assets.load(url);
         tex.source.scaleMode = 'linear';
         this.worldMaterials.set(name, tex);
       } catch (e) { /* 高清材质缺失时保留原有程序贴图 */ }
+      note(0.34 + ((i + 1) / mats.length) * 0.28, `正在擦亮店面材质 ${i + 1}/${mats.length}`);
     }
+    await this.audio.prepare((p, text) => note(0.62 + p * 0.36, text));
+    note(0.99, '灯火即将点亮…');
     this.app.stage.addChild(this.stars, this.worldBackgroundFar, this.worldBackgroundMid, this.worldBackgroundMask, this.starGlintsA, this.starGlintsB, this.worldBackgroundWeather, this.worldTravelLayer, this.world, this.labelLayer);
     this.worldBackgroundMask.renderable = false;
     this.world.addChild(this.floorLayer, this.lightLayer, this.wallLayer, this.wallSprites, this.decoSprites, this.dirtLayer, this.furnLayer, this.itemLayer, this.actorLayer, this.upgradeFxLayer, this.overlay);
