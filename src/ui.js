@@ -987,7 +987,7 @@ export class UI {
     else if (act === 'closemodal') {
       const afterSettlement = !!this.settlementAIStat && !!this.modal;
       this.closeModal();
-      if (!this.g.sim.dayActive) { this.g.audio.playTrack('bgm-plan'); this.g.audio.playAmb('amb-night'); }
+      if (!this.g.sim.dayActive) { this.g.playStageMusic('close'); this.g.audio.playAmb('amb-night'); }
       if (afterSettlement) this.afterSettlementClose();
     }
     else if (act === 'newgame') g.newGame();
@@ -3481,14 +3481,14 @@ export class UI {
       <h3 style="margin:14px 0 6px">背景音乐</h3>
       <div class="row" style="justify-content:flex-start;flex-wrap:wrap">
         <button data-act="bgmtrack" data-v="auto" class="${vols.bgm === 'auto' ? 'on' : ''}">跟随阶段</button>
-        ${(this.g.audio.tracks?.() || []).map((track) => `<button data-act="bgmtrack" data-v="${htmlText(track.id)}" class="${vols.bgm === track.id ? 'on' : ''}" title="${htmlText(track.note)}">${htmlText(track.name)}</button>`).join('')}
       </div>
+      ${(this.g.audio.trackGroups?.() || []).map((group) => `<div class="dim" style="margin:8px 0 4px">${htmlText(group.name)}</div><div class="row" style="justify-content:flex-start;flex-wrap:wrap">${group.tracks.map((track) => `<button data-act="bgmtrack" data-v="${htmlText(track.id)}" class="${vols.bgm === track.id ? 'on' : ''}" title="${htmlText(track.note)}">${htmlText(track.name)}</button>`).join('')}</div>`).join('')}
       <div class="row" style="margin-top:6px">
         <button data-act="bgmplay" class="${!vols.paused ? 'on' : ''}">▶ 播放</button>
         <button data-act="bgmpause" class="${vols.paused ? 'on' : ''}">Ⅱ 暂停</button>
-        <span class="dim">${vols.paused ? '已暂停' : vols.bgm === 'auto' ? '正在跟随营业/规划/结算自动换曲' : `正在播放：${htmlText((this.g.audio.tracks?.() || []).find((track) => track.id === vols.bgm)?.name || '背景乐')}`}</span>
+        <span class="dim">${vols.paused ? '已暂停' : vols.bgm === 'auto' ? '正在跟随驻留世界与营业/打烊/日结自动换曲' : `正在播放：${htmlText((this.g.audio.tracks?.() || []).find((track) => track.id === vols.bgm)?.name || '背景乐')}`}</span>
       </div>
-      <div class="dim">跟随阶段：营业用炉火营业，打烊规划用收盘规划，日结用位面夜航。点某一首会锁定，直到改回跟随或换曲。</div>
+      <div class="dim">跟随阶段：按当前驻留世界选曲。艾泽普利斯与玄黄大世界已有专属曲，节日日会切到热闹曲；其他世界暂用通用三首。点某一首会锁定。</div>
       <h3 style="margin:14px 0 6px">同时接待</h3>
       ${this.guestCapSettingsHtml()}
       <h3 style="margin:14px 0 6px">酒馆称号</h3>

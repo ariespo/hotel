@@ -26,6 +26,7 @@ import { resetPlayerProfile, savePlayerProfile } from './src/player-profile.js';
 import { clampZoom, usableViewport } from './src/camera.js';
 import { applyStartLayout, emptyLayoutRefund } from './src/start-layouts.js';
 import { parseAndMigrateGameSave, SAVE_SCHEMA_VERSION, stringifyGameSave } from './src/save-schema.js';
+import { allBgmTracks, bgmManifest, bgmSettingsGroups, bgmTrackById, resolveWorldBgm } from './src/world-bgm.js';
 
 const SAVE_KEY = 'wjbdy.save.v1';
 const MORNING_KEY = 'wjbdy.morning.v1';
@@ -109,12 +110,8 @@ const WORLD_BACKGROUND_MOTION = {
   timeless_bazaar: { x: 9, y: 6, xSpeed: 0.07, ySpeed: 0.19, alpha: 0.36, farAlpha: 1 },
 };
 const cloneData = (value) => JSON.parse(JSON.stringify(value));
-const BGM_TRACKS = [
-  { id: 'bgm', file: 'assets/bgm-tavern.wav', name: '炉火营业', note: '营业时的暖色酒馆曲' },
-  { id: 'bgm-plan', file: 'assets/bgm-plan.wav', name: '收盘规划', note: '打烊后的安静小调' },
-  { id: 'bgm-night', file: 'assets/bgm-night.wav', name: '位面夜航', note: '结算与深夜的低回旋律' },
-];
-const BGM_MANIFEST = BGM_TRACKS.map((track) => [track.id, track.file]);
+const BGM_TRACKS = allBgmTracks();
+const BGM_MANIFEST = bgmManifest();
 
 // ---------- 纹理缓存 ----------
 const actorTex = new Map                      ();
@@ -312,13 +309,14 @@ class Audio2 {
     this.ambGain.gain.setTargetAtTime(name === 'amb' ? 0.34 : 0.22, this.ctx.currentTime, 0.6);
   }
 
-  /** 分阶段 BGM：营业=bgm / 规划=bgm-plan / 结算=bgm-night；设置里可锁定或暂停。 */
+  /** 分阶段 BGM：营业/打烊/日结按驻留世界选专属曲，没有专属时回落通用三首。 */
   wantTrack = 'bgm-plan';
   curTrack = '';
   musicPref = 'auto';
   musicPaused = false;
 
   tracks() { return BGM_TRACKS; }
+  trackGroups() { return bgmSettingsGroups(); }
 
   resolveTrack(name = this.wantTrack) {
     const requested = this.musicPref !== 'auto' ? this.musicPref : name;
@@ -354,7 +352,7 @@ class Audio2 {
   }
 
   setBgmPref(id) {
-    this.musicPref = id === 'auto' || BGM_TRACKS.some((track) => track.id === id) ? id : 'auto';
+    this.musicPref = id === 'auto' || !!bgmTrackById(id) ? id : 'auto';
     this.saveVols();
     this.applyMusic();
   }
@@ -409,7 +407,7 @@ class Audio2 {
       if (!p || typeof p !== 'object') return;
       if (typeof p.mv === 'number') this.musicVol = p.mv;
       if (typeof p.sv === 'number') this.sfxVol = p.sv;
-      if (p.bgm === 'auto' || BGM_TRACKS.some((track) => track.id === p.bgm)) this.musicPref = p.bgm;
+      if (p.bgm === 'auto' || bgmTrackById(p.bgm)) this.musicPref = p.bgm;
       this.musicPaused = !!p.paused;
     } catch (err) { /* 忽略 */ }
   }
@@ -637,7 +635,7 @@ class Game                    {
       this.ui.root.inert = false;
       this.ui.root.removeAttribute('aria-hidden');
       this.ui.root.style.visibility = '';
-      this.audio.playTrack(this.sim.dayActive ? 'bgm' : 'bgm-plan');
+      this.playStageMusic(this.sim.dayActive ? 'open' : 'close');
       this.audio.playAmb(this.sim.dayActive ? 'amb' : 'amb-night');
       this.ui.render(true);
       this.ui.resumeTutorial();
@@ -792,7 +790,7 @@ class Game                    {
       this.rememberActiveSlot();
       this.creatorPending = false;
       this.ui.closeModal();
-      this.audio.playTrack(this.sim.dayActive ? 'bgm' : 'bgm-plan');
+      this.playStageMusic(this.sim.dayActive ? 'open' : 'close');
       this.audio.playAmb(this.sim.dayActive ? 'amb' : 'amb-night');
       this.sim.toast(`已读取档位 ${slot}`);
       this.ui.render(true);
@@ -841,6 +839,16 @@ class Game                    {
     localStorage.setItem(saveKeyFor(slot), raw);
     this.sim.toast(`已恢复档位 ${slot} 的最近备份`);
     return true;
+  }
+
+  playStageMusic(phase) {
+    const world = this.sim?.currentWorld?.();
+    const festival = this.sim?.currentWorldFestival?.();
+    this.audio.playTrack(resolveWorldBgm({
+      worldId: world?.id,
+      phase,
+      festivalName: festival?.name,
+    }));
   }
 
   setManualOwner(v         )       {
@@ -1518,7 +1526,7 @@ class Game                    {
     this.drawStars();
     this.paused = false;
     this.audio.play('portal');
-    this.audio.playTrack('bgm');
+    this.playStageMusic('open');
     this.audio.playAmb('amb');
     this.audio.setMusicLevel(0.4);
   }
@@ -1606,13 +1614,16 @@ class Game                    {
         this.worldBackgroundId = '';
         this.ensureWorldBackground();
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+        this.playStageMusic(this.sim.dayActive ? 'open' : 'close');
         this.ui.render(true); this.save();
       }
       await this.fadeWorldTravel(0, 900);
       return !!arrived;
     } catch (err) {
       const arrived = this.sim.activatePendingWorldSwitch();
-      this.worldBackgroundId = ''; this.ensureWorldBackground(); this.ui.render(true); this.save();
+      this.worldBackgroundId = ''; this.ensureWorldBackground();
+      if (arrived) this.playStageMusic(this.sim.dayActive ? 'open' : 'close');
+      this.ui.render(true); this.save();
       this.sim.toast(`${arrived ? '已抵达目标世界，但穿越动画未能完整播放' : '穿越失败'}：${err?.message || '未知错误'}`);
       return !!arrived;
     } finally {
@@ -1663,7 +1674,7 @@ class Game                    {
   finishDay()       {
     const stat = this.sim.closeDay();
     this.audio.setMusicLevel(0.24);
-    this.audio.playTrack('bgm-night');
+    this.playStageMusic('settle');
     this.audio.playAmb('amb-night');
     this.audio.play('daybell');
     this.audio.play('coin');
