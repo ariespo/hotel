@@ -2014,16 +2014,17 @@ export class Sim {
 
   stars()         { return Math.max(0, Math.min(5, Math.round(Number(this.econ.certifiedStars) || 0))); }
 
-  evaluateCertification(stat = this.lastStat) {
+  buildCertification(stat = this.lastStat) {
     const level = Math.min(5, this.stars() + 1);
-    if (!stat || this.stars() >= 5) return { level: this.stars(), achieved: false, complete: true, requirements: [] };
+    if (!stat || this.stars() >= 5) return { level: this.stars(), achieved: false, complete: true, requirements: [], description: '' };
     const rule = STAR_CERTIFICATIONS[level];
     const report = stat.report || this.dayReport || {};
     const add = (label, current, target, met) => ({ label, current, target, met: !!met });
+    const avgScore = Number(stat.avgScore) || 0;
     const requirements = [
       add('声望', Math.round(this.econ.rep), STAR_THRESHOLDS[level], this.econ.rep >= STAR_THRESHOLDS[level]),
       add('单日服务人数', stat.served, rule.served, stat.served >= rule.served),
-      add('平均评分', Number(stat.avgScore.toFixed(2)), rule.avgScore, stat.avgScore >= rule.avgScore),
+      add('平均评分', Number(avgScore.toFixed(2)), rule.avgScore, avgScore >= rule.avgScore),
     ];
     if (rule.requireDrinkOrStay) {
       const drank = Object.keys(report.dishSales || {}).some((id) => this.dishOf(id)?.drink && (report.dishSales[id]?.count || 0) > 0);
@@ -2043,11 +2044,31 @@ export class Sim {
       const open = Math.max(0, c.started - c.resolved - c.failed);
       requirements.push(add('未解决设施事故', open, 0, open === 0));
     }
-    const achieved = requirements.every((row) => row.met);
-    const result = { day: stat.day, level, achieved, complete: false, requirements };
-    this.econ.certificationHistory.push(result);
-    if (this.econ.certificationHistory.length > 40) this.econ.certificationHistory.shift();
+    return {
+      day: stat.day, level, achieved: requirements.every((row) => row.met), complete: false,
+      requirements, description: rule.description || '',
+    };
+  }
+
+  evaluateCertification(stat = this.lastStat) {
+    const result = this.buildCertification(stat);
+    if (result.requirements.length) {
+      this.econ.certificationHistory.push(result);
+      if (this.econ.certificationHistory.length > 40) this.econ.certificationHistory.shift();
+    }
     return result;
+  }
+
+  previewCertification() {
+    const scores = this.scores || [];
+    const avgScore = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    return this.buildCertification({
+      day: this.econ.day,
+      served: this.econ.served,
+      lost: this.econ.lost,
+      avgScore,
+      report: this.dayReport || {},
+    });
   }
 
   // ---------- 主循环 ----------
