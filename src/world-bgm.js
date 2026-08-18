@@ -28,6 +28,28 @@ export const WORLD_BGM = {
       { id: 'xuan-close-tea', file: 'assets/bgm/xuan-close-tea.mp3', name: '更尽一灯茶', note: '日结与更晚点的打烊', role: 'late' },
     ],
   },
+  verdant_court: {
+    name: '森冠庭域',
+    open: [
+      { id: 'verdant-open-breakfast', file: 'assets/bgm/verdant-open-breakfast.mp3', name: '露叶早市', note: '森冠日常堂食', role: 'default' },
+      { id: 'verdant-open-blossom', file: 'assets/bgm/verdant-open-blossom.mp3', name: '百花庭院', note: '百花换冠、迁鹿夜', role: 'gather', festivals: ['百花换冠', '迁鹿夜'] },
+    ],
+    close: [
+      { id: 'verdant-close-dew', file: 'assets/bgm/verdant-close-dew.mp3', name: '收露', note: '盘账、改房间', role: 'default' },
+      { id: 'verdant-close-moss', file: 'assets/bgm/verdant-close-moss.mp3', name: '苔灯', note: '日结与更晚点的打烊', role: 'late' },
+    ],
+  },
+  neon_ring: {
+    name: '霓虹环城',
+    open: [
+      { id: 'neon-open-street', file: 'assets/bgm/neon-open-street.mp3', name: '磁悬街', note: '霓虹日常与重启夜', role: 'default', festivals: ['霓虹重启夜'] },
+      { id: 'neon-open-tape', file: 'assets/bgm/neon-open-tape.mp3', name: '复古浪潮', note: '实体怀旧周', role: 'festive', festivals: ['实体怀旧周'] },
+    ],
+    close: [
+      { id: 'neon-close-home', file: 'assets/bgm/neon-close-home.mp3', name: '夜归人', note: '盘账、改房间', role: 'default' },
+      { id: 'neon-close-rain', file: 'assets/bgm/neon-close-rain.mp3', name: '酸雨夜', note: '日结与更晚点的打烊', role: 'late' },
+    ],
+  },
 };
 
 const worldTracks = (worldId, phase) => WORLD_BGM[worldId]?.[phase] || [];

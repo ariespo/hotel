@@ -371,7 +371,7 @@ class Audio2 {
   }
 
   /** 游戏内部的阶段基准音量（营业/规划/结算），与玩家音量偏好相乘 */
-          musicBase = 0.34;
+          musicBase = 0.68;
           musicVol = 1;
           sfxVol = 0.7;
 
@@ -1528,7 +1528,7 @@ class Game                    {
     this.audio.play('portal');
     this.playStageMusic('open');
     this.audio.playAmb('amb');
-    this.audio.setMusicLevel(0.4);
+    this.audio.setMusicLevel(0.8);
   }
 
   worldBackgroundUrls(id        )            {
@@ -1673,7 +1673,7 @@ class Game                    {
 
   finishDay()       {
     const stat = this.sim.closeDay();
-    this.audio.setMusicLevel(0.24);
+    this.audio.setMusicLevel(0.48);
     this.playStageMusic('settle');
     this.audio.playAmb('amb-night');
     this.audio.play('daybell');
@@ -2251,7 +2251,7 @@ class Game                    {
     this.renderItems();
     this.renderOverlay();
     // 音乐层：营业中提高
-    this.audio.setMusicLevel(this.worldTravelActive ? 0 : this.sim.dayActive ? 0.36 : 0.2);
+    this.audio.setMusicLevel(this.worldTravelActive ? 0 : this.sim.dayActive ? 0.72 : 0.4);
   }
 
   rebuildStatic()       {
