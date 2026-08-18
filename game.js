@@ -440,7 +440,8 @@ class Audio2 {
       if (!p || typeof p !== 'object') return;
       if (typeof p.mv === 'number') this.musicVol = p.mv;
       if (typeof p.sv === 'number') this.sfxVol = p.sv;
-      if (p.bgm === 'auto' || bgmTrackById(p.bgm)) this.musicPref = p.bgm;
+      // 曲目锁定只对本次打开有效：刷新后回到跟随世界/时段，避免一直播上次试听的那一首。
+      this.musicPref = 'auto';
       this.musicPaused = !!p.paused;
     } catch (err) { /* 忽略 */ }
   }
