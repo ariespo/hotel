@@ -221,13 +221,19 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .rail button:hover{border-color:#C97F2B}
 .rail img{width:100%;height:100%;object-fit:contain;display:block}
 #scrim{position:fixed;inset:0;background:rgba(40,28,20,.38);z-index:13;display:none;pointer-events:auto}
-#owner-stick{position:fixed;left:max(14px,env(safe-area-inset-left,0px));bottom:calc(96px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)));width:120px;height:120px;display:none;align-items:center;justify-content:center;pointer-events:auto;touch-action:none;-ms-touch-action:none;z-index:18;border:3px solid #B0895E;border-radius:50%;background:radial-gradient(circle,#F5E6C899 0 45%,#8A5A3877 47% 100%);box-shadow:0 5px 16px #3a2c2066,inset 0 0 0 2px #fff6;overscroll-behavior:contain}
-#owner-stick:after{content:'移动';position:absolute;top:calc(100% + 3px);left:50%;transform:translateX(-50%);padding:1px 7px;border-radius:9px;background:#3A2C20AA;color:#FFF8E6;font-size:11px;white-space:nowrap}
-.owner-stick-knob{width:42px;height:42px;border:3px solid #725129;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f6ddb0,#b88945 60%,#6f4a21);box-shadow:0 3px 7px #32200f88;will-change:transform}
-#ui.manual-owner #owner-stick{display:flex;z-index:18}
+#owner-pad{position:fixed;left:max(10px,env(safe-area-inset-left,0px));bottom:calc(88px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)));display:none;grid-template-columns:repeat(3,46px);grid-template-rows:repeat(3,46px);gap:4px;z-index:18;pointer-events:none;touch-action:none;-ms-touch-action:none;user-select:none;-webkit-user-select:none}
+#ui.manual-owner #owner-pad{display:grid}
+#owner-pad button{pointer-events:auto;width:46px;height:46px;min-width:46px;min-height:46px;padding:0!important;border:2px solid #B0895E;border-radius:10px;background:radial-gradient(circle at 35% 30%,#f6ddb0,#b88945 62%,#6f4a21);color:#3A2C20;font-size:16px;font-weight:700;line-height:1;box-shadow:0 3px 7px #32200f88,inset 0 1px #fff6;touch-action:none;-webkit-user-select:none;user-select:none}
+#owner-pad button.on{filter:brightness(1.1);transform:translateY(1px);box-shadow:inset 0 2px 4px #3c281c55}
+#owner-pad [data-dir=up]{grid-column:2;grid-row:1}
+#owner-pad [data-dir=left]{grid-column:1;grid-row:2}
+#owner-pad [data-dir=right]{grid-column:3;grid-row:2}
+#owner-pad [data-dir=down]{grid-column:2;grid-row:3}
+#owner-act{position:fixed;right:max(14px,env(safe-area-inset-right,0px));bottom:calc(108px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)));width:58px;height:58px;min-width:58px;min-height:58px;padding:0!important;display:none;align-items:center;justify-content:center;z-index:18;border:3px solid #B0895E;border-radius:50%;background:radial-gradient(circle at 35% 30%,#f3d7a6,#a86b32 60%,#6a3e18);color:#FFF8E6;font-size:13px;font-weight:700;line-height:1.1;box-shadow:0 4px 10px #32200f88,inset 0 1px #fff6;pointer-events:auto;touch-action:manipulation;-webkit-user-select:none;user-select:none}
+#ui.manual-owner #owner-act{display:flex}
 .mobile-manual{display:none}
 #ui.compact .mobile-manual,#ui.touch-ui .mobile-manual{display:inline-block}
-#ui.touch-ui.manual-owner:not(.compact) #owner-stick{left:max(108px,calc(env(safe-area-inset-left) + 100px))}
+#ui.touch-ui.manual-owner:not(.compact) #owner-pad{left:max(96px,calc(env(safe-area-inset-left) + 88px))}
 #ui.compact #top{height:34px;min-height:34px;font-size:12px;gap:6px;padding:0 8px;overflow-x:auto;white-space:nowrap;align-items:center}
 #ui.compact #top>*{flex:0 0 auto}
 #ui.compact #top b:first-child{display:none}
@@ -331,8 +337,12 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #ui.compact .rail button,#ui.compact.material-hd .rail button{width:44px;height:44px;padding:0!important;display:grid;place-items:center;border-radius:8px;transform:none}
 #ui.compact .rail button .ui-icon,#ui.compact.material-hd .rail button .ui-icon{width:22px;height:22px;margin:0}
 #ui.compact .rail button:hover,#ui.compact .rail button:active{transform:none}
+#owner-pad button,#ui.compact #owner-pad button,#ui.material-hd #owner-pad button{width:46px;height:46px;min-width:46px;min-height:46px;padding:0!important;transform:none;color:#3A2C20}
+#owner-pad button:hover,#owner-pad button:active{transform:translateY(1px)}
+#owner-pad button.on{background:radial-gradient(circle at 35% 30%,#ffe7b8,#c48a3a 62%,#6f4a21);color:#3A2C20;filter:brightness(1.08)}
+#owner-act,#ui.compact #owner-act,#ui.material-hd #owner-act{width:58px;height:58px;min-width:58px;min-height:58px;padding:0!important;border-radius:50%;color:#FFF8E6}
 @media (max-width:1899px){.top-actions-secondary{display:none}.top-overflow{display:inline-flex}}
-@media (max-width:1040px) and (orientation:landscape){#ui.compact.manual-owner #owner-stick{left:max(96px,calc(env(safe-area-inset-left) + 88px))}#ui.compact.manual-owner.left-open #owner-stick{left:auto;right:max(14px,env(safe-area-inset-right))}}
+@media (max-width:1040px) and (orientation:landscape){#ui.compact.manual-owner #owner-pad{left:max(12px,env(safe-area-inset-left));bottom:calc(16px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)))}#ui.compact.manual-owner #owner-act{right:max(14px,env(safe-area-inset-right));bottom:calc(28px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)))}#ui.compact.manual-owner.left-open #owner-pad{left:auto;right:max(86px,calc(env(safe-area-inset-right) + 72px))}}
 #star-cele{position:fixed;inset:0;z-index:40;display:none;pointer-events:auto;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,#3a2414cc 0%,#120904e6 72%);overflow:hidden;cursor:pointer}
 #star-cele.on{display:flex}
 #star-cele .cele-bits{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -400,12 +410,12 @@ export function noticeDot(active, label = '有新内容或待处理事项') {
   return active ? `<span class="notice-dot" role="status" aria-label="${htmlText(label)}" title="${htmlText(label)}"><span class="sr-only">${htmlText(label)}</span></span>` : '';
 }
 
-export function joystickVector(clientX, clientY, rect) {
-  const radius = Math.max(1, Math.min(rect.width, rect.height) * 0.34);
-  const dx = clientX - rect.left - rect.width / 2;
-  const dy = clientY - rect.top - rect.height / 2;
-  const scale = Math.min(1, radius / (Math.hypot(dx, dy) || 1));
-  return { x: dx * scale / radius, y: dy * scale / radius, knobX: dx * scale, knobY: dy * scale };
+export function padVectorFromDirs(dirs) {
+  const set = dirs instanceof Set ? dirs : new Set(dirs || []);
+  return {
+    x: (set.has('right') ? 1 : 0) - (set.has('left') ? 1 : 0),
+    y: (set.has('down') ? 1 : 0) - (set.has('up') ? 1 : 0),
+  };
 }
 
 export function isCoarsePointer(media = globalThis.matchMedia, nav = globalThis.navigator) {
@@ -512,7 +522,8 @@ export class UI {
           chatterBox             ;
           scrim             ;
           tutorialLayer             ;
-          ownerStick             ;
+          ownerPad             ;
+          ownerAct             ;
           tutorialState = null;
           tutorialActive = false;
           tutorialSlot = 0;
@@ -562,12 +573,13 @@ export class UI {
     this.railR = el('<div id="railR" class="rail"></div>');
     this.scrim = el('<div id="scrim"></div>');
     this.tutorialLayer = el('<div id="tutorial-layer"></div>');
-    this.ownerStick = el('<div id="owner-stick" role="group" aria-label="店主移动摇杆"><div class="owner-stick-knob" aria-hidden="true"></div></div>');
+    this.ownerPad = el('<div id="owner-pad" role="group" aria-label="店主方向键"><button type="button" data-dir="up" aria-label="上">▲</button><button type="button" data-dir="left" aria-label="左">◀</button><button type="button" data-dir="right" aria-label="右">▶</button><button type="button" data-dir="down" aria-label="下">▼</button></div>');
+    this.ownerAct = el('<button type="button" id="owner-act" aria-label="尝试交互">交互</button>');
     this.starCele = el('<div id="star-cele" hidden></div>');
     this.starCeleStat = null;
-    this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim, this.ownerStick, this.tutorialLayer, this.starCele);
+    this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim, this.ownerPad, this.ownerAct, this.tutorialLayer, this.starCele);
     this.starCele.addEventListener('click', () => this.finishStarCelebration());
-    this.bindOwnerStick();
+    this.bindOwnerControls();
     this.bindVisualViewport();
     this.scrim.addEventListener('click', () => { this.collapsed.left = this.collapsed.right = true; this.render(true); });
     // 小屏/竖屏：抽屉式侧栏，进入时双栏折起、视野适配整店
@@ -653,68 +665,74 @@ export class UI {
     window.addEventListener('resize', apply);
   }
 
-  bindOwnerStick() {
-    const knob = this.ownerStick.querySelector('.owner-stick-knob');
-    let pointerId = null;
-    let touchId = null;
-    const apply = (clientX, clientY) => {
-      const v = joystickVector(clientX, clientY, this.ownerStick.getBoundingClientRect());
+  bindOwnerControls() {
+    const held = new Map();
+    const dirOf = (node) => node?.closest?.('[data-dir]')?.dataset?.dir || '';
+    const apply = () => {
+      const v = padVectorFromDirs(new Set(held.values()));
       this.g.setManualInput(v.x, v.y);
-      knob.style.transform = `translate(${v.knobX}px,${v.knobY}px)`;
+      for (const btn of this.ownerPad.querySelectorAll('[data-dir]')) {
+        btn.classList.toggle('on', [...held.values()].includes(btn.dataset.dir));
+      }
     };
-    const reset = () => {
-      this.g.setManualInput(0, 0);
-      knob.style.transform = '';
+    const press = (token, dir) => {
+      if (!dir || !this.g.sim.manualOwner) return;
+      held.set(token, dir);
+      apply();
     };
-    const onPointerDown = (e) => {
-      if (!this.g.sim.manualOwner) return;
-      if (e.button != null && e.button !== 0) return;
-      pointerId = e.pointerId;
-      e.preventDefault();
-      e.stopPropagation();
-      apply(e.clientX, e.clientY);
+    const release = (token) => {
+      if (!held.has(token)) return;
+      held.delete(token);
+      apply();
     };
-    const onPointerMove = (e) => {
-      if (pointerId === null || e.pointerId !== pointerId || touchId !== null) return;
-      e.preventDefault();
-      apply(e.clientX, e.clientY);
-    };
-    const onPointerUp = (e) => {
-      if (pointerId === null || e.pointerId !== pointerId) return;
-      pointerId = null;
-      if (touchId !== null) return;
-      e.preventDefault();
-      reset();
-    };
-    this.ownerStick.addEventListener('pointerdown', onPointerDown);
-    window.addEventListener('pointermove', onPointerMove, { passive: false });
-    window.addEventListener('pointerup', onPointerUp, { passive: false });
-    window.addEventListener('pointercancel', onPointerUp, { passive: false });
 
-    const activeTouch = (touches) => Array.from(touches || []).find((touch) => touch.identifier === touchId);
-    this.ownerStick.addEventListener('touchstart', (e) => {
-      if (!this.g.sim.manualOwner || touchId !== null || !e.changedTouches.length) return;
-      const touch = e.changedTouches[0];
-      touchId = touch.identifier;
+    this.ownerPad.addEventListener('pointerdown', (e) => {
+      const dir = dirOf(e.target);
+      if (!dir || (e.button != null && e.button !== 0)) return;
       e.preventDefault();
       e.stopPropagation();
-      apply(touch.clientX, touch.clientY);
-    }, { passive: false, capture: true });
-    window.addEventListener('touchmove', (e) => {
-      const touch = activeTouch(e.touches);
-      if (!touch) return;
-      e.preventDefault();
-      apply(touch.clientX, touch.clientY);
+      press(`p${e.pointerId}`, dir);
+    });
+    window.addEventListener('pointerup', (e) => release(`p${e.pointerId}`), { passive: false });
+    window.addEventListener('pointercancel', (e) => {
+      if ([...held.keys()].some((key) => key.startsWith('t'))) return;
+      release(`p${e.pointerId}`);
+    }, { passive: false });
+    this.ownerPad.addEventListener('touchstart', (e) => {
+      let used = false;
+      for (const touch of e.changedTouches) {
+        const dir = dirOf(touch.target);
+        if (!dir) continue;
+        press(`t${touch.identifier}`, dir);
+        used = true;
+      }
+      if (used) { e.preventDefault(); e.stopPropagation(); }
     }, { passive: false, capture: true });
     const stopTouch = (e) => {
-      if (touchId === null || !activeTouch(e.changedTouches)) return;
-      touchId = null;
-      pointerId = null;
-      e.preventDefault();
-      reset();
+      let used = false;
+      for (const touch of e.changedTouches) {
+        if (held.has(`t${touch.identifier}`)) { release(`t${touch.identifier}`); used = true; }
+      }
+      if (used) e.preventDefault();
     };
     window.addEventListener('touchend', stopTouch, { passive: false, capture: true });
     window.addEventListener('touchcancel', stopTouch, { passive: false, capture: true });
+
+    let actFromTouch = false;
+    this.ownerAct.addEventListener('touchend', (e) => {
+      if (!this.g.sim.manualOwner) return;
+      e.preventDefault();
+      e.stopPropagation();
+      actFromTouch = true;
+      this.g.interactNearby();
+    }, { passive: false });
+    this.ownerAct.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (actFromTouch) { actFromTouch = false; return; }
+      if (!this.g.sim.manualOwner) return;
+      this.g.interactNearby();
+    });
   }
 
   setPanelHTML(node        , html        )       {
@@ -3453,7 +3471,7 @@ export class UI {
         <button data-act="manual" data-v="0" class="${manual ? '' : 'on'}">自动干活</button>
         <button data-act="manual" data-v="1" class="${manual ? 'on' : ''}">直控店主</button>
       </div>
-      <div class="dim">直控：电脑用 WASD / 方向键，手机窄屏用屏下摇杆移动店主；关闭时店主自己接派工。其他员工始终自动干活。</div>
+      <div class="dim">直控：电脑用 WASD / 方向键，手机用屏下方向键移动、右侧按钮尝试交互；关闭时店主自己接派工。其他员工始终自动干活。</div>
       <h3 style="margin:14px 0 6px">画面材质</h3>
       <div class="row">
         <button data-act="materialpack" data-v="hd" class="${this.g.materialPack === 'hd' ? 'on' : ''}">高清材质</button>

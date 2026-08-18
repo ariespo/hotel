@@ -850,7 +850,7 @@ class Game                    {
     try { localStorage.setItem(Game.MANUAL_KEY, v ? '1' : '0'); } catch (e) { /* 隐私模式下忽略 */ }
     const own = this.sim.staff.find((x) => x.isOwner);
     if (own) { own.task = null; own.path = []; own.bubble = { text: v ? '听你指挥！' : '我自己忙去', t: 1.6 }; }
-    this.sim.toast(v ? `已开启直控：${this.ui.compact || this.ui.touchUi ? '拖动屏下摇杆' : 'WASD / 方向键'}移动店主` : '已关闭直控：店主恢复自动干活，WASD 平移镜头');
+    this.sim.toast(v ? (this.ui.compact || this.ui.touchUi ? '已开启直控：点按屏下方向键移动，右侧交互相当于 E' : '已开启直控：WASD / 方向键移动店主') : '已关闭直控：店主恢复自动干活，WASD 平移镜头');
   }
 
   setMaterialPack(pack) {
@@ -1144,7 +1144,7 @@ class Game                    {
       this.ui.openInteract('guest', bestGuest.id);
       return;
     }
-    this.sim.toast('身边没人可搭话：走到伙计或客人旁边再按 E（设置里可开直控自己走）');
+    this.sim.toast('身边没人可搭话：走到伙计或客人旁边再按 E 或点交互（设置里可开直控自己走）');
     this.ui.render(true);
   }
 
