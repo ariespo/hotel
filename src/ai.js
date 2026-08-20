@@ -147,13 +147,14 @@ export async function refreshAIModels(config, options = {}) {
 
 export async function chatWithAI(messages, options = {}) {
   const config = validateConfig(options.config || loadAIConfig(), true);
-  let structuredOptions = {};
+  let structuredOptions = options.jsonMode ? { response_format: { type: 'json_object' } } : {};
   try {
     // DeepSeek V4 默认开启思考模式；思考 token 也计入 max_tokens，长篇日结可能
     // 在真正输出 content 前就耗尽额度。游戏任务只需要结构化成稿，因此关闭思考并
     // 启用其官方 JSON Output，既减少等待，也避免得到空 content。
     if (new URL(config.baseUrl).hostname === 'api.deepseek.com') {
       structuredOptions = {
+        ...structuredOptions,
         thinking: { type: 'disabled' },
         response_format: { type: 'json_object' },
       };
@@ -167,7 +168,11 @@ export async function chatWithAI(messages, options = {}) {
     stream: false,
     ...structuredOptions,
   }, options);
-  const content = payload?.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') throw new Error('模型返回格式不兼容 Chat Completions');
+  const message = payload?.choices?.[0]?.message;
+  const rawContent = message?.content ?? payload?.output_text;
+  const content = typeof rawContent === 'string' ? rawContent
+    : Array.isArray(rawContent) ? rawContent.map((part) => typeof part === 'string' ? part : part?.text || part?.content || '').join('')
+    : rawContent && typeof rawContent === 'object' ? JSON.stringify(rawContent) : '';
+  if (!content.trim()) throw new Error('模型没有返回结构化正文，请确认所选模型支持 JSON 输出');
   return { content, payload };
 }

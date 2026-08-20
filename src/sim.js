@@ -973,6 +973,8 @@ export class Sim {
   manualOwner = false;
   manualVec = { x: 0, y: 0 };
   navigationWatch = new WeakMap();
+  /** 派工不需要按 60 FPS 全量扫描订单、客组和家具。 */
+  taskPlanCooldown = 0;
   /** 当日各房间的真实使用量；只用于卫生模拟，不写入存档。 */
   roomUsage = {};
   fx                                                      = [];
@@ -3319,7 +3321,11 @@ export class Sim {
       s.pose = 'idle';
       s.bubble = { text: '这活有人接了，我换一项', t: 2 };
     }
-    const open = this.buildTasks(claimed);
+    this.taskPlanCooldown = Math.max(0, this.taskPlanCooldown - Math.max(0, dt));
+    const hasAssignableStaff = staffOrder.some((s) => !s.task && s.needs.stamina >= 18 && !(this.manualOwner && s.isOwner));
+    const shouldPlanTasks = hasAssignableStaff && this.taskPlanCooldown <= 0;
+    const open = shouldPlanTasks ? this.buildTasks(claimed) : [];
+    if (shouldPlanTasks) this.taskPlanCooldown = 0.12;
     for (const s of staffOrder) {
       // 需求
       const work = s.task ? 1 : 0.35;

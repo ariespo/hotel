@@ -1,10 +1,11 @@
-# Prebuilt static site (this repo IS the release).
+# Copied into dist by release. Prebuilt static site lives in the dist git repo.
 # Must be published at the domain root so /runtime and /engines resolve.
-# Use a user/group Pages project named <user>.gitlab.io
 pages:
   stage: deploy
   image: alpine:3.21
   script:
+    - test -f CHANGELOG.md
+    - test -n "$(find changes -maxdepth 1 -type f -name '*.md' -print -quit)"
     - mkdir -p public
     - |
       find . -mindepth 1 -maxdepth 1 \

@@ -14,7 +14,7 @@ import { FLOOR_VARIANTS, floorVariant, glowPix, lightPoolPix, rugTile, wallDecoP
 import { contactShadow, edgeOcclusion, floorLightTint, nightShadeAlpha, tileWarmth, worldLights } from './src/light.js';
 import { hexToNum, mix, PAL, Rng } from './src/pix.js';
 import {
-  BLUEPRINTS, BED_KINDS, DISHES, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById, worldById,
+  BLUEPRINTS, BED_KINDS, DISHES, DUTY_LABEL, furnDef, furnQualityUnlock,              ING_PRICE,           JOB_COLOR, ROOM_FLOOR, ROOM_LABEL, STAR_THRESHOLDS, styleById, wantById, worldById,
 } from './src/data.js';
 import { DAY_LEN, applyRecruitmentWorld, makeStaff, newEcon, Sim, worldIngredientPrice } from './src/sim.js';
 import { canPersistSim } from './src/save-policy.js';
@@ -160,7 +160,6 @@ function actorTexture(app            , dir        , pose      , frame        , c
     } else {
       t = texFromCanvas(drawSprite(app, d, pose, frame, carry).canvas);
     }
-    if (actorTex.size > 1400) actorTex.clear();
     actorTex.set(key, t);
   }
   return t;
@@ -1749,14 +1748,6 @@ class Game                    {
   fire(id        )       {
     const s = this.sim.staff.find((x) => x.id === id);
     if (!s || s.isOwner) return false;
-    if (this.sim.dayActive) {
-      this.sim.toast('营业中不能解雇员工，请在收盘规划时处理');
-      return false;
-    }
-    if (s && s.job === 'front' && !this.sim.staff.some((x) => x.id !== id && x.job === 'front')) {
-      this.sim.toast('前台必须有人值守：先把别人调到前台再辞掉他');
-      return false;
-    }
     this.sim.fire(id);
     this.save();
     return true;
@@ -1765,12 +1756,6 @@ class Game                    {
     const s = this.sim.staff.find((x) => x.id === id);
     if (!s) return;
     if (this.sim.dayActive) { this.sim.toast('营业中不能调岗，请在收盘规划时安排'); return; }
-    // 前台必须有人值守：最后一个前台不能改岗
-    if (s.job === 'front' && job !== 'front'
-      && !this.sim.staff.some((x) => x.id !== id && x.job === 'front')) {
-      this.sim.toast('前台必须有人值守：先安排另一个人上前台');
-      return;
-    }
     s.job = job;
     s.task = null;
     s.path = [];
@@ -1813,15 +1798,21 @@ class Game                    {
   }
   setDutyMode(id, mode) {
     const s = this.sim.staff.find((person) => person.id === id);
-    if (!s || this.sim.dayActive) { if (this.sim.dayActive) this.sim.toast('营业中不能调整职责'); return; }
+    if (!s) return;
     s.dutyMode = mode === 'manual' ? 'manual' : 'auto';
+    s.bubble = { text: s.dutyMode === 'manual' ? '按自定义优先级工作' : '恢复岗位自动安排', t: 2 };
     this.save(); this.ui.render(true);
   }
   setDutyPriority(id, duty, priority) {
     const s = this.sim.staff.find((person) => person.id === id);
-    if (!s || this.sim.dayActive || !s.dutyPriorities || !(duty in s.dutyPriorities)) return;
+    if (!s || !s.dutyPriorities || !(duty in s.dutyPriorities)) return;
     s.dutyPriorities[duty] = Math.max(0, Math.min(4, priority));
     s.dutyMode = 'manual';
+    const taskDuty = { greet: 'front', seat: 'front', checkout: 'front', order: 'service', serve: 'service', cook: 'cook', mix: 'mix', facility: 'facility', tidy: 'clean', clean: 'clean', bus: 'carry' }[s.task?.kind];
+    if (taskDuty === duty && s.dutyPriorities[duty] === 0) {
+      s.task = null; s.path = []; s.carry = null; s.actT = 0; s.actTotal = 0; s.note = ''; s.pose = 'idle';
+    }
+    s.bubble = { text: `${DUTY_LABEL[duty]}优先级 ${s.dutyPriorities[duty]}`, t: 1.8 };
     this.save(); this.ui.render(true);
   }
   trainStaff(id, skill, choiceId = 'focus') { const ok = this.sim.trainStaff(id, skill, choiceId); if (ok) { this.save(); this.ui.render(true); } return ok; }
@@ -2775,6 +2766,7 @@ class Game                    {
         this.actorLayer.addChild(sp);
         this.actorSprites.set(id, sp);
       }
+      sp._appearanceKey = appKey(app);
       let sh = this.actorShadows.get(id);
       if (!sh) {
         if (!this.shadowTex) this.shadowTex = texFromCanvas(glowPix(14, '#1A1016').canvas);
@@ -2864,14 +2856,36 @@ class Game                    {
       const spose       = restOn && restOn.kind === 'bunk' ? 'idle' : s.task && s.task.kind === 'rest' ? 'sit' : s.task && s.task.kind === 'greet' ? 'greet' : s.pose;
       put(s.id, s.app, s.x, s.y, s.dir, spose, s.animT, s.carry, restOn);
     }
+    const groupById = new Map(this.sim.groups.map((group) => [group.id, group]));
     for (const g of this.sim.guests) {
-      const gr = this.sim.groups.find((x) => x.id === g.groupId);
+      const gr = groupById.get(g.groupId);
       const pose       = gr && gr.state === 'eating' && !facUse.has(g.id) ? 'eat'
         : gr && (gr.state === 'seated' || gr.state === 'ordered') && !facUse.has(g.id) ? 'sit' : g.pose;
       put(g.id, g.app, g.x, g.y, g.dir, pose, g.animT, null, null);
     }
     for (const [id, sp] of this.actorSprites) {
-      if (!seen.has(id)) { sp.destroy(); this.actorSprites.delete(id); const sh = this.actorShadows.get(id); if (sh) { sh.destroy(); this.actorShadows.delete(id); } }
+      if (!seen.has(id)) {
+        const appearanceKey = sp._appearanceKey;
+        sp.destroy(); this.actorSprites.delete(id);
+        const sh = this.actorShadows.get(id); if (sh) { sh.destroy(); this.actorShadows.delete(id); }
+        const stillVisible = appearanceKey && [...this.actorSprites.values()].some((sprite) => sprite._appearanceKey === appearanceKey);
+        if (appearanceKey && !stillVisible) {
+          const prefix = `${appearanceKey}|`;
+          const retiredTextures = [];
+          for (const [textureKey, texture] of actorTex) if (textureKey.startsWith(prefix)) {
+            actorTex.delete(textureKey); retiredTextures.push(texture);
+          }
+          // 同一帧的泡汤裁剪纹理共享 source；每个 source 只在最后一个视图销毁时释放。
+          const texturesBySource = new Map();
+          for (const texture of retiredTextures) {
+            const rows = texturesBySource.get(texture.source) || [];
+            rows.push(texture); texturesBySource.set(texture.source, rows);
+          }
+          for (const textures of texturesBySource.values()) {
+            textures.forEach((texture, index) => texture.destroy(index === textures.length - 1));
+          }
+        }
+      }
     }
   }
 
@@ -2894,21 +2908,23 @@ class Game                    {
 
   renderItems()       {
     this.itemUsed = 0;
+    const readyOrders = this.sim.orders.filter((order) => order.stage === 'ready');
+    const orderById = new Map(this.sim.orders.map((order) => [order.id, order]));
+    const eatingGroupByTable = new Map(this.sim.groups.filter((group) => group.state === 'eating').map((group) => [group.tableId, group]));
     // 出餐台上的成品
     for (const f of this.tavern.furnsOfKind('pass')) {
       const n = f.plates || 0;
-      const ready = this.sim.orders.filter((x) => x.stage === 'ready');
       for (let i = 0; i < n; i++) {
-        const o = ready[i];
+        const o = readyOrders[i];
         const dish = o ? this.sim.dishOf(o.dishId) : DISHES[0];
         this.itemSprite(plateTexture(dish ? dish.color : PAL.cream, false), f.x * T + 4 + i * 14, f.y * T + 8);
       }
     }
     // 桌上的菜与脏盘
     for (const t of this.tavern.allTables()) {
-      const group = this.sim.groups.find((g) => g.tableId === t.id && g.state === 'eating');
+      const group = eatingGroupByTable.get(t.id);
       if (group) {
-        const o = this.sim.orders.find((x) => x.id === group.orderId);
+        const o = orderById.get(group.orderId);
         const dish = o ? this.sim.dishOf(o.dishId) : null;
         this.itemSprite(plateTexture(dish ? dish.color : PAL.cream, false), t.x * T + 8, t.y * T + 8);
       }

@@ -646,6 +646,7 @@ export async function requestGameAI(kind, facts, options = {}) {
     config: options.config,
     temperature: spec.temperature,
     maxTokens: spec.maxTokens,
+    jsonMode: true,
     signal: options.signal,
     fetchImpl: options.fetchImpl,
   });
