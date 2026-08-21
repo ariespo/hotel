@@ -55,6 +55,59 @@ export function rotateRoomPoint(x        , y        , w        , h        , turn
 const K = 4096;
 export function tkey(x        , y        )         { return (x + 2048) * K + (y + 2048); }
 
+/** Production layout gate shared by import/build callers. It deliberately uses
+ * the computed door graph, not mere rectangle contact. */
+export function validateLayout(layout, campaignMode = 'legacy', { operation = 'validate' } = {}) {
+  if (!layout || !Array.isArray(layout.rooms) || !Array.isArray(layout.furns)) return { ok: false, reason: 'rooms/furns 必须是数组' };
+  const rooms = layout?.rooms || [], furns = layout?.furns || [];
+  const rootKind = campaignMode === 'legacy' ? 'foyer' : 'playerroom';
+  if (!rooms.length) return { ok: false, reason: '布局没有房间' };
+  if (!rooms.some((r) => r.kind === rootKind)) return { ok: false, reason: `缺少${rootKind}根房间` };
+  if (campaignMode !== 'legacy' && rooms.filter((r) => r.kind === 'playerroom').length !== 1) return { ok: false, reason: '新档必须恰有一个玩家休息室' };
+  if (campaignMode === 'legacy' && rooms.some((r) => r.kind === 'playerroom')) return { ok: false, reason: 'legacy 布局不能包含玩家休息室' };
+  if (campaignMode === 'legacy' && rooms.filter((r) => r.kind === 'foyer').length < 1) return { ok: false, reason: '旧档必须保留门厅' };
+  const maxRoomId = Math.max(0, ...rooms.map((r) => Number(r.id) || 0)); const maxFurnId = Math.max(0, ...furns.map((f) => Number(f.id) || 0));
+  if (!Number.isSafeInteger(layout.nr) || layout.nr <= maxRoomId || !Number.isSafeInteger(layout.nf) || layout.nf <= maxFurnId) return { ok: false, reason: '布局自增 ID 游标非法' };
+  const roomIds = new Set(); const validKinds = new Set(BLUEPRINTS.map((b) => b.kind));
+  for (const r of rooms) {
+    const exactBp = BLUEPRINTS.find((b) => b.id === r.bp); const bp = exactBp || (campaignMode === 'legacy' ? BLUEPRINTS.find((b) => b.kind === r.kind && [b.w, b.h].includes(r.w) && [b.w, b.h].includes(r.h)) : null);
+    if (roomIds.has(r.id) || !Number.isSafeInteger(r.id) || r.id < 1 || !Number.isInteger(r.x) || !Number.isInteger(r.y) || !Number.isInteger(r.w) || !Number.isInteger(r.h) || r.w <= 0 || r.h <= 0 || !validKinds.has(r.kind) || !bp || bp.kind !== r.kind || (campaignMode !== 'legacy' && (exactBp?.kind !== r.kind || !((r.w === bp.w && r.h === bp.h) || (r.w === bp.h && r.h === bp.w))))) return { ok: false, reason: '房间字段、蓝图或尺寸非法' };
+    roomIds.add(r.id);
+  }
+  for (let i = 0; i < rooms.length; i++) for (let j = i + 1; j < rooms.length; j++) {
+    const a = rooms[i], b = rooms[j];
+    if (a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y) return { ok: false, reason: '房间重叠' };
+  }
+  const t = new Tavern(); t.rooms = rooms.map((r) => ({ ...r })); t.furns = furns.map((f) => ({ ...f })); t.legacy = campaignMode === 'legacy'; t.reindex();
+  if (!t.roomsConnectedByOpenings(t.rooms, new Set(t.furns.flatMap((f) => t.furnTiles(f).map((x) => tkey(x.x, x.y)))))) return { ok: false, reason: `${operation}后房间无法通过门洞连通` };
+  if (campaignMode !== 'legacy' || ['buildRoom', 'moveRoom'].includes(operation)) for (const lounge of rooms.filter((r) => r.kind === 'lounge')) {
+    const occupied = new Set(t.furns.flatMap((f) => t.furnTiles(f).map((x) => tkey(x.x, x.y))));
+    if (!rooms.some((corridor) => corridor.kind === 'corridor' && t.roomsShareUsableDoor(lounge, corridor, occupied))) return { ok: false, reason: '员工休息室必须直接连接走廊' };
+  }
+  const furnIds = new Set(); const occupied = new Set();
+  for (const f of t.furns) {
+    if (furnIds.has(f.id) || !Number.isSafeInteger(f.id) || f.id < 1 || !Number.isInteger(f.x) || !Number.isInteger(f.y) || !Number.isInteger(f.dir) || f.dir < 0 || f.dir > 3 || !FURN_SIZE[f.kind] || !Number.isInteger(f.quality) || f.quality < 1 || f.quality > 3) return { ok: false, reason: '家具字段或 ID 非法' };
+    furnIds.add(f.id); const room = t.roomAt(f.x, f.y); const def = furnDef(f.kind);
+    if (!room || !def || !def.rooms?.includes(room.kind)) return { ok: false, reason: `家具${f.kind}落位非法` };
+    if (f.builtIn && f.boundRoomId !== room.id) return { ok: false, reason: '内置家具绑定房间不一致' };
+    for (const tile of t.furnTiles(f)) { if (t.roomAt(tile.x, tile.y)?.id !== room.id) return { ok: false, reason: '家具 footprint 越墙或跨房间' }; const k = tkey(tile.x, tile.y); if (occupied.has(k)) return { ok: false, reason: '家具互相重叠' }; occupied.add(k); }
+    if (f.builtIn && !['bunk', 'meetingtable', 'desk', 'chair'].includes(f.kind)) return { ok: false, reason: '普通家具不能伪造内置标记' };
+  }
+  const contracts = { playerroom: ['bunk', 'meetingtable', 'chair'], foyer: ['desk'], lounge: ['bunk'] };
+  if (campaignMode !== 'legacy') for (const f of furns.filter((x) => x.builtIn)) { const room = rooms.find((r) => r.id === f.boundRoomId); if (!room || !(contracts[room.kind] || []).includes(f.kind) || f.purchasePrice !== 0) return { ok: false, reason: '内置家具契约非法' }; }
+  if (campaignMode !== 'legacy') for (const r of rooms) for (const kind of contracts[r.kind] || []) {
+    const rows = furns.filter((f) => f.boundRoomId === r.id && f.builtIn && f.kind === kind);
+    if (rows.length !== 1 || rows[0].purchasePrice !== 0) return { ok: false, reason: `${r.kind}缺少合法内置${kind}` };
+  }
+  return { ok: true, reason: '' };
+}
+
+export function validateCandidateOrError(tavern, candidate, mode = tavern?.legacy ? 'legacy' : 'tutorial', operation = 'mutation') {
+  const result = validateLayout(candidate, mode, { operation });
+  if (!result.ok) { const error = new Error(`${operation}：${result.reason}`); error.code = 'LAYOUT_INVALID'; throw error; }
+  return true;
+}
+
 export class Tavern {
   rooms         = [];
   furns         = [];
@@ -64,14 +117,37 @@ export class Tavern {
           nextFurnId = 1;
           roomIdx = new Map              ();
           furnIdx = new Map              ();
+          roomByIdIdx = new Map();
+          furnByIdIdx = new Map();
+          furnKindIdx = new Map();
+          roomKindIdx = new Map();
           doorSet = new Set        ();
           pathCache = new Map                                           ();
   version = 0;
+  legacy = false;
+
+  rootRoom(rooms = this.rooms, mode = this.legacy ? 'legacy' : 'tutorial') {
+    return (mode === 'legacy' ? rooms.find((r) => r.kind === 'foyer') : rooms.find((r) => r.kind === 'playerroom')) || null;
+  }
+
+  validateLayout(campaignMode = this.legacy ? 'legacy' : 'tutorial', options = {}) {
+    return validateLayout(this.serialize(), campaignMode, options);
+  }
 
   reindex()       {
-    this.roomIdx.clear(); this.furnIdx.clear();
-    for (const r of this.rooms) for (let x = r.x; x < r.x + r.w; x++) for (let y = r.y; y < r.y + r.h; y++) this.roomIdx.set(tkey(x, y), r);
-    for (const f of this.furns) for (const t of this.furnTiles(f)) this.furnIdx.set(tkey(t.x, t.y), f);
+    this.roomIdx.clear(); this.furnIdx.clear(); this.roomByIdIdx.clear(); this.furnByIdIdx.clear(); this.furnKindIdx.clear(); this.roomKindIdx.clear();
+    for (const r of this.rooms) {
+      this.roomByIdIdx.set(r.id, r);
+      if (!this.roomKindIdx.has(r.kind)) this.roomKindIdx.set(r.kind, []);
+      this.roomKindIdx.get(r.kind).push(r);
+      for (let x = r.x; x < r.x + r.w; x++) for (let y = r.y; y < r.y + r.h; y++) this.roomIdx.set(tkey(x, y), r);
+    }
+    for (const f of this.furns) {
+      this.furnByIdIdx.set(f.id, f);
+      if (!this.furnKindIdx.has(f.kind)) this.furnKindIdx.set(f.kind, []);
+      this.furnKindIdx.get(f.kind).push(f);
+      for (const t of this.furnTiles(f)) this.furnIdx.set(tkey(t.x, t.y), f);
+    }
     this.computeDoors();
     this.pathCache.clear();
     this.version++;
@@ -92,15 +168,16 @@ export class Tavern {
 
   roomAt(x        , y        )              { return this.roomIdx.get(tkey(x, y)) || null; }
   furnAt(x        , y        )              { return this.furnIdx.get(tkey(x, y)) || null; }
-  roomById(id        )              { return this.rooms.find((r) => r.id === id) || null; }
-  furnById(id        )              { return this.furns.find((f) => f.id === id) || null; }
+  roomById(id        )              { return this.roomByIdIdx.get(id) || null; }
+  furnById(id        )              { return this.furnByIdIdx.get(id) || null; }
   furnsIn(roomId        , kind         )         {
     return this.furns.filter((f) => {
       const r = this.roomAt(f.x, f.y);
       return r !== null && r.id === roomId && (!kind || f.kind === kind);
     });
   }
-  furnsOfKind(kind        )         { return this.furns.filter((f) => f.kind === kind); }
+  furnsOfKind(kind        )         { return this.furnKindIdx.get(kind) || []; }
+  roomsOfKind(kind        )         { return this.roomKindIdx.get(kind) || []; }
   roomOfFurn(f      )              { return this.roomAt(f.x, f.y); }
 
   /** 椅子/长椅/客床/汤池不挡 NPC 路：角色要能坐、躺、泡，也避免长椅截断两格宽走廊。 */
@@ -241,34 +318,35 @@ export class Tavern {
   path(sx        , sy        , tx        , ty        )                                    {
     if (sx === tx && sy === ty) return [];
     const ck = `${this.version}:${sx},${sy}->${tx},${ty}`;
-    const cached = this.pathCache.get(ck);
+    const cached = this.pathCacheGet(ck);
     if (cached !== undefined) return cached ? cached.slice() : null;
-    if (!this.walkable(tx, ty)) { this.pathCache.set(ck, null); return null; }
-    const open                                                   = [{ x: sx, y: sy, f: 0, g: 0 }];
+    if (!this.walkable(tx, ty)) { this.pathCacheSet(ck, null); return null; }
+    const open = [{ x: sx, y: sy, f: 0, g: 0 }];
+    const heapPush = (item) => { open.push(item); let i = open.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (open[p].f <= item.f) break; open[i] = open[p]; i = p; } open[i] = item; };
+    const heapPop = () => { const top = open[0]; const last = open.pop(); if (open.length && last) { let i = 0; while (true) { let c = i * 2 + 1; if (c >= open.length) break; if (c + 1 < open.length && open[c + 1].f < open[c].f) c++; if (open[c].f >= last.f) break; open[i] = open[c]; i = c; } open[i] = last; } return top; };
     const came = new Map                ();
     const gs = new Map                ();
     gs.set(tkey(sx, sy), 0);
     let found = false;
     let guard = 0;
     while (open.length && guard++ < 20000) {
-      let bi = 0;
-      for (let i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i;
-      const cur = open.splice(bi, 1)[0];
+      const cur = heapPop();
       if (cur.x === tx && cur.y === ty) { found = true; break; }
       const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
       for (const [dx, dy] of dirs) {
         const nx = cur.x + dx, ny = cur.y + dy;
         if (!this.stepOk(cur.x, cur.y, nx, ny)) continue;
         const nk = tkey(nx, ny);
-        const ng = cur.g + 1;
+        const room = this.roomAt(nx, ny);
+        const ng = cur.g + (room?.kind === 'corridor' ? 1 : 1.25);
         const prev = gs.get(nk);
         if (prev !== undefined && prev <= ng) continue;
         gs.set(nk, ng);
         came.set(nk, tkey(cur.x, cur.y));
-        open.push({ x: nx, y: ny, g: ng, f: ng + Math.abs(nx - tx) + Math.abs(ny - ty) });
+        heapPush({ x: nx, y: ny, g: ng, f: ng + Math.abs(nx - tx) + Math.abs(ny - ty) });
       }
     }
-    if (!found) { this.pathCache.set(ck, null); return null; }
+    if (!found) { this.pathCacheSet(ck, null); return null; }
     const out                             = [];
     let k = tkey(tx, ty);
     const sk = tkey(sx, sy);
@@ -279,9 +357,20 @@ export class Tavern {
       k = p;
     }
     out.reverse();
-    if (this.pathCache.size > 3000) this.pathCache.clear();
-    this.pathCache.set(ck, out);
+    this.pathCacheSet(ck, out);
     return out.slice();
+  }
+
+  pathCacheSet(key, value) {
+    this.pathCache.delete(key);
+    this.pathCache.set(key, value);
+    while (this.pathCache.size > 3000) this.pathCache.delete(this.pathCache.keys().next().value);
+  }
+
+  pathCacheGet(key) {
+    const value = this.pathCache.get(key);
+    if (value !== undefined) { this.pathCache.delete(key); this.pathCache.set(key, value); }
+    return value;
   }
 
   /** 房间蓝图落位校验 */
@@ -309,8 +398,9 @@ export class Tavern {
 
   placeRoom(bp           , x        , y        , rot        )       {
     const w = rot ? bp.h : bp.w, h = rot ? bp.w : bp.h;
-    const room       = { id: this.nextRoomId++, kind: bp.kind, bp: bp.id, x, y, w, h, quality: 1, clean: 100, maint: 100, style: 'rustic' };
+    const room       = { id: this.nextRoomId++, kind: bp.kind, bp: bp.id, x, y, w, h, quality: 1, clean: 100, maint: 100, style: 'rustic', purchasePrice: bp.buildCost ?? bp.cost ?? 0 };
     this.rooms.push(room);
+    if (this.rooms.length === 1 && bp.kind === 'foyer') this.legacy = true;
     this.reindex();
     return room;
   }
@@ -345,9 +435,9 @@ export class Tavern {
     return { ok: true, reason: '' };
   }
 
-  roomsConnectedByOpenings(rooms        , occupied        )          {
+  roomsConnectedByOpenings(rooms        , occupied        , mode = this.legacy ? 'legacy' : 'tutorial')          {
     if (!rooms.length) return true;
-    const foyer = rooms.find((room) => room.kind === 'foyer');
+    const foyer = this.rootRoom(rooms, mode);
     if (!foyer) return false;
     const seen = new Set        ([foyer.id]);
     const stack = [foyer];
@@ -361,9 +451,11 @@ export class Tavern {
     return seen.size === rooms.length;
   }
 
-  roomsConnected(rooms        )          {
+  roomsShareUsableDoor(a, b, occupied = new Set()) { return !!(a && b && this.doorBetween(a, b, occupied)); }
+
+  roomsConnected(rooms        , mode = this.legacy ? 'legacy' : 'tutorial')          {
     if (!rooms.length) return true;
-    const foyer = rooms.find((r) => r.kind === 'foyer');
+    const foyer = this.rootRoom(rooms, mode);
     if (!foyer) return false;
     const seen = new Set        ([foyer.id]);
     const stack = [foyer];
@@ -409,14 +501,14 @@ export class Tavern {
   }
 
   /** 拆除：不能让任何房间与门厅断开 */
-  canRemoveRoom(id        )                                  {
+  canRemoveRoom(id        , mode = this.legacy ? 'legacy' : 'tutorial')                                  {
     const room = this.roomById(id);
     if (!room) return { ok: false, reason: '房间不存在' };
-    if (room.kind === 'foyer') return { ok: false, reason: '门厅是酒馆的根，不能拆' };
+    if ((mode === 'legacy' && room.kind === 'foyer') || (mode !== 'legacy' && room.kind === 'playerroom')) return { ok: false, reason: '核心房间不能拆除' };
     const keep = this.rooms.filter((r) => r.id !== id);
     if (keep.length === 0) return { ok: true, reason: '' };
-    const foyer = keep.find((r) => r.kind === 'foyer');
-    if (!foyer) return { ok: false, reason: '缺少门厅' };
+    const foyer = this.rootRoom(keep, mode);
+    if (!foyer) return { ok: false, reason: '缺少核心房间' };
     // 房间图连通性
     const adj = new Map                  ();
     for (const a of keep) adj.set(a.id, []);
@@ -434,16 +526,16 @@ export class Tavern {
       for (const n of adj.get(cur) || []) if (!seen.has(n)) { seen.add(n); stack.push(n); }
     }
     if (seen.size !== keep.length) return { ok: false, reason: '拆除后会有房间与门厅断开' };
+    const candidate = { rooms: keep, furns: this.furns.filter((f) => this.roomOfFurn(f)?.id !== id), dirt: this.dirt, nr: this.nextRoomId, nf: this.nextFurnId, legacy: this.legacy };
+    const checked = validateLayout(candidate, mode, { operation: 'remove' });
+    if (!checked.ok) return checked;
     return { ok: true, reason: '' };
   }
 
   removeRoom(id        )         {
     const room = this.roomById(id);
     if (!room) return [];
-    const removed = this.furns.filter((f) => {
-      const r = this.roomAt(f.x, f.y);
-      return r !== null && r.id === id;
-    });
+    const removed = this.furns.filter((f) => this.roomOfFurn(f)?.id === id);
     this.furns = this.furns.filter((f) => !removed.includes(f));
     this.rooms = this.rooms.filter((r) => r.id !== id);
     this.dirt = this.dirt.filter((d) => !(d.x >= room.x && d.x < room.x + room.w && d.y >= room.y && d.y < room.y + room.h));
@@ -483,7 +575,8 @@ export class Tavern {
     if (kind === 'chair') {
       const [dx, dy] = dirDelta(dir);
       const t = this.furnAt(x + dx, y + dy);
-      if (!t || t.kind !== 'table') return { ok: false, reason: '椅子必须朝向一张餐桌' };
+      if (!t || (t.kind !== 'table' && t.kind !== 'meetingtable')) return { ok: false, reason: '椅子必须朝向一张餐桌或会议桌' };
+      if (t.kind === 'meetingtable' && this.tableSeats(t).filter((chair) => chair.id !== ignoreId).length >= 12) return { ok: false, reason: '会议桌最多容纳12把椅子' };
     }
     if (this.blocks(kind)) {
       const [dx, dy] = dirDelta(dir);
@@ -504,7 +597,7 @@ export class Tavern {
     const f       = { id: this.nextFurnId++, kind, x, y, dir, quality };
     if (kind === 'shelf') f.stock = 0;
     if (kind === 'pass') f.plates = 0;
-    if (kind === 'table') f.dirty = 0;
+    if (kind === 'table' || kind === 'meetingtable') f.dirty = 0;
     if (kind === 'sink') f.dirty = 0;
     if (kind === 'bed' || kind === 'doublebed' || kind === 'kingbed' || kind === 'pool' || kind === 'billiardtable') f.dirty = 0;
     this.furns.push(f);
@@ -513,8 +606,11 @@ export class Tavern {
   }
 
   removeFurn(id        )       {
+    const target = this.furnById(id);
+    if (!target || target.builtIn) return false;
     this.furns = this.furns.filter((f) => f.id !== id);
     this.reindex();
+    return true;
   }
 
   /** 餐桌与其朝向匹配的椅子 */
@@ -530,9 +626,13 @@ export class Tavern {
   }
 
   allTables()         { return this.furns.filter((f) => f.kind === 'table'); }
+  meetingTables()     { return this.furns.filter((f) => f.kind === 'meetingtable'); }
+  meetingSeats(t)      { return this.tableSeats(t).slice(0, 12); }
 
   entrance()                           {
-    const f = this.rooms.find((r) => r.kind === 'foyer');
+    // 客人、候选员工和跨世界来宾都从位面门厅抵达；玩家自己的出生点由
+    // game.js 明确放在休息室，不能把私人房间误当公共入口。
+    const f = this.rooms.find((r) => r.kind === 'foyer') || this.rooms.find((r) => r.kind === 'playerroom');
     if (!f) return { x: 0, y: 0 };
     return { x: f.x + Math.floor(f.w / 2), y: f.y };
   }
@@ -582,16 +682,17 @@ export class Tavern {
   }
 
   serialize()          {
-    return { rooms: this.rooms, furns: this.furns, dirt: this.dirt, nr: this.nextRoomId, nf: this.nextFurnId };
+    return JSON.parse(JSON.stringify({ rooms: this.rooms, furns: this.furns, dirt: this.dirt, doors: this.doors, nr: this.nextRoomId, nf: this.nextFurnId, legacy: !!this.legacy }));
   }
 
-  static load(data   
-                                                                       
-   )         {
+  static load(data, { mode = null, strict = false } = {}) {
+    const payload = JSON.parse(JSON.stringify(data || {}));
+    if (strict) { const check = validateLayout(payload, mode || (payload.legacy ? 'legacy' : 'tutorial'), { operation: 'load' }); if (!check.ok) throw new Error(`布局校验失败：${check.reason}`); }
     const t = new Tavern();
-    t.rooms = data.rooms; t.furns = data.furns; t.dirt = data.dirt || [];
+    t.rooms = payload.rooms || []; t.furns = payload.furns || []; t.dirt = payload.dirt || [];
     for (const r of t.rooms) if (!r.style) r.style = 'rustic';   // 旧存档没有风格字段
-    t.nextRoomId = data.nr; t.nextFurnId = data.nf;
+    t.nextRoomId = payload.nr; t.nextFurnId = payload.nf;
+    t.legacy = mode ? mode === 'legacy' : !!payload.legacy;
     t.reindex();
     return t;
   }

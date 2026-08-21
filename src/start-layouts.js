@@ -1,9 +1,31 @@
 import { BLUEPRINTS, furnDef } from './data.js';
-import { bpById } from './world.js';
+import { bpById, validateLayout } from './world.js';
 
 const ROOM_FILL = Object.freeze({
   foyer: '#C9922F', dining: '#E2B56A', kitchen: '#B45F10', storage: '#8A6A4A',
   corridor: '#E8D5B0', guestroom: '#8A74B8', lounge: '#65A85B', bar: '#39D7D2',
+});
+
+export const PLAYER_START_LAYOUT = Object.freeze({
+  id: 'playerroom', name: '玩家休息室', note: '固定开局：8×7私人休息室，内置大床、会议桌与一把椅子。', refund: false, tutorial: true,
+  rooms: [{ bp: 'playerroom8', x: 0, y: 0, rot: 0 }],
+  furns: [{ kind: 'bunk', x: 1, y: 1, dir: 0, builtIn: true }, { kind: 'meetingtable', x: 2, y: 4, dir: 0, builtIn: true }, { kind: 'chair', x: 1, y: 4, dir: 3, builtIn: true }],
+});
+
+// 首日快速开局：房间与基础生产链总价（含门厅建造费）为 2880 界币。
+export const QUICK_START_LAYOUT = Object.freeze({
+  id: 'quick-start', name: '推荐首日布局', note: '自动完成基础房间与生产链，跳过首日教学经营。', refund: false,
+  rooms: [
+    { bp: 'playerroom8', x: 0, y: 0, rot: 0 }, { bp: 'foyer4', x: 8, y: 1, rot: 0 },
+    { bp: 'dining6', x: 12, y: 1, rot: 0 }, { bp: 'kitchen6', x: 12, y: 6, rot: 0 },
+    { bp: 'storage4', x: 18, y: 6, rot: 0 }, { bp: 'corridor2', x: 8, y: 5, rot: 0 }, { bp: 'guestroom5', x: 18, y: 1, rot: 0 },
+  ],
+  furns: [
+    { kind: 'bunk', x: 1, y: 1, dir: 0, builtIn: true }, { kind: 'meetingtable', x: 2, y: 4, dir: 0, builtIn: true }, { kind: 'chair', x: 1, y: 4, dir: 3, builtIn: true },
+    { kind: 'desk', x: 9, y: 3, dir: 0, builtIn: true }, { kind: 'table', x: 13, y: 2, dir: 0 }, { kind: 'chair', x: 13, y: 1, dir: 0 }, { kind: 'chair', x: 13, y: 3, dir: 2 },
+    { kind: 'prep', x: 13, y: 7, dir: 0 }, { kind: 'stove', x: 15, y: 7, dir: 0 }, { kind: 'pass', x: 15, y: 9, dir: 0 }, { kind: 'sink', x: 13, y: 9, dir: 0 },
+    { kind: 'shelf', x: 19, y: 7, dir: 0 }, { kind: 'bed', x: 19, y: 2, dir: 0 },
+  ],
 });
 
 export const START_LAYOUTS = Object.freeze([
@@ -102,18 +124,23 @@ export const START_LAYOUTS = Object.freeze([
 function roomSize(bpId, rot = 0) {
   const bp = BLUEPRINTS.find((row) => row.id === bpId);
   if (!bp) return { w: 1, h: 1, cost: 0, kind: 'corridor', name: bpId };
-  return { w: rot ? bp.h : bp.w, h: rot ? bp.w : bp.h, cost: bp.cost || 0, kind: bp.kind, name: bp.name };
+  return { w: rot ? bp.h : bp.w, h: rot ? bp.w : bp.h, cost: bp.cost ?? 0, kind: bp.kind, name: bp.name };
 }
 
 export function startLayoutById(id) {
+  if (id === 'playerroom') return PLAYER_START_LAYOUT;
+  if (id === 'quick-start') return QUICK_START_LAYOUT;
   return START_LAYOUTS.find((row) => row.id === id) || START_LAYOUTS[0];
 }
 
 export function startLayoutCost(layout) {
-  const rooms = (layout.rooms || []).reduce((sum, room) => sum + roomSize(room.bp, room.rot).cost, 0);
+  const rooms = (layout.rooms || []).reduce((sum, room) => {
+    const bp = BLUEPRINTS.find((row) => row.id === room.bp);
+    return sum + (layout.id === 'quick-start' ? (bp?.buildCost ?? bp?.cost ?? 0) : (bp?.cost ?? 0));
+  }, 0);
   const furns = (layout.furns || []).reduce((sum, furn) => {
     const def = furnDef(furn.kind);
-    const price = Array.isArray(def?.cost) ? def.cost[Math.max(0, (furn.quality || 1) - 1)] : 0;
+    const price = furn.builtIn ? 0 : Array.isArray(def?.cost) ? def.cost[Math.max(0, (furn.quality || 1) - 1)] : 0;
     return sum + (price || 0);
   }, 0);
   return rooms + furns;
@@ -126,7 +153,13 @@ export function emptyLayoutRefund() {
 export function applyStartLayout(tavern, id = 'classic') {
   const layout = startLayoutById(id);
   for (const room of layout.rooms) tavern.placeRoom(bpById(room.bp), room.x, room.y, room.rot || 0);
-  for (const furn of layout.furns) tavern.placeFurn(furn.kind, furn.x, furn.y, furn.dir || 0, furn.quality || 1);
+  for (const furn of layout.furns) {
+    const placed = tavern.placeFurn(furn.kind, furn.x, furn.y, furn.dir || 0, furn.quality || 1);
+    if (furn.builtIn) { placed.builtIn = true; placed.purchasePrice = 0; placed.boundRoomId = tavern.roomOfFurn(placed)?.id || null; }
+  }
+  const mode = id === 'playerroom' || id === 'quick-start' ? 'tutorial' : 'legacy';
+  const checked = validateLayout(tavern.serialize(), mode, { operation: 'startLayout' });
+  if (!checked.ok) throw new Error(`开局布局校验失败：${checked.reason}`);
   return layout;
 }
 

@@ -110,12 +110,26 @@ function localDevelopment() {
 async function requestAI(action, config, body, options = {}) {
   const fetchImpl = options.fetchImpl || globalThis.fetch;
   if (typeof fetchImpl !== 'function') throw new Error('当前环境不支持网络请求');
+  const timeout = Number(options.timeoutMs ?? 15000);
+  // 即使调用方传入取消信号，也必须有硬性的 15 秒上限；两者合并后
+  // 任一信号触发都会中止请求，避免日报/会议被悬挂的 fetch 卡住。
+  const timeoutController = timeout > 0 ? new AbortController() : null;
+  const combinedController = options.signal || timeoutController ? new AbortController() : null;
+  const abort = () => combinedController?.abort();
+  if (options.signal) {
+    if (options.signal.aborted) abort();
+    else options.signal.addEventListener('abort', abort, { once: true });
+  }
+  if (timeoutController) timeoutController.signal.addEventListener('abort', abort, { once: true });
+  const signal = combinedController?.signal || options.signal;
+  const timer = timeoutController ? setTimeout(() => timeoutController.abort(), timeout) : null;
+  try {
   if (!localDevelopment()) {
     const response = await fetchImpl('/api/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, baseUrl: config.baseUrl, apiKey: config.apiKey, ...body }),
-      signal: options.signal,
+      signal,
     });
     return readResponse(response);
   }
@@ -126,9 +140,13 @@ async function requestAI(action, config, body, options = {}) {
     method: action === 'models' ? 'GET' : 'POST',
     headers: authHeaders(config),
     body: action === 'models' ? undefined : JSON.stringify(body),
-    signal: options.signal,
+    signal,
   });
   return readResponse(response);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (options.signal) options.signal.removeEventListener('abort', abort);
+  }
 }
 
 export function parseModelList(payload) {

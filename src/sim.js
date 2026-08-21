@@ -8,11 +8,12 @@ import {
   FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef,
   DUTIES, GUEST_WANTS, ING_KEYS, ING_LABEL, ING_PRICE,                        JOBS, makeName, SEASON_NAMES,                              SKILL_KEYS, SKILL_LABEL,
   ROOM_CHARM, ROOM_LABEL, STAR_CERTIFICATIONS, STAR_THRESHOLDS, starsOf, styleById, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
-  WORLD_PROFILES, allWorlds, worldById, worldsForStars,
+  WORLD_PROFILES, allWorlds, worldById, worldsForStars, worldsForDay, worldUnlockDay,
 } from './data.js';
-import {            Tavern, dirDelta, furnFootprint } from './world.js';
+import {            Tavern, dirDelta, furnFootprint, validateLayout } from './world.js';
 import { normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { worldContentFor, worldSpecialtyFor } from './world-content.js';
+import { tutorialMissingFurniture } from './tutorial-actions.js';
 import {
   blankContestState, CONTEST_STAGES, contestKey, contestNameOf, equippedTitleOf, makeOpponent,
   nextContestInvite, normalizeContestState, resolveContestMatch, stageById, titleNameFor, titleTierForPlace,
@@ -178,6 +179,36 @@ const FACILITY_FURN_KINDS = new Set(['pool', 'billiardtable', 'screen', 'fountai
 
 export const DAY_LEN = 300;
 export const GREETING_FAILSAFE_SECONDS = 10;
+
+export const MEETING_TOPIC_CATALOG = Object.freeze([
+  { id: 'first-loss', category: '经营', title: '客人为什么离开？', text: '复盘等待时间与店主疲劳。', effect: { rep: 1 }, urgent: true, line: '我们先把客人的耐心接住。' },
+  { id: 'first-staff', category: '团队', title: '一个人真的够吗？', text: '为下一天安排招聘和员工房。', effect: { morale: 2 }, urgent: true, line: '人手不是数字，是每一双能接住客人的手。' },
+  { id: 'first-world', category: '世界', title: '门外的世界', text: '记下艾泽普利斯客人的待客习惯。', effect: { knowledge: 1 }, urgent: false, line: '把今天听见的口音记下来，下一桌会用得上。' },
+  { id: 'ops-review', category: '经营', title: '修补今天的短板', text: '针对日报里最弱的一项安排改进。', effect: { rep: 1 }, line: '明天先补最短的那块木板。' },
+  { id: 'team-check', category: '团队', title: '让大家喘口气', text: '听听员工对排班与设施的意见。', effect: { morale: 2 }, line: '能把话说完的团队，才有力气把活做完。' },
+  { id: 'world-opportunity', category: '世界', title: '下一扇门', text: '讨论当前世界的文化机会。', effect: { knowledge: 1 }, line: '每个世界都有一把不一样的钥匙。' },
+]);
+
+export function meetingTopicsFor(sim, first = false) {
+  if (first) return ['first-loss', 'first-staff', 'first-world'].map((id) => MEETING_TOPIC_CATALOG.find((row) => row.id === id));
+  const stat = sim.lastStat || {};
+  const staff = sim.staff.filter((s) => !s.isOwner);
+  const ops = MEETING_TOPIC_CATALOG.find((row) => row.id === 'ops-review');
+  const team = MEETING_TOPIC_CATALOG.find((row) => row.id === 'team-check');
+  const world = MEETING_TOPIC_CATALOG.find((row) => row.id === 'world-opportunity');
+  return [
+    { ...ops, urgent: Number(stat.lost || 0) > 0 || Number(stat.avgScore || 3) < 3, context: `流失 ${stat.lost || 0} 组，平均评分 ${Number(stat.avgScore || 3).toFixed(2)}。` },
+    { ...team, urgent: staff.some((s) => s.needs.stamina < 35 || s.needs.stress > 65), context: `员工最低体力 ${Math.round(Math.min(...staff.map((s) => s.needs.stamina), 100))}。` },
+    { ...world, urgent: Number(sim.econ.worldStayState?.days || 1) >= 4, context: `当前驻留 ${sim.currentWorld().name} 第 ${sim.econ.worldStayState?.days || 1} 天。` },
+  ];
+}
+
+export function resolveMeetingAIDialogue(raw, cards = []) {
+  const allowed = new Map(cards.map((card) => [card.id, card]));
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.lines)) return cards.map((card) => ({ topicId: card.id, text: card.line || '大家点头记下了。' }));
+  const valid = raw.lines.filter((line) => allowed.has(line?.topicId) && typeof line.text === 'string').map((line) => ({ topicId: line.topicId, text: line.text.slice(0, 180) }));
+  return valid.length ? valid : cards.map((card) => ({ topicId: card.id, text: card.line || '大家点头记下了。' }));
+}
 
 /** 种族寿命上限：人族硬封顶 100；长生种上限高但年龄分布压向年轻段，过百岁少见 */
 export const AGE_MAX = [100, 600, 150, 90, 600, 600, 600, 900, 400, 900, 80, 90, 300, 300, 900, 500, 150, 300, 600];
@@ -562,12 +593,32 @@ export function restockPlan(econ) {
 
 /** 房间与家具的日常维护费：规模仍会产生压力，但开局布局不会吞掉整日营收。 */
 export function maintenanceCost(tavern) {
+  return maintenanceBreakdown(tavern).total;
+}
+
+export function maintenanceBreakdown(tavern) {
   const rooms = Array.isArray(tavern?.rooms) ? tavern.rooms : [];
   const furns = Array.isArray(tavern?.furns) ? tavern.furns : [];
-  const roomCost = rooms.reduce((sum, room) => sum + Math.round(2 + Math.max(1, room.w * room.h) * 0.18 + Math.max(1, room.quality || 1) * 1.5), 0);
+  const roomRows = rooms.map((room) => {
+    const base = 2 + Math.max(1, room.w * room.h) * 0.18 + Math.max(1, room.quality || 1) * 1.5;
+    return { id: room.id, kind: room.kind, base: Math.round(base * 100) / 100, cost: Math.round(base * (room.kind === 'corridor' ? 0.4 : 1)) };
+  });
+  const roomCost = roomRows.reduce((sum, row) => sum + row.cost, 0);
   const furnitureCost = furns.reduce((sum, furn) => sum + Math.round(0.5 + Math.max(1, furn.quality || 1) * 0.75), 0);
-  return roomCost + furnitureCost;
+  return { total: roomCost + furnitureCost, rooms: roomRows, furniture: furnitureCost };
 }
+
+export function roomNoise(tavern, room) {
+  if (!room) return 100;
+  const adjacent = (tavern?.rooms || []).filter((other) => other.id !== room.id && (((room.x + room.w === other.x || other.x + other.w === room.x) && Math.min(room.y + room.h, other.y + other.h) > Math.max(room.y, other.y)) || ((room.y + room.h === other.y || other.y + other.h === room.y) && Math.min(room.x + room.w, other.x + other.w) > Math.max(room.x, other.x))));
+  const publicNoise = adjacent.reduce((sum, other) => sum + (['dining', 'bar', 'kitchen', 'corridor'].includes(other.kind) ? 18 : 5), 0);
+  const furnitureNoise = (tavern?.furns || []).filter((f) => tavern.roomOfFurn(f)?.id === room.id).reduce((sum, f) => sum + (['stove', 'prep', 'table', 'billiardtable'].includes(f.kind) ? 7 : 1), 0);
+  const dirtNoise = (tavern?.dirt || []).filter((d) => d.x >= room.x && d.x < room.x + room.w && d.y >= room.y && d.y < room.y + room.h).reduce((sum, d) => sum + (d.level || 1) * 2, 0);
+  return Math.max(0, Math.min(100, publicNoise + furnitureNoise + dirtNoise));
+}
+
+export function roomQuietness(tavern, room) { return 100 - roomNoise(tavern, room); }
+export function dirtChanceForRoom(room, baseChance) { return Math.max(0, Number(baseChance) || 0) * (room?.kind === 'corridor' ? 0.25 : 1); }
 
 /** 日结声望变化；前三天设置损失上限，避免教学期一次差评清空全部声望。 */
 export function dayReputationDelta(avgScore, served, lost, day, stars = 0) {
@@ -975,14 +1026,35 @@ export class Sim {
   navigationWatch = new WeakMap();
   /** 派工不需要按 60 FPS 全量扫描订单、客组和家具。 */
   taskPlanCooldown = 0;
+  taskDirty = true;
+  taskDirtyReasons = new Set(['initial']);
+  taskGeneration = 0;
+  taskSafetyT = 0;
+  taskInstrumentation = { rebuilds: 0, rebuildMs: 0, reasons: {}, lastReason: 'initial' };
   /** 当日各房间的真实使用量；只用于卫生模拟，不写入存档。 */
   roomUsage = {};
   fx                                                      = [];
+  campaign = { mode: 'legacy', phase: 'prepare', chapter: 0, firstDayComplete: false, quickStartUnlocked: false, tutorialFlags: {}, postReportEvents: [], firstGrantClaimed: false };
+  meetingState = { points: 0, cards: [], selected: [], resolved: [], open: false };
+  nightState = { active: false, employeeUses: {}, playerTalks: {}, proactive: [], proactiveQueue: [], proactiveReadyQueue: [], proactiveReadyStaff: null, proactiveInFlight: null, ownerAtBed: false, ownerAtBedConfirmed: false, dawn: null };
+  tutorialWaveIndex = 0;
+
+  invalidateTasks(reason = 'state') {
+    this.taskDirty = true;
+    this.taskDirtyReasons.add(String(reason));
+    this.taskGeneration++;
+    return this.taskGeneration;
+  }
+
+  taskPerfSnapshot() {
+    return { ...this.taskInstrumentation, reasons: { ...this.taskInstrumentation.reasons }, generation: this.taskGeneration, dirty: this.taskDirty };
+  }
           nextId = 1;
 
   constructor(tavern        , econ      ) {
     this.tavern = tavern;
     this.econ = econ;
+    this.econ.worldStayState = this.econ.worldStayState && typeof this.econ.worldStayState === 'object' ? this.econ.worldStayState : { worldId: this.econ.currentWorldId || 'hearth_coast', days: 1 };
     const certified = Number(this.econ.certifiedStars);
     this.econ.certifiedStars = Math.max(0, Math.min(5, Number.isFinite(certified) ? Math.round(certified) : starsOf(this.econ.rep)));
     this.econ.certificationHistory = Array.isArray(this.econ.certificationHistory) ? this.econ.certificationHistory : [];
@@ -1007,6 +1079,183 @@ export class Sim {
   currentWorldRule() { return worldRuleForDay(this.currentWorld(), this.econ.day); }
   currentWorldFestival() { return worldFestivalForDay(this.currentWorld(), this.econ.day); }
 
+  beginMeeting(first = false) {
+    if (this.meetingState.open) return this.meetingState;
+    const cards = meetingTopicsFor(this, first).map((topic) => ({ ...topic, attitudes: this.staff.filter((s) => !s.isOwner).map((s) => ({ staffId: s.id, name: s.name, attitude: s.needs.morale >= 70 ? '赞成' : s.needs.stress >= 70 ? '担心' : '观望', preview: topic.effect.morale ? `士气 +${topic.effect.morale}` : topic.effect.rep ? `声望 +${topic.effect.rep}` : '记录世界知识' })) }));
+    this.meetingState = { points: 2, cards, selected: [], resolved: [], effectApplied: {}, dialogue: [], open: true, catalogVersion: 1 };
+    this.campaign.phase = 'meeting';
+    return this.meetingState;
+  }
+
+  queuePostReportEvent(event) {
+    if (!event?.id) return false;
+    this.campaign.postReportEvents ||= [];
+    if (this.campaign.postReportEvents.some((row) => row.id === event.id)) return false;
+    this.campaign.postReportEvents.push({ ...event, status: 'pending', reportToken: this.campaign.reportState?.token || `day-${this.econ.day}` });
+    return true;
+  }
+
+  currentPostReportEvent() {
+    return (this.campaign.postReportEvents || []).find((event) => event.status !== 'done') || null;
+  }
+
+  consumePostReportEvent(id = '') {
+    const queue = this.campaign.postReportEvents || [];
+    const index = id ? queue.findIndex((row) => row.id === id && row.status !== 'done') : queue.findIndex((row) => row.status !== 'done');
+    if (index < 0 || !queue[index]) return null;
+    queue[index].status = 'done';
+    this.campaign.postReportCursor = index + 1;
+    return queue[index];
+  }
+
+  drainPostReportEvents() {
+    const events = (this.campaign.postReportEvents || []).filter((event) => event.status !== 'done');
+    events.forEach((event) => { event.status = 'done'; });
+    return events;
+  }
+
+  resolveMeetingCard(id) {
+    if (!this.meetingState.open || this.meetingState.points <= 0) return false;
+    const card = this.meetingState.cards.find((row) => row.id === id);
+    if (!card || this.meetingState.resolved.includes(id) || this.meetingState.effectApplied?.[id]) return false;
+    this.meetingState.points--;
+    this.meetingState.selected.push(id); this.meetingState.resolved.push(id);
+    if (card.effect.rep) this.econ.rep = Math.max(0, this.econ.rep + card.effect.rep);
+    for (const s of this.staff) if (!s.isOwner && card.effect.morale) s.needs.morale = clamp(s.needs.morale + card.effect.morale, 0, 100);
+    if (card.effect.knowledge) {
+      const worldId = this.econ.currentWorldId;
+      const known = this.econ.worldKnowledge?.[worldId] || { level: 1, arrivals: 0, served: 0 };
+      this.econ.worldKnowledge ||= {};
+      this.econ.worldKnowledge[worldId] = { ...known, level: Math.min(5, Math.max(0, Number(known.level) || 0) + card.effect.knowledge), meetingNotes: (known.meetingNotes || 0) + card.effect.knowledge };
+    }
+    this.meetingState.effectApplied ||= {};
+    this.meetingState.effectApplied[id] = { ...card.effect };
+    this.meetingState.dialogue.push({ topicId: card.id, lines: this.staff.filter((s) => !s.isOwner).map((s) => ({ staffId: s.id, text: `${s.name}：${card.line || '我记下了。'}` })) });
+    this.toast(`会议议题「${card.title}」已记录`);
+    return true;
+  }
+
+  endMeeting(confirm = false) {
+    if (!this.meetingState.open) return false;
+    // 三选二：有剩余行动点时必须明确确认提前散会，避免误点跳过议题。
+    if (this.meetingState.points > 0 && !confirm) return false;
+    this.meetingState.open = false; this.campaign.phase = 'night'; return true;
+  }
+
+  beginNight() {
+    const proactiveCandidates = this.staff.filter((s) => !s.isOwner).slice(0, 3).map((s) => s.id);
+    this.nightState = { active: true, employeeUses: Object.fromEntries(this.staff.filter((s) => !s.isOwner).map((s) => [s.id, 2])), playerTalks: {}, proactive: [], proactiveQueue: [], proactiveCandidates, proactiveReadyQueue: [], proactiveReadyStaff: null, proactiveInFlight: null, ownerAtBed: false, ownerAtBedConfirmed: false, dawn: null };
+    this.campaign.phase = 'night';
+    for (const id of proactiveCandidates) { const staff = this.staff.find((s) => s.id === id); const owner = this.staff.find((s) => s.isOwner); if (staff && owner) staff.nightProactiveApproach = true; }
+    return this.nightState;
+  }
+
+  useNightInteraction(staffId, kind = 'scene', targetId = '') {
+    if (!this.nightState.active) this.beginNight();
+    const staff = this.staff.find((s) => s.id === staffId && !s.isOwner);
+    if (!staff || (this.nightState.employeeUses[staffId] || 0) <= 0) return false;
+    if (kind === 'chat') {
+      const target = this.staff.find((s) => s.id === targetId && s.id !== staffId);
+      if (!target || (this.nightState.employeeUses[target.id] || 0) <= 0) return false;
+      this.nightState.employeeUses[staffId]--; this.nightState.employeeUses[target.id]--;
+      this.addRel(staff.id, target.id, 2);
+    } else {
+      this.nightState.employeeUses[staffId]--;
+      staff.needs.stress = clamp(staff.needs.stress - 5, 0, 100);
+      staff.needs.morale = clamp(staff.needs.morale + 2, 0, 100);
+    }
+    return true;
+  }
+
+  nightMateCandidates(staffId) {
+    if (!this.nightState.active || (this.nightState.employeeUses[staffId] || 0) <= 0) return [];
+    return this.staff.filter((s) => !s.isOwner && s.id !== staffId && !s.task && (!s.free || s.free.kind === 'wait') && (this.nightState.employeeUses[s.id] || 0) > 0);
+  }
+
+  talkToOwnerAtNight(staffId) {
+    if (!this.nightState.active || this.nightState.proactive.length >= 3 || this.nightState.proactive.some((row) => (row.id || row) === staffId)) return false;
+    const staff = this.staff.find((s) => s.id === staffId && !s.isOwner);
+    if (!staff) return false;
+    this.nightState.proactive.push({ id: staffId, status: 'done' }); staff.nightProactiveFrozen = false; if (this.nightState.proactiveInFlight?.id === staffId) this.nightState.proactiveInFlight = null; staff.needs.stress = clamp(staff.needs.stress - 8, 0, 100); staff.needs.morale = clamp(staff.needs.morale + 3, 0, 100);
+    return true;
+  }
+
+  queueProactiveInteraction(staffId, decision = 'later') {
+    if (!this.nightState.active || this.nightState.proactive.length >= 3 || this.nightState.proactive.some((row) => (row.id || row) === staffId)) return false;
+    const staff = this.staff.find((s) => s.id === staffId && !s.isOwner);
+    if (!staff) return false;
+    if (decision === 'decline') { this.nightState.proactive.push({ id: staffId, status: 'declined' }); staff.nightProactiveFrozen = false; if (this.nightState.proactiveInFlight?.id === staffId) this.nightState.proactiveInFlight = null; return true; }
+    if (decision === 'later') { this.nightState.proactive.push({ id: staffId, status: 'queued' }); this.nightState.proactiveQueue.push(staffId); staff.nightProactiveFrozen = false; if (this.nightState.proactiveInFlight?.id === staffId) this.nightState.proactiveInFlight = null; return true; }
+    return this.talkToOwnerAtNight(staffId);
+  }
+
+  consumeNightProactiveReady() {
+    if (this.nightState?.proactiveInFlight) return this.nightState.proactiveInFlight.id;
+    const id = this.nightState?.proactiveReadyQueue?.shift() || this.nightState?.proactiveReadyStaff;
+    if (!this.nightState?.active || !id) return null;
+    const staff = this.staff.find((s) => s.id === id);
+    if (staff) { staff.nightProactiveFrozen = true; staff.free = null; staff.path = []; }
+    this.nightState.proactiveInFlight = { id, status: 'opened', openedAt: Date.now() };
+    this.nightState.proactiveReadyStaff = this.nightState.proactiveReadyQueue?.[0] || null;
+    return id;
+  }
+
+  ownerTalkAtNight(staffId) {
+    if (!this.nightState.active || this.nightState.playerTalks[staffId]) return false;
+    if (!this.staff.some((s) => s.id === staffId && !s.isOwner)) return false;
+    this.nightState.playerTalks[staffId] = true;
+    const staff = this.staff.find((s) => s.id === staffId);
+    staff.needs.stress = clamp(staff.needs.stress - 6, 0, 100); staff.needs.morale = clamp(staff.needs.morale + 2, 0, 100);
+    return true;
+  }
+
+  confirmNightBed() {
+    if (!this.nightState.active || !this.nightState.ownerAtBed) return false;
+    this.nightState.ownerAtBedConfirmed = true;
+    return true;
+  }
+
+  processNextProactiveInteraction() {
+    if (!this.nightState.active) return false;
+    const staffId = this.nightState.proactiveQueue.shift();
+    if (!staffId) return false;
+    const row = this.nightState.proactive.find((item) => item.id === staffId && item.status === 'queued');
+    if (!row) return false;
+    row.status = 'done';
+    const staff = this.staff.find((s) => s.id === staffId);
+    if (staff) { staff.needs.stress = clamp(staff.needs.stress - 8, 0, 100); staff.needs.morale = clamp(staff.needs.morale + 3, 0, 100); }
+    return true;
+  }
+
+  processProactiveInteraction(staffId) {
+    if (!this.nightState.active) return false;
+    const idx = this.nightState.proactiveQueue.indexOf(staffId);
+    if (idx < 0) return false;
+    this.nightState.proactiveQueue.splice(idx, 1);
+    const row = this.nightState.proactive.find((item) => item.id === staffId && item.status === 'queued');
+    if (!row) return false;
+    row.status = 'done'; const staff = this.staff.find((s) => s.id === staffId); if (staff) staff.nightProactiveFrozen = false; if (this.nightState.proactiveInFlight?.id === staffId) this.nightState.proactiveInFlight = null;
+    if (staff) { staff.needs.stress = clamp(staff.needs.stress - 8, 0, 100); staff.needs.morale = clamp(staff.needs.morale + 3, 0, 100); }
+    return true;
+  }
+
+  finishNight({ force = true } = {}) {
+    if (!this.nightState.active || this.nightState.finished) return false;
+    if (!force && !this.nightState.ownerAtBedConfirmed) return false;
+    for (const s of this.staff) { s.needs.stamina = 100; s.needs.morale = 100; s.needs.stress = 0; s.needs.hunger = 0; s.task = null; s.path = []; s.free = null; }
+    this.nightState.active = false; this.nightState.ownerAtBed = true;
+    this.nightState.finished = true;
+    this.econ.worldStayState = this.econ.worldStayState?.worldId === this.econ.currentWorldId
+      ? { worldId: this.econ.currentWorldId, days: Math.max(1, Number(this.econ.worldStayState.days) || 1) + 1 }
+      : { worldId: this.econ.currentWorldId, days: 1 };
+    this.econ.day++;
+    this.campaign.phase = 'prepare';
+    this.campaign.firstDayComplete = this.econ.day > 1 || this.campaign.firstDayComplete;
+    this.campaign.tutorialFlags = { ...(this.campaign.tutorialFlags || {}), [`day${this.econ.day - 1}Complete`]: true };
+    this.refreshPool();
+    return true;
+  }
+
   difficultyMods() { return difficultyMods(this.econ); }
 
   guestCapacityHint() { return guestCapacityRange(this.staff); }
@@ -1025,6 +1274,12 @@ export class Sim {
   setDifficulty(id) {
     this.econ.difficulty = DIFFICULTY[id] ? id : 'normal';
     return this.econ.difficulty;
+  }
+
+  canOpenBusinessNow() {
+    if (this.dayActive || this.sealed) return false;
+    if (this.campaign?.mode === 'tutorial' && this.econ.day === 1 && ['prepare', 'ready-open', 'day1-open'].includes(this.campaign.phase) && tutorialMissingFurniture(this).length) return false;
+    return ['prepare', 'ready-open', 'day1-open'].includes(this.campaign?.phase) && !['closing-title', 'closing-assemble', 'report', 'post-report-events', 'meeting', 'night', 'world-transition', 'first-recruitment', 'recruit', 'employee-intro'].includes(this.campaign?.phase);
   }
 
   arrivingGroupCount() {
@@ -1083,7 +1338,7 @@ export class Sim {
   }
 
   unlockedWorlds() {
-    return this.worlds().filter((world) => world.custom || world.unlockStars <= this.stars());
+    return this.worlds().filter((world) => world.custom || (this.campaign.mode === 'legacy' ? world.unlockStars <= this.stars() : worldUnlockDay(world.id) <= this.econ.day));
   }
 
   requestWorldSwitch(id) {
@@ -1108,6 +1363,7 @@ export class Sim {
     if (!world) { this.toast('航路失效，旅店保持在当前世界'); return null; }
     this.econ.currentWorldId = world.id;
     this.econ.worldVisits[world.id] = (this.econ.worldVisits[world.id] || 0) + 1;
+    this.econ.worldStayState = { worldId: world.id, days: 1 };
     this.toast(`${world.icon} 旅店已抵达${world.name}：${world.tagline || world.identity.summary}`);
     return world;
   }
@@ -1138,10 +1394,10 @@ export class Sim {
     return String(template).replaceAll('{address}', address).replaceAll('{self}', selfReference);
   }
 
-  recordWorldOutcome(g, score, revenue, reviewed = true) {
+  recordWorldOutcome(g, score, revenue, reviewed = true, servedMembers = null) {
     const counts = {};
     if (this.dayReport) this.dayReport.worldGuests ||= {};
-    for (const member of g.members || []) {
+    for (const member of servedMembers || g.members || []) {
       const id = member.originWorldId || g.originWorldId || WORLD_PROFILES[0].id;
       counts[id] = (counts[id] || 0) + 1;
     }
@@ -1255,12 +1511,28 @@ export class Sim {
   /** 员工上限：店主不占床位，伙计 1 人 1 间卧室（休息室）——没空房就不能再招 */
   maxStaff()         {
     const lounges = this.tavern.rooms.filter((r) => r.kind === 'lounge').length;
-    return 1 + lounges;
+    return Math.min(12, 1 + lounges);
+  }
+
+  meetingSeatCapacity() {
+    return this.tavern.meetingTables().reduce((sum, table) => sum + this.tavern.meetingSeats(table).length, 0);
+  }
+
+  assembleMeetingSeats() {
+    const seats = this.tavern.meetingTables().flatMap((table) => this.tavern.meetingSeats(table).map((seat) => ({ ...seat, tableId: table.id })));
+    const people = this.staff.slice(0, seats.length);
+    this.campaign.closingSeatAssignments = Object.fromEntries(people.map((person, index) => [person.id, seats[index]]));
+    this.campaign.closingAssembled = false;
+    people.forEach((person, index) => { const seat = seats[index]; person.meetingSeatId = `${seat.tableId}:${seat.x}:${seat.y}`; person.meetingSeat = seat; person.meetingAssemblyPath = this.tavern.path(Math.round(person.x), Math.round(person.y), seat.x, seat.y) || []; person.path = [...person.meetingAssemblyPath]; person.pose = 'walk'; });
+    if (this.campaign.mode === 'legacy') this.campaign.closingAssembled = true;
+    return this.campaign.closingAssembled;
   }
 
   hire(poolId        )          {
     const s = this.candById(poolId);
     if (!s) return false;
+    if (this.campaign.mode === 'tutorial' && this.econ.day === 1 && !this.campaign.tutorialFlags?.recruitUnlocked) { this.toast('先看完经营小报并建好员工休息室，招聘才会开放'); return false; }
+    if (this.campaign.mode !== 'legacy' && this.staff.length + 1 > this.meetingSeatCapacity()) { this.toast('会议桌座位不足：请先为新员工准备一把椅子'); return false; }
     if (this.staff.length >= this.maxStaff()) { this.toast(`没有空卧室了（员工上限 ${this.maxStaff()}）：再建一间员工休息室才能继续招募`); this.sounds.push('error'); return false; }
     const fee = s.wage * 3;
     if (this.econ.coins < fee) { this.toast('界币不足，无法支付入职费'); return false; }
@@ -1272,9 +1544,20 @@ export class Sim {
     s.hireDay = this.econ.day;
     s.prio = plannedStaffPriority(s.skills, s.traits);
     this.staff.push(s);
+    if (this.campaign.mode === 'tutorial') {
+      this.campaign.tutorialFlags.firstEmployeeHired = true;
+      this.campaign.phase = 'employee-intro';
+    }
     this.toast(`${s.name}（${s.race}）入职，入职费 ${fee}`);
     const br = this.freeBedroom();
     if (br) { br.occupant = s.id; this.toast(`${s.name}入住了休息室，门牌换成「${s.name}的卧室」`); }
+    return true;
+  }
+
+  confirmEmployeeIntro() {
+    if (this.campaign.mode !== 'tutorial' || this.campaign.phase !== 'employee-intro' || !this.campaign.tutorialFlags?.firstEmployeeHired) return false;
+    this.campaign.tutorialFlags.employeeIntroConfirmed = true;
+    this.campaign.phase = 'meeting';
     return true;
   }
 
@@ -1309,6 +1592,7 @@ export class Sim {
   chatWith(id        , customLine = '')         {
     const s = this.staff.find((x) => x.id === id);
     if (!s || s.isOwner) return '';
+    if (this.nightState?.active) { this.toast('夜间交谈请使用「主动交谈」额度'); return ''; }
     const lv = this.affLevel(s.aff).i;
     const pools = [
       ['……你好。（客气地点头）', '老板？我记得住工作，不用盯着我。', '啊、是店主本人。有事吩咐吗？', '这地方比我上一份工好点。'],
@@ -1352,9 +1636,45 @@ export class Sim {
     return line;
   }
 
+  /** 生产级释放员工工作：解雇/取消时保留已发生的业务副作用，但把订单恢复到可续接阶段。 */
+  releaseStaffWork(staffId, reason = 'fire') {
+    const staff = this.staff.find((person) => person.id === staffId);
+    if (!staff) return false;
+    this.invalidateTasks(`staff-${reason}`);
+    const task = staff.task;
+    if (task) {
+      for (const [stationId, owner] of this.stationOwner) if (owner === task.key) this.stationOwner.delete(stationId);
+      const match = /^cook:(\d+)$/.exec(String(task.key || ''));
+      const order = match ? this.orders.find((row) => row.id === Number(match[1])) : null;
+      if (order) {
+        // 取料后不退原料；重新生成烹饪任务时跳过再次扣料，避免解雇造成库存/收费双扣。
+        order.stage = 'queued'; order.releasedBy = reason; order.cookId = 0; order.passId = 0;
+      }
+      const served = /^serve:(\d+)$/.exec(String(task.key || ''));
+      const servedOrder = served ? this.orders.find((row) => row.id === Number(served[1])) : null;
+      if (servedOrder) {
+        const pass = servedOrder.passId ? this.tavern.furnById(servedOrder.passId) : null;
+        const picked = !!(servedOrder.servicePicked || task.servicePicked);
+        if (picked && pass) pass.plates = (pass.plates || 0) + 1;
+        servedOrder.servicePicked = false;
+        servedOrder.stage = 'ready'; servedOrder.releasedBy = reason;
+      }
+    }
+    staff.task = null; staff.path = []; staff.carry = null; staff.actT = 0; staff.actTotal = 0; staff.note = ''; staff.pose = 'idle';
+    staff.free = null; staff.nightProactiveFrozen = false; staff.nightProactiveApproach = false;
+    return !!task;
+  }
+
   fire(id        )       {
     const s = this.staff.find((x) => x.id === id);
     if (!s || s.isOwner) return;
+    this.releaseStaffWork(id, 'fire');
+    // 立即释放所有夜间交互、路径冻结和任务占用，避免离职员工把任务卡死。
+    this.nightState.proactive = (this.nightState.proactive || []).filter((row) => (row.id || row) !== id);
+    this.nightState.proactiveQueue = (this.nightState.proactiveQueue || []).filter((row) => (row.id || row) !== id);
+    this.nightState.proactiveReadyQueue = (this.nightState.proactiveReadyQueue || []).filter((row) => row !== id);
+    if (this.nightState.proactiveReadyStaff === id || this.nightState.proactiveInFlight?.id === id) this.nightState.proactiveReadyStaff = null, this.nightState.proactiveInFlight = null;
+    delete this.nightState.playerTalks?.[id];
     this.staff = this.staff.filter((x) => x.id !== id);
     for (const r of this.tavern.rooms) if (r.occupant === id) r.occupant = undefined;   // 腾出卧室
     this.econ.coins -= s.wage * 2;
@@ -1477,9 +1797,20 @@ export class Sim {
     this.say(`${s.name}：${th}`);
   }
 
-          tickFreeTime(dt        )       {
+  tickFreeTime(dt        )       {
     for (const s of this.staff) {
       if (s.isOwner) continue;
+      if (this.nightState.active && s.nightProactiveFrozen) { s.free = null; s.path = []; s.pose = 'idle'; continue; }
+      if (this.nightState.active && s.nightProactiveApproach && !this.nightState.proactive.some((row) => row.id === s.id)) {
+        const owner = this.staff.find((x) => x.isOwner);
+        if (owner && Math.hypot(owner.x - s.x, owner.y - s.y) > 1.8) {
+          s.path = this.tavern.path(Math.round(s.x), Math.round(s.y), Math.round(owner.x), Math.round(owner.y)) || [];
+          if (s.path.length) { this.moveActor(s, dt, 1.7); continue; }
+        }
+        s.nightProactiveApproach = false;
+        if (!this.nightState.proactiveReadyQueue.includes(s.id)) this.nightState.proactiveReadyQueue.push(s.id);
+        this.nightState.proactiveReadyStaff = this.nightState.proactiveReadyQueue[0] || null;
+      }
       if (!s.free) this.pickFreeAct(s);
       const f = s.free;
       if (!f) continue;
@@ -1597,11 +1928,33 @@ export class Sim {
         f.midSpoken = true;
         if (this.rng.chance(0.58)) this.speakFreeThought(s, f);
       }
-      if (f.t <= 0) s.free = null;
+      if (f.t <= 0) {
+        if (this.nightState.active && f.nightCost && !f.completed) {
+          this.nightState.employeeUses[s.id] = Math.max(0, (this.nightState.employeeUses[s.id] || 0) - f.nightCost);
+          if (f.kind === 'chat' && f.partner !== undefined) this.nightState.employeeUses[f.partner] = Math.max(0, (this.nightState.employeeUses[f.partner] || 0) - 1);
+          f.completed = true;
+        }
+        s.free = null;
+      }
     }
   }
 
-          pickFreeAct(s       )       {
+  pickFreeAct(s       )       {
+    // 营业中出现持续积压的紧急工作时，空闲员工先保持待命，避免所有人
+    // 同时进入休息动画；下一次任务扫描会把其中至少一人分配给积压项。
+    if (this.dayActive && !s.isOwner && this.workQueue().some((row) => !row.staff && row.age >= 2)) {
+      s.free = { kind: 'wait', tx: Math.round(s.x), ty: Math.round(s.y), t: 0.5, total: 0.5, urgentHold: true };
+      return;
+    }
+    if (this.nightState.active && !s.isOwner) {
+      const uses = Number(this.nightState.employeeUses[s.id] || 0);
+      if (uses <= 0) {
+        const rest = this.restFurnsFor(s).find((f) => this.tavern.roomOfFurn(f)?.occupant === s.id) || this.restFurnsFor(s)[0];
+        const tile = rest ? this.tavern.standTileNear(this.tavern.useTiles(rest)) : null;
+        s.free = tile ? { kind: 'rest', tx: tile.x, ty: tile.y, t: 999, total: 999, nightSleep: true } : { kind: 'wait', tx: Math.round(s.x), ty: Math.round(s.y), t: 999, total: 999, nightSleep: true };
+        return;
+      }
+    }
     // 串门锁定：我正被别人找来聊天 → 原地等候，不再自己挑事（修双向奔赴死循环）
     const claimed = new Set        ();
     for (const x of this.staff) if (x.free && x.free.kind === 'chat' && x.free.partner !== undefined) claimed.add(x.free.partner);
@@ -1669,7 +2022,7 @@ export class Sim {
         if (t) opts.push({ kind, w, tx: t.x, ty: t.y });
       }
     }
-    const mates = this.staff.filter((x) => x.id !== s.id && !x.isOwner && !claimed.has(x.id) && !(x.free && x.free.kind === 'chat'));
+    const mates = this.nightMateCandidates(s.id).filter((x) => !claimed.has(x.id) && !(x.free && x.free.kind === 'chat'));
     if (mates.length) {
       // 挑聊伴看相性：合得来的优先；话痨/热心肠更主动，寡言的很少开口
       const wts = mates.map((m) => 1 + Math.max(0, this.chemistry(s, m)));
@@ -1688,10 +2041,11 @@ export class Sim {
     let pick = opts[opts.length - 1];
     for (const o of opts) { roll -= o.w; if (roll <= 0) { pick = o; break; } }
     if (!pick) { s.free = null; return; }
+    const nightCost = this.nightState.active && !s.isOwner ? 1 : 0;
     const duration = pick.kind === 'wander' ? 1 : this.rng.range(6, 12);
     s.free = {
       kind: pick.kind, tx: pick.tx, ty: pick.ty, partner: pick.partner,
-      t: duration, total: duration, spoken: 0, chatCd: 0, midSpoken: false,
+      t: duration, total: duration, spoken: 0, chatCd: 0, midSpoken: false, nightCost,
     };
     // 冒出一句心里话：头顶气泡 + 底部信息栏
     if (pick.kind !== 'chat' && this.rng.chance(0.72)) this.speakFreeThought(s, s.free);
@@ -1699,8 +2053,26 @@ export class Sim {
 
   // ---------- 营业日 ----------
   openDay()       {
+    if (this.tavern.rooms.length) {
+      const layoutMode = this.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial');
+      const layoutCheck = validateLayout(this.tavern.serialize(), layoutMode, { operation: 'openDay' });
+      if (!layoutCheck.ok) { this.toast(`无法开业：${layoutCheck.reason}`); return false; }
+    }
+    this.lastStat = null;
+    if (this.campaign.mode === 'tutorial' && this.econ.day === 3 && !this.campaign.tutorialFlags?.worldTravelComplete) {
+      this.econ.pendingWorldSwitch = { worldId: 'magma_ridge', cost: 0, confirmedDay: this.econ.day, tutorial: true };
+      this.campaign.phase = 'world-transition';
+      this.toast('晨间准备：今天第一次免费迁往玄黄大世界');
+      return false;
+    }
+    if (this.campaign.mode === 'tutorial' && this.econ.day === 3 && this.econ.currentWorldId !== 'magma_ridge') {
+      this.econ.currentWorldId = 'magma_ridge';
+      this.econ.worldStayState = { worldId: 'magma_ridge', days: 1 };
+      this.toast('教学航行：首次前往玄黄大世界，本次航行费用由旅店承担');
+    }
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.stars());
     this.dayT = 0;
+    this.tutorialWaveIndex = 0;
     this.aiEventRequested = false;
     this.queuedDynamicEvent = null;
     this.facilityChallenges = [];
@@ -1710,6 +2082,7 @@ export class Sim {
     this.roomUsage = {};
     this.dayActive = true;
     this.running = true;
+    if (this.campaign?.mode === 'legacy' || this.campaign?.phase === 'prepare' || this.campaign?.phase === 'ready-open') this.campaign.phase = 'business';
     this.resetPerkCharges();
     this.econ.revenue = 0; this.econ.served = 0; this.econ.lost = 0;
     this.scores = [];
@@ -1738,8 +2111,11 @@ export class Sim {
     for (const s of this.staff) { s.task = null; s.path = []; s.carry = null; s.free = null; }
     // 事件窗口
     this.eventTimes = [];
-    const evCount = this.rng.chance(0.55) ? 2 : 1;
-    for (let i = 0; i < evCount; i++) this.eventTimes.push(this.rng.range(60, 265));
+    // 教学前三日只演示固定客流链；随机世界事件留到正式经营日开放。
+    if (!(this.campaign.mode === 'tutorial' && this.econ.day <= 3)) {
+      const evCount = this.rng.chance(0.55) ? 2 : 1;
+      for (let i = 0; i < evCount; i++) this.eventTimes.push(this.rng.range(60, 265));
+    }
     this.eventTimes.sort((a, b) => a - b);
     this.toast(`第 ${this.econ.day} 天开门营业`);
   }
@@ -1764,7 +2140,10 @@ export class Sim {
     for (const r of this.tavern.rooms) r.clean = 100;
   }
 
-  closeDay()          {
+  closeBusiness()          {
+    if (this.lastStat && ['closing-title', 'closing-assemble', 'report', 'post-report-events', 'settlement', 'meeting'].includes(this.campaign.phase)) return this.lastStat;
+    const reportToken = `day-${this.econ.day}`;
+    this.campaign.reportState = { token: reportToken, stat: null };
     this.dayActive = false;
     this.running = false;
     // 还在用床/走向床的住宿客转为过夜：留在店里，明早结账
@@ -1777,7 +2156,8 @@ export class Sim {
     for (const s of this.staff) { s.task = null; s.path = []; s.carry = null; s.free = null; }
     this.resetClosingHousekeeping();
     const wages = this.staff.filter((s) => !s.isOwner).reduce((a, s) => a + s.wage, 0);
-    const maintenance = maintenanceCost(this.tavern);
+    const maintenanceDetail = maintenanceBreakdown(this.tavern);
+    const maintenance = maintenanceDetail.total;
     let restock = 0;
     if (this.econ.autoRestock) {
       const plan = restockPlan(this.econ);
@@ -1806,49 +2186,67 @@ export class Sim {
         ownerSkillGrowth[key] = owner.skills[key] - before;
       }
     }
-    // 员工恢复 / 士气
-    for (const s of this.staff) {
-      // 每次打烊视为完成一轮充分休整；次日所有店主与员工都以满体力开工。
-      s.needs.stamina = 100;
-      s.needs.hunger = clamp(s.needs.hunger - 60, 0, 100);
-      s.needs.stress = clamp(s.needs.stress - (s.traits.includes('stubborn') ? 13 : 22) - (s.traits.includes('resilient') ? 8 : 0), 0, 100);
-      const fair = s.isOwner ? 0 : s.wage >= fairWageRange(s).min ? 6 : -7;
-      s.needs.morale = clamp(s.needs.morale + fair - s.needs.stress * 0.08, 0, 100);
-      if (!s.isOwner) {
-        this.adjustOwnerAff(s, 5);
-      }
-      if (s.needs.morale < 18 && !s.isOwner && this.rng.chance(0.35 * (1 - s.aff / 130))) {
-        this.toast(`${s.name}士气过低，提出辞职`);
-        this.staff = this.staff.filter((x) => x.id !== s.id);
-        for (const r of this.tavern.rooms) if (r.occupant === s.id) r.occupant = undefined;   // 腾出卧室
-      }
-    }
-    const coworkers = this.staff.filter((person) => !person.isOwner);
-    for (let i = 0; i < coworkers.length; i++) {
-      for (let j = i + 1; j < coworkers.length; j++) {
+    // closeBusiness 只封存营业并生成日报：不在这里恢复需求、改变亲密度或
+    // 随机辞退员工。所有跨夜恢复和社交副作用必须在夜间玩法/finishNight发生。
+    for (const r of this.tavern.rooms) r.maint = clamp(r.maint - 2, 30, 100);
+    // v10 legacy 存档仍使用原先的自动关系结算；v11 教学档把这类副作用
+    // 留给真实夜间互动，避免日报阶段凭空改变关系或触发离职。
+    if (this.campaign.mode === 'legacy') {
+      for (const s of this.staff) if (!s.isOwner) this.adjustOwnerAff(s, 5);
+      const coworkers = this.staff.filter((person) => !person.isOwner);
+      for (let i = 0; i < coworkers.length; i++) for (let j = i + 1; j < coworkers.length; j++) {
         const cap = this.pairRelCap(coworkers[i], coworkers[j]);
         const key = this.relKey(coworkers[i].id, coworkers[j].id);
         if ((this.rels[key] || 0) > cap) this.rels[key] = cap;
       }
     }
-    for (const r of this.tavern.rooms) r.maint = clamp(r.maint - 2, 30, 100);
-    this.econ.day++;
-    this.refreshPool();
     const scoreBreakdown = {};
     for (const [key, values] of Object.entries(this.scoreParts)) {
       scoreBreakdown[key] = values.length ? values.reduce((a, b) => a + b, 0) / values.length : null;
     }
     const stat          = {
-      day: this.econ.day - 1, revenue: this.econ.revenue, wages, maintenance, restock,
+      day: this.econ.day, revenue: this.econ.revenue, wages, maintenance, maintenanceRooms: maintenanceDetail.rooms, restock,
       served: this.econ.served, lost: this.econ.lost, repDelta, avgScore: avg,
       coinsAfter: this.econ.coins, sealed, creditLine, scoreBreakdown, fiveStarReached, ownerSkillGrowth,
     };
     stat.report = this.finishDayReport(stat);
+    if (this.campaign.mode === 'tutorial' && stat.day === 1 && !this.campaign.firstGrantClaimed) {
+      this.econ.coins += 1000;
+      this.campaign.firstGrantClaimed = true;
+      stat.firstDayGrant = 1000;
+      stat.coinsAfter = this.econ.coins;
+      if (stat.report?.finance) { stat.report.finance.grant = 1000; stat.report.finance.coinsAfter = this.econ.coins; }
+      this.queuePostReportEvent({ id: 'silver-crown-grant', kind: 'grant', text: '银冠王国为旅店重新开业赠予1000界币。' });
+    }
     const starsBeforeCertification = this.stars();
     stat.certification = this.evaluateCertification(stat);
+    if (this.campaign.mode === 'tutorial' && stat.day === 4 && this.stars() < 1) {
+      const goals = [stat.served >= 6, stat.avgScore >= 3, stat.lost <= 1];
+      const tier = goals.filter(Boolean).length;
+      const repBeforeAdjustment = this.econ.rep;
+      if (this.econ.rep < 60) this.econ.rep = 60;
+      stat.certificationAdjustment = { before: repBeforeAdjustment, after: this.econ.rep, delta: this.econ.rep - repBeforeAdjustment, reason: '四日教学保底认证' };
+      if (stat.report?.reputation) {
+        stat.report.reputation.after = this.econ.rep;
+        stat.report.reputation.delta += stat.certificationAdjustment.delta;
+      }
+      stat.certification.achieved = true;
+      stat.certification.level = 1;
+      stat.certification.tutorialGuaranteed = true;
+      stat.certificationBonus = tier >= 3 ? 500 : tier === 2 ? 350 : 200;
+      stat.certification.requirements = stat.certification.requirements.map((row) => {
+        if (row.label === '声望') return { ...row, current: Math.round(this.econ.rep), met: this.econ.rep >= 60 };
+        if (row.label === '单日服务人数') return { ...row, current: stat.served, met: goals[0] };
+        if (row.label === '平均评分') return { ...row, current: Number(stat.avgScore.toFixed(2)), met: goals[1] };
+        if (row.label === '客人流失') return { ...row, current: stat.lost, met: goals[2] };
+        return row;
+      });
+    } else if (this.campaign.mode === 'tutorial' && stat.day === 4) {
+      stat.certificationAdjustment = { before: this.econ.rep, after: this.econ.rep, delta: 0, reason: '四日教学认证已完成' };
+    }
     if (stat.certification.achieved) {
       this.econ.certifiedStars = stat.certification.level;
-      const bonus = certificationBonus(stat.certification.level);
+      const bonus = stat.certificationBonus || certificationBonus(stat.certification.level);
       this.econ.coins += bonus;
       stat.certificationBonus = bonus;
       stat.coinsAfter = this.econ.coins;
@@ -1857,6 +2255,7 @@ export class Sim {
         stat.report.finance.coinsAfter = this.econ.coins;
       }
       this.toast(`★${stat.certification.level} 星经营认证通过！评议会奖金 +${bonus}`);
+      this.queuePostReportEvent({ id: `certification-${stat.day}-${stat.certification.level}`, kind: 'certification', text: `评议会宣布：本日经营达到${stat.certification.level}星认证。` });
       fiveStarReached = !this.endingSeen && this.stars() >= 5;
       if (fiveStarReached) this.endingSeen = true;
       stat.fiveStarReached = fiveStarReached;
@@ -1866,9 +2265,30 @@ export class Sim {
         this.toast(`位面航路接通：${connected.map((world) => world.name).join('、')}`);
       }
     }
+    if (this.econ.contest?.active && this.econ.contest.active.lastMatchDay !== this.econ.day) {
+      this.queuePostReportEvent({ id: `active-contest-${this.econ.day}`, kind: 'active-contest', text: '本日赛事已准备，可以开始比赛。' });
+    }
+    if (stat.fiveStarReached) this.queuePostReportEvent({ id: `five-star-finale-${stat.day}`, kind: 'five-star-finale', text: '五星庆典准备就绪。' });
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.stars());
+    this.campaign.reportState = { stat, token: reportToken };
+    this.campaign.phase = 'closing-title';
+    this.lastStat = stat;
     this.maybeQueueContestInvite();
     this.lastStat = stat;
+    return stat;
+  }
+
+  /** 兼容旧调用方：旧 API 仍表示“结算并进入次日”，新流程请使用 closeBusiness + finishNight。 */
+  closeDay() {
+    const legacyNeeds = new Map(this.staff.map((s) => [s.id, { ...s.needs }]));
+    const stat = this.closeBusiness();
+    this.beginNight();
+    this.finishNight();
+    // 旧调用方保留旧的士气/压力结算，只将体力恢复到满值。
+    for (const s of this.staff) {
+      const before = legacyNeeds.get(s.id);
+      if (before) { s.needs.morale = before.morale; s.needs.hunger = before.hunger; s.needs.stress = before.stress; s.needs.stamina = 100; }
+    }
     return stat;
   }
 
@@ -1883,6 +2303,7 @@ export class Sim {
     const invite = nextContestInvite(this.stars(), this.econ.currentWorldId, contest);
     if (!invite) return null;
     contest.pendingInvite = invite;
+    this.queuePostReportEvent({ id: `contest-invite-${invite.tier}-${invite.worldId}-${this.econ.day}`, kind: 'contest-invite', text: `来自${this.worldById(invite.worldId).name}的大赛邀请已送达。` });
     return invite;
   }
 
@@ -2076,21 +2497,31 @@ export class Sim {
   // ---------- 主循环 ----------
   update(dt        )       {
     if (!this.running) {
+      if (this.campaign.phase === 'closing-assemble' && !this.campaign.closingAssembled) {
+        let seated = 0;
+        for (const s of this.staff) {
+          if (s.path?.length) this.moveActor(s, dt, 1.7);
+          const seat = s.meetingSeat;
+          if (seat && !s.path.length && Math.hypot(s.x - seat.x, s.y - seat.y) < .35) { s.x = seat.x; s.y = seat.y; s.pose = 'sit'; s.dir = seat.dir; seated++; }
+        }
+        this.campaign.closingAssembled = seated === this.staff.length;
+        this.tickAnim(dt); return;
+      }
       this.tickDepartures(dt);
       // 收盘规划期：店主归玩家驱动，伙计们自由行动（研究/休息/调酒/串门聊天）
       if (this.manualOwner) { const o = this.staff.find((x) => x.isOwner); if (o) this.driveOwner(o, dt); }
-      this.tickFreeTime(dt);
+      if (this.nightState?.active || this.campaign?.mode === 'legacy') this.tickFreeTime(dt);
       this.tickAnim(dt); return;
     }
     this.dayT += dt;
     if (!this.pendingEvent && this.challengeEventQueue.length) this.pendingEvent = this.challengeEventQueue.shift();
-    if (!this.pendingEvent && this.queuedDynamicEvent) {
+    if (!this.pendingEvent && this.queuedDynamicEvent && !(this.campaign.mode === 'tutorial' && this.econ.day <= 3)) {
       this.pendingEvent = this.queuedDynamicEvent;
       this.queuedDynamicEvent = null;
       this.fx.push({ ...this.tavern.entrance(), t: 1.2, kind: 'event' });
       this.sounds.push('alert');
     }
-    if (this.dayActive && this.eventTimes.length && this.dayT >= this.eventTimes[0] && !this.pendingEvent) {
+    if (this.dayActive && this.eventTimes.length && this.dayT >= this.eventTimes[0] && !this.pendingEvent && !(this.campaign.mode === 'tutorial' && this.econ.day <= 3)) {
       this.eventTimes.shift();
       this.triggerEvent();
     }
@@ -2125,8 +2556,31 @@ export class Sim {
     return n;
   }
 
-          spawnTick(dt        )       {
+  spawnTick(dt        )       {
     if (!this.dayActive || this.dayT > DAY_LEN - 30) return;
+    if (this.campaign.mode === 'tutorial' && this.econ.day <= 3) {
+      const dayPlans = {
+        1: [{ at: 5, want: 'meal', size: 1, scriptId: 'd1-meal-1' }, { at: 32, want: 'sleep', size: 1, scriptId: 'd1-lodging' }, { at: 62, want: 'meal', size: 2, scriptId: 'd1-taste' }, { at: 94, want: 'meal', size: 1, scriptId: 'd1-loss' }],
+        2: [{ at: 8, want: 'meal', size: 2, scriptId: 'd2-eze-meal' }, { at: 42, want: 'meal', nextWant: 'sleep', size: 1, scriptId: 'd2-local-lodging' }, { at: 76, want: 'meal', size: 2, scriptId: 'd2-local-meal' }],
+        3: [{ at: 8, want: 'meal', size: 1, scriptId: 'd3-wanderer' }, { at: 42, want: 'meal', size: 2, scriptId: 'd3-sect' }, { at: 76, want: 'meal', size: 1, scriptId: 'd3-eze' }],
+      }[this.econ.day] || [];
+      const wave = dayPlans[this.tutorialWaveIndex];
+      const unfinishedTutorialWave = this.groups.some((group) => {
+        if (!group.tutorialScriptId || group.state === 'leaving') return false;
+        // A scripted lodging wave is complete once the guest has reached the
+        // bed; it may remain overnight without blocking the next lesson.
+        if (group.tutorialScriptId.includes('lodging') && group.want === 'sleep' && group.state === 'using') return false;
+        return true;
+      });
+      const bedLossReady = wave?.scriptId !== 'd1-loss' || (this.campaign.tutorialFlags?.bedLessonStarted && !this.campaign.tutorialFlags?.d1LossSpawned && this.dayT >= (this.campaign.tutorialFlags.bedStartT || this.dayT) + 1);
+      const waveTimeReady = wave?.scriptId === 'd1-loss' ? bedLossReady : this.dayT >= wave?.at;
+      if (wave && !unfinishedTutorialWave && this.groups.length < 8 && waveTimeReady) {
+        this.spawnGroup(wave.want, wave.size, wave);
+        if (wave.scriptId === 'd1-loss') this.campaign.tutorialFlags.d1LossSpawned = true;
+        this.tutorialWaveIndex++;
+      }
+      return;
+    }
     const p = phaseOf(this.dayT);
     const base = p === '暖场' ? 22 : p === '上客' ? 13 : p === '低谷' ? 26 : p === '晚高峰' ? 9 : 999;
     const repBoost = 1 - Math.min(0.45, this.econ.rep / 2200);
@@ -2148,9 +2602,12 @@ export class Sim {
   }
           spawnAcc = 0;
 
-  spawnGroup()       {
+  spawnGroup(tutorialWant = '', tutorialSize = 0, tutorialScript = null)       {
     const wants = this.availableWants();
-    if (!wants.length) return;
+    const isTutorialWave = this.campaign.mode === 'tutorial' && !!tutorialWant;
+    // 教学剧本的目标消费不受当前技能/设施菜单降级影响；厨房尚未熟练时
+    // 也必须生成 meal，让教学真正走到“点餐→出餐”而不是静默少一批客。
+    if (!wants.length && !isTutorialWave) return;
     const activeRegulars = new Set(this.groups.map((group) => group.regularId).filter(Boolean));
     const returningPool = this.regulars.filter((profile) => !activeRegulars.has(profile.id) && profile.lastVisitDay < this.econ.day);
     const returning = returningPool.length && this.rng.chance(Math.min(.55, .22 + returningPool.length * .025))
@@ -2160,19 +2617,25 @@ export class Sim {
     let origin;
     if (returning?.originWorldId) origin = this.worldById(returning.originWorldId);
     else {
+      // 新档日常客源固定来自当前驻留世界；legacy 旧档保留旧的多世界
+      // 客流算法，保证旧存档的经营生态不被迁移悄悄改写。
       const host = this.currentWorld();
-      const others = availableWorlds.filter((world) => world.id !== host.id);
-      const roll = this.rng.next();
-      if (roll < .6 || !others.length) origin = host;
-      else if (roll < .9) origin = weightedPick(this.rng, others, (world) => forecast.has(world.id) ? 1.85 : 1);
+      if (this.campaign.mode === 'tutorial') origin = host;
       else {
-        const tide = others.filter((world) => forecast.has(world.id));
-        origin = weightedPick(this.rng, tide.length ? tide : others, () => 1) || host;
+        const others = availableWorlds.filter((world) => world.id !== host.id);
+        const roll = this.rng.next();
+        if (roll < .6 || !others.length) origin = host;
+        else if (roll < .9) origin = weightedPick(this.rng, others, (world) => forecast.has(world.id) ? 1.85 : 1);
+        else {
+          const tide = others.filter((world) => forecast.has(world.id));
+          origin = weightedPick(this.rng, tide.length ? tide : others, () => 1) || host;
+        }
       }
     }
     const crossWorld = !returning && this.stars() >= 5 && availableWorlds.length > 1 && this.rng.chance(.24);
     let secondary = crossWorld ? weightedPick(this.rng, availableWorlds.filter((world) => world.id !== origin.id), (world) => forecast.has(world.id) ? 1.5 : 1) : null;
-    const want = returning?.want && wants.some((item) => item.id === returning.want) && this.rng.chance(.7)
+    const want = isTutorialWave && tutorialWant ? (GUEST_WANTS.find((item) => item.id === tutorialWant) || wants[0])
+      : returning?.want && wants.some((item) => item.id === returning.want) && this.rng.chance(.7)
       ? wants.find((item) => item.id === returning.want)
       : weightedPick(this.rng, wants, (item) => {
         const first = worldWantWeight(origin, item.id, this.econ.day, this.econ.seed);
@@ -2182,7 +2645,7 @@ export class Sim {
     const e = this.tavern.entrance();
     const sizeCap = this.econ.day <= 1 ? 2 : this.econ.day <= 3 ? 3 : 4;
     const groupPattern = weightedPick(this.rng, origin.travel.groupPatterns, (pattern) => pattern.weight);
-    let size = Math.min(sizeCap, groupPattern.min + this.rng.int(groupPattern.max - groupPattern.min + 1));
+    let size = tutorialSize ? tutorialSize : Math.min(sizeCap, groupPattern.min + this.rng.int(groupPattern.max - groupPattern.min + 1));
     if (want.facility) {                       // 设施容量决定这组最多几个人
       const caps = this.facilitiesOf(want).map((f) => this.facilityCap(f));
       const maxCap = caps.length ? Math.max(...caps) : 1;
@@ -2190,6 +2653,9 @@ export class Sim {
       if (secondary && maxCap < 2) secondary = null;
     }
     if (secondary) size = Math.max(2, size);
+    // 教学剧本的同行人数是固定事实；即使当前布局容量不足，也要让玩家
+    // 看到并学习这批完整客群，服务阶段会按真实座位等待。
+    if (this.campaign.mode === 'tutorial' && tutorialScript?.size) size = tutorialScript.size;
     const gid = this.id();
     const members          = [];
     for (let i = 0; i < size; i++) {
@@ -2218,7 +2684,7 @@ export class Sim {
         path: [], seatId: 0, mood: 1, aff: 0, aiChatLog: [],
       });
     }
-    const visitorPool = !returning && origin.id === this.econ.currentWorldId
+    const visitorPool = !isTutorialWave && !returning && origin.id === this.econ.currentWorldId
       ? (origin.notableCharacters || []).filter((character) => character.visitor && !(this.econ.notableVisits || {})[`${origin.id}:${character.name}`]) : [];
     if (visitorPool.length && this.rng.chance(.08)) {
       const visitor = visitorPool[this.rng.int(visitorPool.length)]; const lead = members[0];
@@ -2233,7 +2699,8 @@ export class Sim {
       this.econ.notableVisits ||= {}; this.econ.notableVisits[`${origin.id}:${visitor.name}`] = this.econ.day;
       this.toast(`✦ 稀有访客抵达：${origin.name}的${visitor.name}`);
     }
-    const pool = want.facility ? this.allDishes() : this.makeableDishes(want.drink);
+    const pool = want.facility ? this.allDishes() : (this.makeableDishes(want.drink).length ? this.makeableDishes(want.drink) : (isTutorialWave ? this.allDishes().filter((dish) => dish.drink === !!want.drink) : []));
+    if (!pool.length) return;
     const taste = returning?.taste?.length ? [...returning.taste] : [pool[this.rng.int(pool.length)].id, pool[this.rng.int(pool.length)].id];
     const preferredFlavors = [...new Set([...(origin.hospitality.flavorLikes || []), ...(secondary?.hospitality.flavorLikes || [])])];
     const f1 = returning?.flavors?.[0] || (this.rng.chance(.75) ? preferredFlavors[this.rng.int(preferredFlavors.length)] : FLAVORS[this.rng.int(FLAVORS.length)].id);
@@ -2245,17 +2712,89 @@ export class Sim {
     const hostFestival = this.currentWorldFestival()?.effects || {};
     const hostFactor = (key) => clamp(Number(hostEnvironment[key]) || 1, .85, 1.2) * clamp(Number(hostDailyRule[key]) || 1, .85, 1.2) * clamp(Number(hostFestival[key]) || 1, .85, 1.2);
     const mods = this.difficultyMods();
+    const stayDays = Number(this.econ.worldStayState?.worldId === this.econ.currentWorldId ? this.econ.worldStayState.days : 1);
+    const localPatience = origin.id === this.econ.currentWorldId ? ([1, 1, 1, .85, .70, .55, .40][Math.min(7, Math.max(1, stayDays)) - 1] || .40) : 1;
     const g        = {
       id: gid, members, size, tableId: 0, state: 'wait', want: want.id, greeted: false, seatCd: 0, facId: 0, useT: 0, facT: 0,
       originWorldId: origin.id, worldIds: secondary ? [origin.id, secondary.id] : [origin.id], crossWorld: !!secondary,
       homeRegion: members[0].homeRegion, travelOccupation: members[0].travelOccupation, travelPurpose: members[0].travelPurpose,
       culturalStratum: members[0].culturalStratum, culturalIdentity: members[0].culturalIdentity,
-      maxPatience: Math.round(this.rng.range(78, 135) * worldModifier(origin, 'patience') * hostFactor('patience') * mods.wait), patience: 0,
+      maxPatience: Math.round(this.rng.range(78, 135) * worldModifier(origin, 'patience') * hostFactor('patience') * mods.wait * localPatience), patience: 0,
       budget: Math.round(this.rng.range(30, 120) * worldModifier(origin, 'budget') * hostFactor('budget')),
       hygieneSens: this.rng.range(0.4, 1.5) * worldModifier(origin, 'hygiene') * hostFactor('hygiene') * mods.demand, taste, flavors: [f1, f2], orderId: 0,
       enterT: this.dayT, orderedT: 0, servedT: 0, eatT: 0, leaveReason: '',
       praised: 0, mocked: 0, intCd: 0, regularId: returning?.id || null,
     };
+    if (tutorialScript?.nextWant) g.nextWant = tutorialScript.nextWant;
+    if (tutorialScript?.scriptId) g.tutorialScriptId = tutorialScript.scriptId;
+    if (this.campaign.mode === 'tutorial' && tutorialWant) {
+      // 教学波次是可复现的剧本：身份、职业、预算、口味和耐心都不再
+      // 受随机池影响，玩家每次重开都能学习同一条完整工作链。
+      const tutorialProfiles = {
+        1: ['旅店访客', '旅人', '散客', '耐心的客人'],
+        2: ['艾泽冒险者', '艾泽冒险者', '当地住客'],
+        3: ['散修', '同门', '艾泽异界客'],
+      };
+      const roles = tutorialProfiles[this.econ.day] || [];
+      members.forEach((member, index) => {
+        // visitorPool 的 notable 替换发生在上方；教学客的叙事字段也必须
+        // 完全确定，避免不同 seed 意外混入标志人物背景或关系记录。
+        member.isNotable = false; member.notableRole = ''; member.background = null;
+        member.regularId = null; member.relationshipSummary = ''; member.aiChatLog = [];
+        member.travelOccupation = roles[Math.min(index, roles.length - 1)] || '教学客人';
+        member.culturalIdentity = `教学身份-${this.econ.day}-${this.tutorialWaveIndex}`;
+        member.homeRegion = this.econ.day === 3 ? '玄黄界' : this.currentWorld().name;
+        member.sex = index % 2 ? '女' : '男';
+        member.age = 24 + index * 3;
+        member.race = '人类';
+        member.travelPurpose = tutorialScript?.scriptId?.includes('lodging') ? '寻找一处可靠住处' : '体验多元旅店的第一顿饭';
+        member.socialRegister = '礼貌而直接';
+        member.culturalStratum = tutorialScript?.scriptId?.includes('eze') ? '艾泽冒险者' : '当地普通居民';
+        member.selfReference = '我';
+      });
+      if (tutorialScript?.scriptId === 'd2-local-lodging' || tutorialScript?.scriptId === 'd2-local-meal') {
+        members.forEach((member) => { member.travelOccupation = '当地住客'; member.culturalIdentity = '当地居民'; });
+        g.travelOccupation = '当地住客'; g.culturalIdentity = '当地居民';
+      }
+      if (this.econ.day === 2 && tutorialScript?.scriptId === 'd2-eze-meal') {
+        const eze = this.worldById('hearth_coast');
+        members.forEach((member) => { member.originWorldId = eze.id; member.homeRegion = eze.name; member.travelOccupation = '艾泽冒险者'; });
+        g.originWorldId = eze.id; g.worldIds = [eze.id]; g.homeRegion = eze.name; g.travelOccupation = '艾泽冒险者';
+      }
+      if (this.econ.day === 3 && tutorialScript?.scriptId === 'd3-sect') {
+        members.forEach((member) => { member.travelOccupation = '同门'; member.culturalIdentity = '教学身份-3-2'; });
+        g.travelOccupation = '同门'; g.culturalIdentity = '教学身份-3-2';
+      }
+      // 第三天第三批是明确的艾泽异界客，不走普通当前世界随机客源。
+      if (this.econ.day === 3 && this.tutorialWaveIndex >= 2 && members[0]) {
+        const foreign = this.worldById('hearth_coast');
+        members[0].originWorldId = foreign.id;
+        members[0].homeRegion = foreign.name;
+        members[0].travelOccupation = '艾泽异界客';
+        g.originWorldId = foreign.id;
+        g.worldIds = [foreign.id];
+        g.homeRegion = foreign.name;
+        g.travelOccupation = '艾泽异界客';
+      }
+      g.budget = tutorialScript?.scriptId === 'd1-loss' ? 24 : tutorialScript?.scriptId === 'd2-eze-meal' ? 120 : this.econ.day === 1 ? 72 : this.econ.day === 2 ? 96 : 110;
+      g.maxPatience = this.econ.day === 1 && this.tutorialWaveIndex >= 3 ? 6 : tutorialScript?.scriptId === 'd2-local-lodging' ? 88 : 90;
+      g.patience = g.maxPatience;
+      const fixedTaste = pool.slice(0, 2).map((dish) => dish.id);
+      if (fixedTaste.length) g.taste = [fixedTaste[0], fixedTaste[1] || fixedTaste[0]];
+      g.flavors = this.econ.day === 1 ? ['sweet', 'savory'] : this.econ.day === 2 ? ['spicy', 'fresh'] : ['fresh', 'savory'];
+      g.hygieneSens = 0.8;
+      g.travelPurpose = tutorialScript?.scriptId?.includes('lodging') ? '寻找一处可靠住处' : '体验多元旅店的第一顿饭';
+      g.culturalStratum = tutorialScript?.scriptId?.includes('eze') ? '艾泽冒险者' : '当地普通居民';
+      g.socialRegister = '礼貌而直接';
+    }
+    if (this.campaign.mode === 'tutorial' && this.econ.day === 1 && tutorialScript?.scriptId === 'd1-taste') {
+      g.tutorialTasteChallenge = true;
+      this.toast('口味挑战：这桌客人的偏好已经写在订单上，试着做出更合口味的菜吧');
+    }
+    if (this.campaign.mode === 'tutorial' && this.econ.day === 1 && this.tutorialWaveIndex >= 3) {
+      g.tutorialForcedLoss = true; g.maxPatience = 6; g.patience = 6;
+      this.toast('意外客人到了：先照顾自己，客人的耐心也有尽头');
+    }
     if (returning) {
       returning.visits = Math.max(1, returning.visits || 1) + 1;
       returning.lastVisitDay = this.econ.day;
@@ -2264,6 +2803,7 @@ export class Sim {
     }
     g.patience = g.maxPatience;
     this.groups.push(g);
+    this.invalidateTasks('group-arrival');
     this.guests.push(...members);
     for (const id of g.worldIds) this.discoverWorld(id, 'arrival');
     if (this.dayReport) {
@@ -2456,6 +2996,7 @@ export class Sim {
     }
     if (special && !g.facilityPrepared) {
       g.state = 'facility_prepare';
+      this.invalidateTasks('facility-prepare');
       g.facilityService = { prepared: false, escorted: false, attended: false };
       if (this.dayReport) {
         this.dayReport.facilityService.started++;
@@ -2483,6 +3024,7 @@ export class Sim {
     }
     // 站位比人少时会有人挤在同一格：走到就算到，不强求踩准（见 toFac 的到位判定）
     g.state = 'toFac';
+    this.invalidateTasks('facility-escort');
     g.facT = 0;
     g.members.forEach((m, i) => { m.path = paths[i]; });
     return true;
@@ -2497,6 +3039,7 @@ export class Sim {
     if (!f || g.state === 'using') return false;
     const t = furnDef(f.kind).time;
     g.state = 'using';
+    this.invalidateTasks('facility-using');
     g.useT = t ? t[f.quality - 1] : 22;
     g.facilityService = { ...(g.facilityService || {}), attended: true, attendant: staff?.name || '' };
     g.facilityAttendantSkill = staff ? this.skillOf(staff, this.facilitySkill(g.want)) : 0;
@@ -2523,7 +3066,7 @@ export class Sim {
   }
 
   /** 住店客续摊：消费完一个需求后，接着去下一个（通常是回房睡觉）；返回 true 表示不走了 */
-          advanceWant(g       )          {
+  advanceWant(g       )          {
     if (!g.nextWant) return false;
     g.want = g.nextWant;
     g.nextWant = undefined;
@@ -2533,6 +3076,7 @@ export class Sim {
     g.facilityPrepared = false; g.facilityService = null; g.facilityAttendantSkill = 0; g.challengeRolled = false;
     for (const m of g.members) { if (m.seatId) this.seatOwner.delete(m.seatId); m.seatId = 0; m.path = []; }
     this.toast('住店客消费完，回房休息去了');
+    this.invalidateTasks('want-advanced');
     return true;
   }
 
@@ -2541,7 +3085,7 @@ export class Sim {
     if (g.want === 'sleep' && !g.detourDone) {
       g.detourDone = true;
       // 主要待客房，但店里有酒吧/温泉/台球室时，过半概率先去消费一发
-      if (this.rng.chance(0.55)) {
+      if (!(this.campaign.mode === 'tutorial' && this.econ.day <= 3 && g.tutorialScriptId)) if (this.rng.chance(0.55)) {
         const opts = GUEST_WANTS.filter((w) => w.id !== 'sleep' && this.wantOk(w));
         if (opts.length) {
           const pick = opts[this.rng.int(opts.length)];
@@ -2551,7 +3095,9 @@ export class Sim {
         }
       }
     }
-    return wantById(g.want).facility ? this.tryUseFacility(g) : this.trySelfSeat(g);
+    const placed = wantById(g.want).facility ? this.tryUseFacility(g) : this.trySelfSeat(g);
+    this.invalidateTasks('seating');
+    return placed;
   }
 
   /** 只检查当前是否确有可用座位/设施，不改变客人需求与占用状态。 */
@@ -2623,6 +3169,9 @@ export class Sim {
 
   maybeStartFacilityChallenge(g) {
     if (g.challengeRolled || g.state === 'leaving' || g.overnight) return;
+    // 四日教学只在 Day1 第三批两人餐饮客上演固定口味挑战；
+    // 常规客人挑战不能污染首批餐饮或住宿教学节奏。
+    if (this.campaign.mode === 'tutorial' && this.econ.day <= 3) return;
     g.challengeRolled = true;
     const def = FACILITY_CHALLENGES[g.want];
     if (!def || !this.rng.chance(.2)) return;
@@ -2702,6 +3251,15 @@ export class Sim {
   tickGroups(dt        )       {
     for (const g of [...this.groups]) {
       if (g.state === 'eating') this.maybeStartFacilityChallenge(g);
+      if (g.state === 'eating' && g.tutorialTasteChallenge && !g.tutorialTasteConsumed) {
+        g.tutorialTasteConsumed = true;
+        const card = { id: `tutorial-taste-${g.id}`, title: '固定教学：口味挑战', text: '这桌客人已经说出了自己的口味偏好。选择一道更合口味的菜，看看评价会怎样。', choices: [
+          { label: '按偏好出菜', note: '认真记住客人的口味', skill: 'cook', difficulty: 35, ok: () => '客人满意地点头：这就是我想要的味道。', fail: () => '味道有些偏差，但客人愿意给你一次机会。' },
+          { label: '按自己的招牌菜', note: '相信店里的招牌', skill: 'cook', difficulty: 65, ok: () => '招牌菜意外地赢得了掌声。', fail: () => '客人礼貌地放下了餐具。' },
+        ], tutorialTaste: true, groupId: g.id };
+        if (!this.pendingEvent) this.pendingEvent = card; else this.challengeEventQueue.push(card);
+        this.campaign.tutorialFlags.tasteChallengePresented = true;
+      }
       for (const challenge of this.facilityChallenges.filter((item) => item.groupId === g.id && item.state === 'open')) challenge.age += dt;
       if (g.state === 'wait' && !g.greeted) {
         const arrived = g.members.every((member) => !member.path.length);
@@ -2730,7 +3288,7 @@ export class Sim {
       }
       if (g.state === 'seating') {
         const arrived = g.members.every((m) => m.path.length === 0);
-        if (arrived) { g.state = 'seated'; for (const m of g.members) { const c = this.tavern.furnById(m.seatId); if (c) m.dir = c.dir; m.pose = 'idle'; } }
+        if (arrived) { g.state = 'seated'; for (const m of g.members) { const c = this.tavern.furnById(m.seatId); if (c) m.dir = c.dir; m.pose = 'idle'; } this.invalidateTasks('seated'); }
       }
       if (g.state === 'toFac') {
         const ff = this.tavern.furnById(g.facId);
@@ -2744,7 +3302,7 @@ export class Sim {
           for (const m of g.members) m.path = [];
           const f = this.tavern.furnById(g.facId);
           if (!f) { this.leave(g, ''); continue; }
-          if (SPECIAL_FACILITY_WANTS.has(g.want)) g.state = 'facility_waiting_attend';
+          if (SPECIAL_FACILITY_WANTS.has(g.want)) { g.state = 'facility_waiting_attend'; this.invalidateTasks('facility-waiting'); }
           else this.beginFacilityUse(g);
         }
       }
@@ -2759,7 +3317,7 @@ export class Sim {
       }
       if (g.state === 'eating') {
         g.eatT -= dt;
-        if (g.eatT <= 0) { g.eatT = 0; g.state = 'checkout'; g.checkoutT = this.dayT; }
+        if (g.eatT <= 0) { g.eatT = 0; g.state = 'checkout'; g.checkoutT = this.dayT; this.invalidateTasks('checkout'); }
       }
       if (g.state === 'leaving') {
         this.tickLeavingGroup(g, dt);
@@ -2794,6 +3352,7 @@ export class Sim {
     if (seats.length < g.size) { this.goWaitArea(g); return; }
     g.tableId = table.id;
     g.state = 'seating';
+    this.invalidateTasks('seating-start');
     for (let i = 0; i < g.size; i++) {
       const m = g.members[i];
       const c = seats[i];
@@ -2809,6 +3368,7 @@ export class Sim {
     g.leaveReason = reason;
     g.state = 'leaving';
     g.leaveT = 0;
+    this.invalidateTasks(reason ? 'guest-failed' : 'guest-leaving');
     this.releaseFacility(g);
     if (reason !== '') {
       this.econ.lost++;
@@ -2901,6 +3461,7 @@ export class Sim {
 
   recordScoreParts(parts)       {
     for (const [key, value] of Object.entries(parts)) {
+      if (key === 'quiet' && !this.scoreParts.quiet) this.scoreParts.quiet = [];
       if (Number.isFinite(value) && this.scoreParts[key]) this.scoreParts[key].push(value);
     }
   }
@@ -2931,7 +3492,9 @@ export class Sim {
     const revenue = Math.round(dish.price * this.econ.markup * g.size * parlorPremium);
     this.econ.coins += revenue;
     this.econ.revenue += revenue;
-    this.econ.served += g.size;
+    const servedMembers = (g.members || []).filter((member) => member.servedDay !== this.econ.day);
+    for (const member of servedMembers) member.servedDay = this.econ.day;
+    this.econ.served += servedMembers.length;
     this.recordDaySale('dishSales', dish.id, dish.name, g.size, revenue);
     const beforeMastery = this.dishMastery(dish.id).level;
     this.econ.dishMastery[dish.id] = (this.econ.dishMastery[dish.id] || 0) + g.size;
@@ -2945,23 +3508,25 @@ export class Sim {
       + Math.min(1, g.praised * 0.5) - Math.min(1.5, g.mocked * 0.75)) * worldFit.service, 1, 5);
     const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
     const roomCharm = room ? this.charmIn(room.id) : 0;
-    const comfort = clamp((1.6 + (table ? table.quality : 1) * 0.8 + (room ? room.quality * 0.4 : 0) + roomCharm + (room?.kind === 'parlor' ? .45 : 0)) * worldFit.comfort, 1, 5);
+    const quiet = room?.kind === 'guestroom' ? roomQuietness(this.tavern, room) / 100 : 0;
+    const comfort = clamp((1.6 + (table ? table.quality : 1) * 0.8 + (room ? room.quality * 0.4 : 0) + roomCharm + quiet * 0.8 + (room?.kind === 'parlor' ? .45 : 0)) * worldFit.comfort, 1, 5);
     const spectacle = clamp(1.8 + this.tavern.rooms.length * 0.25 + this.tavern.furns.length * 0.03 + this.charmTotal() * 0.18 + (room?.kind === 'parlor' ? .35 : 0), 1, 5);
     const score = (taste * 1.25 + waitPen * 1.15 + serveScore + hygiene * 1.1 + comfort * 0.85 + spectacle * 0.65) / 6.0;
     this.scores.push(score);
-    this.recordScoreParts({ quality: taste, wait: waitPen, service: serveScore, hygiene, comfort, spectacle });
+    this.recordScoreParts({ quality: taste, wait: waitPen, service: serveScore, hygiene, comfort, ...(room?.kind === 'guestroom' ? { quiet: quiet * 5 } : {}), spectacle });
     if (table) table.dirty = (table.dirty || 0) + g.size;
     if (room) room.clean = clamp(room.clean - g.size * 0.8, 0, 100);
     // 餐桌会留下脏盘；地面污渍按实际用餐人数低概率出现，不再每桌五成概率硬刷。
-    if (this.rng.chance(Math.min(0.32, g.size * 0.09))) this.tavern.addDirt(Math.round(g.members[0].x), Math.round(g.members[0].y));
+    if (this.rng.chance(dirtChanceForRoom(room, Math.min(0.32, g.size * 0.09)))) this.tavern.addDirt(Math.round(g.members[0].x), Math.round(g.members[0].y));
     this.fx.push({ x: table ? table.x : g.members[0].x, y: table ? table.y : g.members[0].y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
     if (score >= 3.6) this.sounds.push('happy');
-    this.showGuestReview(g, score, { quality: taste, wait: waitPen, service: serveScore, hygiene, comfort, spectacle }, dish.name);
-    this.recordWorldOutcome(g, score, revenue, true);
+    this.showGuestReview(g, score, { quality: taste, wait: waitPen, service: serveScore, hygiene, comfort, quiet: quiet * 5, spectacle }, dish.name);
+    this.recordWorldOutcome(g, score, revenue, true, servedMembers);
     this.rememberGuests(g, score);
     if (this.advanceWant(g)) return;   // 住店客：吃完这摊去睡觉
     g.state = 'leaving';
     g.leaveT = 0;
+    this.invalidateTasks('checkout-complete');
     for (const m of g.members) {
       if (m.seatId) this.seatOwner.delete(m.seatId);
       m.seatId = 0;
@@ -2983,7 +3548,9 @@ export class Sim {
     const revenue = Math.round((w.price || 30) * bedMult * this.econ.markup * g.size * (1 + (q - 1) * 0.3));
     this.econ.coins += revenue;
     this.econ.revenue += revenue;
-    this.econ.served += g.size;
+    const servedMembers = (g.members || []).filter((member) => member.servedDay !== this.econ.day);
+    for (const member of servedMembers) member.servedDay = this.econ.day;
+    this.econ.served += servedMembers.length;
     this.recordDaySale('facilitySales', g.want, w.name, g.size, revenue);
     if (this.dayReport && f) {
       const row = this.dayReport.facilityByFurn[f.id] || { count: 0, revenue: 0 };
@@ -2993,7 +3560,8 @@ export class Sim {
     const hygiene = clamp(((room ? room.clean : 60) / 20) * (2 - g.hygieneSens * 0.5), 1, 5);
     const charm = room ? this.charmIn(room.id) : 0;
     const worldFit = this.worldServiceMultipliers(g, room, null);
-    const comfort = clamp((1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm) * worldFit.comfort, 1, 5);
+    const quiet = room?.kind === 'guestroom' ? roomQuietness(this.tavern, room) / 100 : 0;
+    const comfort = clamp((1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm + quiet * 0.8) * worldFit.comfort, 1, 5);
     const facilityService = SPECIAL_FACILITY_WANTS.has(g.want);
     const serviceSkill = facilityService ? (g.facilityAttendantSkill || 0) : this.bestSkill('serve').value;
     const serveScore = clamp((2 + serviceSkill / 34 + (g.greeted ? 0.5 : 0)
@@ -3007,23 +3575,24 @@ export class Sim {
     const waitPen = clamp(3 + (g.patience / g.maxPatience) * 2.4, 1, 5);
     const score = (comfort * 1.5 + hygiene * 1.2 + waitPen + serveScore * 0.8 + spectacle * 0.5) / 5.0;
     this.scores.push(score);
-    this.recordScoreParts({ quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, spectacle });
+    this.recordScoreParts({ quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, ...(room?.kind === 'guestroom' ? { quiet: quiet * 5 } : {}), spectacle });
     if (f) {
       f.dirty = (f.dirty || 0) + 1;                 // 用完要整理，整理前不再接客
       if (facilityService) this.pendingFacilityReset.set(f.id, { wantId: g.want, groupId: g.id });
     }
     if (room) room.clean = clamp(room.clean - g.size * 0.7, 0, 100);
+    this.invalidateTasks('facility-complete');
     const m0 = g.members[0];
     const dx = Math.round(m0.x), dy = Math.round(m0.y);
     // 设施本身仍需要整理，但地面污渍只按使用人数概率产生；低频客房不会凭空变脏。
-    if (this.rng.chance(Math.min(0.28, 0.05 + g.size * 0.06))) {
+    if (this.rng.chance(dirtChanceForRoom(room, Math.min(0.28, 0.05 + g.size * 0.06)))) {
       if (this.tavern.walkable(dx, dy)) this.tavern.addDirt(dx, dy);
       else if (room) { const t = this.tavern.freeTileIn(room, this.rng.int(70)); this.tavern.addDirt(t.x, t.y); }
     }
     this.fx.push({ x: m0.x, y: m0.y, t: 0.8, kind: score >= 3.6 ? 'happy' : 'sad' });
     if (score >= 3.6) this.sounds.push('happy');
-    this.showGuestReview(g, score, { quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, spectacle }, w.name);
-    this.recordWorldOutcome(g, score, revenue, true);
+    this.showGuestReview(g, score, { quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, quiet: quiet * 5, spectacle }, w.name);
+    this.recordWorldOutcome(g, score, revenue, true, servedMembers);
     this.rememberGuests(g, score);
     this.releaseFacility(g);
     if (this.advanceWant(g)) return;   // 住店客：玩完这摊去睡觉
@@ -3248,7 +3817,8 @@ export class Sim {
     // 搬运 40 等于原始默认移速；每高 1 点在原速度上增加 1%，低于 40 同比例降低。
     const carry = Number(a?.skills?.carry);
     const carryMultiplier = Number.isFinite(carry) ? clamp(1 + (carry - 40) * .01, .4, 1.8) : 1;
-    const v = Math.min(speed * carryMultiplier * dt, d);
+    const roomBoost = this.tavern.roomAt(Math.round(a.x), Math.round(a.y))?.kind === 'corridor' ? 1.25 : 1;
+    const v = Math.min(speed * carryMultiplier * roomBoost * dt, d);
     const nx = a.x + (dx / d) * v;
     const ny = a.y + (dy / d) * v;
     if (this.tavern.bodyFree(a.x, a.y, nx, ny, 0.14, false)) {
@@ -3276,7 +3846,8 @@ export class Sim {
   }
 
   staffSpeed(s       )         {
-    let v = 2.5 + s.app.ht * 0.12;
+    const height = Number(s?.app?.ht);
+    let v = 2.5 + (Number.isFinite(height) ? height * 0.12 : 0);
     if (s.traits.includes('lazy')) v *= 0.88;
     if (s.needs.stamina < 30) v *= 0.75;
     return v;
@@ -3322,10 +3893,22 @@ export class Sim {
       s.bubble = { text: '这活有人接了，我换一项', t: 2 };
     }
     this.taskPlanCooldown = Math.max(0, this.taskPlanCooldown - Math.max(0, dt));
+    this.taskSafetyT += Math.max(0, dt);
     const hasAssignableStaff = staffOrder.some((s) => !s.task && s.needs.stamina >= 18 && !(this.manualOwner && s.isOwner));
-    const shouldPlanTasks = hasAssignableStaff && this.taskPlanCooldown <= 0;
-    const open = shouldPlanTasks ? this.buildTasks(claimed) : [];
-    if (shouldPlanTasks) this.taskPlanCooldown = 0.12;
+    const shouldPlanTasks = hasAssignableStaff && this.taskPlanCooldown <= 0 && (this.taskDirty || this.taskSafetyT >= 0.5);
+    let open = [];
+    if (shouldPlanTasks) {
+      const started = globalThis.performance?.now?.() ?? Date.now();
+      const reasons = [...this.taskDirtyReasons];
+      open = this.buildTasks(claimed);
+      const elapsed = (globalThis.performance?.now?.() ?? Date.now()) - started;
+      this.taskDirty = false; this.taskSafetyT = 0; this.taskDirtyReasons.clear();
+      this.taskInstrumentation.rebuilds++;
+      this.taskInstrumentation.rebuildMs += elapsed;
+      this.taskInstrumentation.lastReason = reasons.join(',') || 'safety';
+      for (const reason of reasons.length ? reasons : ['safety']) this.taskInstrumentation.reasons[reason] = (this.taskInstrumentation.reasons[reason] || 0) + 1;
+      this.taskPlanCooldown = 0.02;
+    }
     for (const s of staffOrder) {
       // 需求
       const work = s.task ? 1 : 0.35;
@@ -3340,7 +3923,7 @@ export class Sim {
       if (this.manualOwner && s.isOwner) { this.driveOwner(s, dt); continue; }
       this.tickPerkRestores(s);
       // 疲惫员工先休息再抢下一项工作。前台任务近乎连续，若在 assign() 之后判断会永远轮不到休息。
-      if (!s.task && s.needs.stamina < 28) {
+      if (!s.task && s.needs.stamina < 28 && !open.length) {
         if (this.tryIronLegs(s)) { /* 铁脚：本该回房，改为当场回气 */ }
         else {
           s.path = [];                 // 取消回岗位的待命路径，立即改道去自己的休息室
@@ -3388,10 +3971,12 @@ export class Sim {
 
   /** 玩家直控：逐轴推进，撞墙只挡住那一轴。dt<=0 只改姿态，绝不补步，避免暂停帧把人弹到另一侧。 */
   driveOwner(s, dt) {
-    s.task = null; s.path = [];
     const v = this.manualVec;
     const len = Math.hypot(v.x, v.y);
-    if (len < 0.08) { s.pose = 'idle'; return; }
+    if (len < 0.08) {
+      s.pose = 'idle'; return;
+    }
+    s.task = null; s.path = [];
     if (!(dt > 0) || !Number.isFinite(dt)) { s.pose = 'walk'; return; }
     const safeDt = Math.min(dt, 0.05);
     const R = 0.16;
@@ -3446,35 +4031,78 @@ export class Sim {
     return this.tavern.furns.filter((f) => {
       if (f.kind !== 'bunk' && f.kind !== 'couch') return false;
       const r = this.tavern.roomOfFurn(f);
-      return !!r && r.kind === 'lounge' && (!r.occupant || r.occupant === s.id);
+      return !!r && (r.kind === 'lounge' || (r.kind === 'playerroom' && s.isOwner)) && (!r.occupant || r.occupant === s.id);
     });
   }
 
-          tryRest(s       )       {
+  tryRest(s       , requestedBedId = null)       {
     if (s.path.length) return;
     const usable = this.restFurnsFor(s);
     const bunks = usable.filter((f) => f.kind === 'bunk');
     const spots = bunks.length ? bunks : usable;
     if (!spots.length) return;
-    const c = spots[this.rng.int(spots.length)];
+    const c = requestedBedId ? spots.find((f) => f.id === requestedBedId) : spots[this.rng.int(spots.length)];
+    if (!c) return;
     const onBunk = c.kind === 'bunk';
     const dur = onBunk ? (furnDef('bunk').time            )[c.quality - 1] : 14;
     const stand = this.tavern.standTileNear(this.tavern.useTiles(c));
     if (!stand) return;
+    if (onBunk && this.campaign.mode === 'tutorial' && this.econ.day === 1 && s.isOwner) {
+      this.campaign.tutorialFlags.bedLessonStarted = true;
+      this.campaign.tutorialFlags.bedStartT = this.dayT;
+    }
     s.task = {
-      kind: 'rest', key: 'rest:' + s.id, label: onBunk ? '睡一觉' : '休息', i: 0,
+      kind: 'rest', bedId: c.id, key: 'rest:' + s.id, label: onBunk ? '睡一觉' : '休息', i: 0,
       steps: [
         { tx: stand.x, ty: stand.y },
         {
           dur, label: onBunk ? '睡一觉' : '休息', skill: 'calm', done: () => {
-            s.needs.stamina = clamp(s.needs.stamina + (onBunk ? 85 : 55), 0, 100);
-            s.needs.stress = clamp(s.needs.stress - (onBunk ? 42 : 25), 0, 100);
-            if (onBunk) s.needs.morale = clamp(s.needs.morale + 4, 0, 100);
+            if (onBunk) {
+              if (this.campaign.mode === 'tutorial' && this.econ.day === 1 && s.isOwner) {
+                this.campaign.tutorialFlags.bedLessonStarted = true;
+                this.campaign.tutorialFlags.bedStartT = this.dayT;
+                this.campaign.tutorialFlags.bedLessonComplete = true;
+              }
+              s.needs.stamina = 100;
+              s.needs.stress = clamp(s.needs.stress - 20, 0, 100);
+            } else {
+              s.needs.stamina = clamp(s.needs.stamina + 55, 0, 100);
+              s.needs.stress = clamp(s.needs.stress - 25, 0, 100);
+            }
             s.bubble = { text: onBunk ? 'Zzz……' : '呼——', t: 2 };
           },
         },
       ],
     };
+  }
+
+  bedFor(staffId) {
+    const staff = this.staff.find((s) => s.id === staffId);
+    if (!staff) return null;
+    return this.restFurnsFor(staff).find((f) => {
+      if (f.kind !== 'bunk') return false;
+      const room = this.tavern.roomOfFurn(f);
+      if (staff.isOwner && this.campaign.mode === 'legacy' && !this.tavern.rooms.some((row) => row.kind === 'playerroom')) return room?.kind === 'lounge';
+      return room?.kind === (staff.isOwner ? 'playerroom' : 'lounge');
+    }) || null;
+  }
+
+  requestBedRest(staffId, bedIdOrOptions = {}, maybeOptions = {}) {
+    const options = typeof bedIdOrOptions === 'number' ? { ...maybeOptions, bedId: bedIdOrOptions } : bedIdOrOptions;
+    const { night = false, bedId = null } = options;
+    const staff = this.staff.find((s) => s.id === staffId);
+    const bed = bedId ? this.restFurnsFor(staff).find((f) => f.id === bedId && f.kind === 'bunk') : this.bedFor(staffId);
+    if (!staff || !bed || (night ? !this.nightState.active : !this.dayActive)) return { ok: false, reason: '床位当前不可用' };
+    if (staff.task || staff.path?.length) return { ok: false, reason: '角色正在执行其他动作' };
+    this.tryRest(staff, bed.id);
+    return staff.task?.kind === 'rest' ? { ok: true, bedId: bed.id, duration: staff.task.steps?.[1]?.dur || 0 } : { ok: false, reason: '床边不可达' };
+  }
+
+  cancelRest(staffId, bedId = null) {
+    const staff = this.staff.find((s) => s.id === staffId);
+    if (!staff || staff.task?.kind !== 'rest' || (bedId && staff.task.bedId !== bedId)) return false;
+    staff.task = null; staff.path = []; staff.actT = 0; staff.actTotal = 0; staff.pose = 'idle';
+    return true;
   }
 
   jobFit(kind        , job     )         {
@@ -3497,6 +4125,10 @@ export class Sim {
   }
 
   dutyFit(kind, staff) {
+    // 新档首日店主是唯一工作人员，不能被创建时的 greeter 岗位
+    // 限制在前台；非直控营业时店主必须能够接手备餐、烹饪、上菜和清洁。
+    // 直控模式仍由 manualOwner 路径完全接管，不会自动抢单。
+    if (staff?.isOwner && !this.manualOwner) return 50;
     if (!staff || staff.dutyMode !== 'manual') return this.jobFit(kind, staff?.job || 'free');
     const duty = DUTY_TASK[kind];
     if (!duty) return this.jobFit(kind, staff.job);
@@ -3731,6 +4363,7 @@ export class Sim {
             if (!dish) { this.leave(g, '菜单上没有能做的菜'); return; }
             const o        = { id: this.id(), groupId: g.id, dishId: dish.id, stage: 'queued', t0: this.dayT, passId: 0, quality: 2, cookId: 0 };
             this.orders.push(o);
+            this.invalidateTasks('order-created');
             g.orderId = o.id;
             g.state = 'ordered';
             g.orderedT = this.dayT;
@@ -3778,11 +4411,11 @@ export class Sim {
         kind: 'serve', key, label: `上菜·${servedDish.name}`, i: 0,
         steps: [
           { tx: p1.x, ty: p1.y },
-          { dur: 1.0, label: '取餐', skill: 'carry', done: () => { passF.plates = Math.max(0, (passF.plates || 0) - 1); } },
+          { dur: 1.0, label: '取餐', skill: 'carry', done: () => { passF.plates = Math.max(0, (passF.plates || 0) - 1); o.servicePicked = true; this.invalidateTasks('service-pick'); } },
           { tx: p2.x, ty: p2.y },
           {
             dur: 1.0, label: '上菜', skill: 'serve', done: () => {
-              o.stage = 'served';
+              o.stage = 'served'; this.invalidateTasks('order-served');
               if (g.state === 'ordered') {
                 g.state = 'eating';
                 g.servedT = this.dayT;
@@ -3812,12 +4445,13 @@ export class Sim {
         kind: 'bus', key, label: '收台', i: 0,
         steps: [
           { tx: p1.x, ty: p1.y },
-          { dur: 1.2, label: '收脏盘', skill: 'carry', done: () => { t.dirty = Math.max(0, (t.dirty || 0) - 2); } },
+          { dur: 1.2, label: '收脏盘', skill: 'carry', done: () => { t.dirty = Math.max(0, (t.dirty || 0) - 2); this.invalidateTasks('dirty-cleared'); } },
           { tx: p2.x, ty: p2.y },
           {
             dur: st, label: '洗涤', skill: 'clean', done: () => {
               const room = this.tavern.roomOfFurn(sink);
               if (room) room.clean = clamp(room.clean + 3, 0, 100);
+              this.invalidateTasks('clean-complete');
             },
           },
         ],
@@ -3914,7 +4548,7 @@ export class Sim {
     if (!line) return null;
     const { shelf, prep, stove, passF, stoveRoom, sShelf, sPrep, sStove, sPass } = line;
     // 库存检查
-    for (const k of ING_KEYS) {
+    if (!o.ingredientsConsumed) for (const k of ING_KEYS) {
       const need = dish.ing[k] || 0;
       if (need > 0 && this.econ.stock[k] < need) return null;
     }
@@ -3922,20 +4556,21 @@ export class Sim {
       { tx: sShelf.x, ty: sShelf.y },
       {
         dur: 1.6, label: '取料', skill: 'carry', done: () => {
-          for (const k of ING_KEYS) {
+          if (!o.ingredientsConsumed) for (const k of ING_KEYS) {
             const need = dish.ing[k] || 0;
             if (need) {
               this.econ.stock[k] = Math.max(0, this.econ.stock[k] - need);
               if (this.dayReport) this.dayReport.stockUsed[k] = (this.dayReport.stockUsed[k] || 0) + need;
             }
           }
+          o.ingredientsConsumed = true;
           o.stage = 'carry';
         },
       },
     ];
     if (prep && sPrep) {
       steps.push({ tx: sPrep.x, ty: sPrep.y });
-      steps.push({ dur: (furnDef('prep').time            )[prep.quality - 1], label: '备餐', skill: 'cook', done: () => { o.stage = 'prep'; } });
+          steps.push({ dur: (furnDef('prep').time            )[prep.quality - 1], label: '备餐', skill: 'cook', done: () => { o.stage = 'prep'; this.invalidateTasks('order-prep'); } });
     }
     const cookSkill           = dish.drink ? 'mix' : 'cook';
     steps.push({ tx: sStove.x, ty: sStove.y });
@@ -3943,7 +4578,7 @@ export class Sim {
       dur: (furnDef(dish.drink ? 'keg' : 'stove').time            )[stove.quality - 1] * (0.8 + dish.skill / 160) * (dish.fun && dish.fun.includes('huge') ? 1.3 : 1) * (dish.drink && stoveRoom.kind === 'bar' ? 0.8 : 1),
       label: dish.drink ? '调酒' : '烹饪', skill: cookSkill,
       done: (s       ) => {
-        o.stage = 'cook';
+        o.stage = 'cook'; this.invalidateTasks('order-cook');
         o.cookId = s.id;
         this.sounds.push('sizzle');
         // 出品质量 = 技能 + 设备品质 + 菜品难度惩罚
@@ -3955,7 +4590,7 @@ export class Sim {
         // 整蛊料理：出品质量大幅随机，客人反应两极
         if (dish.fun && dish.fun.includes('prank')) o.quality = clamp(o.quality * this.rng.range(0.7, 1.35), 1, 5);
         if (dish.drink) {
-          o.stage = 'ready'; o.passId = stove.id;
+          o.stage = 'ready'; o.passId = stove.id; this.invalidateTasks('order-ready');
           stove.plates = (stove.plates || 0) + 1;
           this.fx.push({ x: stove.x, y: stove.y, t: 0.5, kind: 'steam' });
         }
@@ -3965,7 +4600,7 @@ export class Sim {
       steps.push({ tx: sPass.x, ty: sPass.y });
       steps.push({
         dur: 0.8, label: '出餐', skill: 'carry', done: () => {
-          o.stage = 'ready'; o.passId = passF.id;
+          o.stage = 'ready'; o.passId = passF.id; this.invalidateTasks('order-ready');
           passF.plates = (passF.plates || 0) + 1;
           this.fx.push({ x: passF.x, y: passF.y, t: 0.5, kind: 'steam' });
         },
@@ -3982,6 +4617,11 @@ export class Sim {
     let avail = this.makeableDishes(w.drink).filter((d) => d.price * this.econ.markup <= g.budget * 1.6);
     // 想喝酒但酒都超预算/断货时，退一步看看另一类，实在没有才离店
     if (!avail.length) avail = this.makeableDishes(!w.drink).filter((d) => d.price * this.econ.markup <= g.budget * 1.6);
+    // 教学餐是固定剧本：即使店主厨艺只有 1，也提供一份基础菜让
+    // 点单→烹饪→上菜→结账可以真实完成，而不是因菜单为空离场。
+    if (!avail.length && this.campaign.mode === 'tutorial' && g.tutorialScriptId?.startsWith('d2-')) {
+      avail = this.allDishes().filter((d) => d.drink === !!w.drink).slice(0, 1);
+    }
     if (!avail.length) return null;
     const liked = avail.filter((d) => g.taste.includes(d.id));
     return liked.length ? liked[this.rng.int(liked.length)] : avail[this.rng.int(avail.length)];
@@ -4031,10 +4671,10 @@ export class Sim {
     const t = s.task;
     if (!t) return;
     const step = t.steps[t.i];
-    if (!step) { s.task = null; return; }
+    if (!step) { s.task = null; this.invalidateTasks('task-failed'); return; }
     if (step.tx !== undefined && step.ty !== undefined) {
       const p = this.tavern.path(Math.round(s.x), Math.round(s.y), step.tx, step.ty);
-      if (!p) { s.task = null; s.bubble = { text: '过不去!', t: 2 }; return; }
+          if (!p) { s.task = null; this.invalidateTasks('path-failed'); s.bubble = { text: '过不去!', t: 2 }; return; }
       s.path = p;
       s.pose = s.carry ? 'carry' : 'walk';
     } else if (step.dur !== undefined) {
@@ -4049,13 +4689,13 @@ export class Sim {
     const t = s.task;
     if (!t) return;
     const step = t.steps[t.i];
-    if (!step) { s.task = null; return; }
+    if (!step) { s.task = null; this.invalidateTasks('task-failed'); return; }
     if (step.tx !== undefined) {
       if (s.path.length === 0) {
         const dx = Math.abs(s.x - (step.tx          )), dy = Math.abs(s.y - (step.ty          ));
         if (dx + dy < 0.2) { t.i++; this.beginStep(s); } else {
           const p = this.tavern.path(Math.round(s.x), Math.round(s.y), step.tx          , step.ty          );
-          if (!p) { s.task = null; s.bubble = { text: '无路可走', t: 2 }; return; }
+          if (!p) { s.task = null; this.invalidateTasks('path-failed'); s.bubble = { text: '无路可走', t: 2 }; return; }
           if (!p.length) { t.i++; this.beginStep(s); return; }
           s.path = p;
         }
@@ -4078,7 +4718,7 @@ export class Sim {
         s.bubble = { text: '啊！', t: 1.5 };
       }
       t.i++;
-      if (t.i >= t.steps.length) { this.recordDayWork(s, t); this.tryTidyAfter(s); s.task = null; s.carry = null; s.pose = 'idle'; s.note = ''; }
+      if (t.i >= t.steps.length) { this.recordDayWork(s, t); this.tryTidyAfter(s); s.task = null; s.carry = null; s.pose = 'idle'; s.note = ''; this.invalidateTasks('task-complete'); }
       else this.beginStep(s);
     }
   }
@@ -4265,12 +4905,18 @@ export class Sim {
     for (const guest of this.guests) use(guest, 1);
     for (const staff of this.staff) use(staff, staff.task ? 0.45 : 0.1);
     const traffic = active.reduce((sum, row) => sum + row.amount, 0);
-    if (active.length && this.rng.chance(dt * traffic * 0.0018)) {
+    // 先按真实活动量选出房间，再应用该房间的污渍系数。这样走廊不会
+    // 先按普通房概率抽中、再在落点阶段才“补救”概率，保证生产路径
+    // 与房间类型绑定（走廊 25%，普通房 100%）。
+    if (active.length) {
       let roll = this.rng.next() * traffic;
-      let room = active[active.length - 1].room;
-      for (const row of active) { roll -= row.amount; if (roll <= 0) { room = row.room; break; } }
-      const t = this.tavern.freeTileIn(room, this.rng.int(60));
-      this.tavern.addDirt(t.x, t.y);
+      let selected = active[active.length - 1];
+      for (const row of active) { roll -= row.amount; if (roll <= 0) { selected = row; break; } }
+      const chance = dirtChanceForRoom(selected.room, dt * traffic * 0.0018);
+      if (this.rng.chance(chance)) {
+        const t = this.tavern.freeTileIn(selected.room, this.rng.int(60));
+        this.tavern.addDirt(t.x, t.y);
+      }
     }
     for (const r of this.tavern.rooms) {
       const dirtHere = this.tavern.dirt.filter((d) => d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h).length;
@@ -4361,6 +5007,9 @@ export class Sim {
   }
 
   triggerEvent()       {
+    // 教学前三日的事件只允许脚本明确排入的口味挑战；随机世界/经营事件
+    // 会打断固定工作链，因此即使被旧存档或外部调用触发也直接忽略。
+    if (this.campaign.mode === 'tutorial' && this.econ.day <= 3) return false;
     const commission = this.worldCommission();
     if (this.econ.day >= 2 && this.econ.day % 2 === 0 && !commission.complete && this.lastWorldChainEventDay !== this.econ.day) {
       const stage = commission.stage;
@@ -4529,6 +5178,11 @@ export class Sim {
     });
     const before = snapshot();
     this.pendingEvent = null;
+    if (card.tutorialTaste) {
+      this.campaign.tutorialFlags.tasteChallengeConsumed = true;
+      // 只有第三批固定口味挑战完成后，才把“回床休息”作为下一段教学目标。
+      this.campaign.tutorialFlags.bedPrompt = true;
+    }
     let text = '';
     let success = true;
     if (c.cost && this.econ.coins < c.cost) {
@@ -4611,11 +5265,25 @@ export class Sim {
       eventHistory: this.eventHistory,
       eventChains: this.eventChains,
       regulars: this.regulars,
+      campaign: this.campaign,
+      lastStat: this.lastStat,
+      meetingState: this.meetingState,
+      nightState: this.nightState,
     };
   }
 
   loadState(data                                                                                                                                              )       {
     this.econ = data.econ;
+    this.campaign = data.campaign && typeof data.campaign === 'object' ? { ...this.campaign, ...data.campaign } : { ...this.campaign, firstDayComplete: true, quickStartUnlocked: true };
+    this.lastStat = data.lastStat || this.campaign.reportState?.stat || null;
+    this.meetingState = data.meetingState && typeof data.meetingState === 'object' ? { ...this.meetingState, ...data.meetingState } : { ...this.meetingState };
+    this.nightState = data.nightState && typeof data.nightState === 'object' ? { ...this.nightState, ...data.nightState } : { ...this.nightState };
+    this.nightState.proactiveQueue ||= [];
+    this.nightState.proactiveReadyQueue ||= [];
+    if (this.nightState.proactiveReadyStaff && !this.nightState.proactiveReadyQueue.includes(this.nightState.proactiveReadyStaff)) this.nightState.proactiveReadyQueue.unshift(this.nightState.proactiveReadyStaff);
+    this.nightState.proactiveReadyStaff = this.nightState.proactiveReadyQueue[0] || null;
+    this.nightState.proactiveInFlight ||= null;
+    this.nightState.proactive ||= [];
     this.econ.certifiedStars = clamp(Math.round(Number(this.econ.certifiedStars) || 0), 0, 5);
     this.econ.certificationHistory = Array.isArray(this.econ.certificationHistory) ? this.econ.certificationHistory : [];
     this.econ.customWorlds = Array.isArray(this.econ.customWorlds) ? this.econ.customWorlds.slice(0, 8).map((world) => normalizeCustomWorld(world, world.id)) : [];
@@ -4712,7 +5380,7 @@ export function newEcon(seed        )       {
     menu: {},
     customDishes: [], dishMastery: {}, aiChronicles: [], aiNightStories: [],
     currentWorldId: 'hearth_coast', pendingWorldSwitch: null, customWorlds: [], archivedWorlds: [], worldVisits: { hearth_coast: 1 }, notableVisits: {},
-    factionRelations: {}, worldSeenLevels: {}, recruitmentSeen: {},
+    factionRelations: {}, worldSeenLevels: {}, recruitmentSeen: {}, worldStayState: { worldId: 'hearth_coast', days: 1 },
     worldKnowledge: blankWorldKnowledge(), worldForecast: worldForecastForDay(seed, 1, 0),
     guestCap: 0, difficulty: 'normal',
     tavernName: '多元便携旅店', tavernBlurb: '一间能开到任何世界门口的便携旅店。',

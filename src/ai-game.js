@@ -29,6 +29,11 @@ const WORLD_CONTENT_SCHEMA = {
 };
 
 const DEFINITIONS = Object.freeze({
+  meeting: {
+    schema: { lines: [{ id: '必须是 facts.cards 中已有的议题 ID', line: '绑定该议题的员工发言，20-180 个汉字' }] },
+    rules: ['只能返回 facts.cards 中已有的 id；只能润色 line，不能新增议题、修改 effect、AP、金币、声望或任何机械数值。', '每条 line 必须符合对应议题和员工态度，失败时由本地固定台词接管。'],
+    temperature: 0.72, maxTokens: 500,
+  },
   staff_chat: {
     schema: {
       reply: '字符串，员工当面说出的回复，20-140 个汉字',
@@ -382,8 +387,16 @@ export function parseGameAIJSON(text) {
   let source = String(text || '').trim();
   source = source.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
   const start = source.indexOf('{');
-  const end = source.lastIndexOf('}');
-  if (start < 0 || end <= start) throw new Error('AI 没有返回 JSON 对象');
+  if (start < 0) throw new Error('AI 没有返回 JSON 对象');
+  let depth = 0, quoted = false, escaped = false, end = -1;
+  for (let i = start; i < source.length; i++) {
+    const ch = source[i];
+    if (quoted) { if (escaped) escaped = false; else if (ch === '\\') escaped = true; else if (ch === '"') quoted = false; continue; }
+    if (ch === '"') { quoted = true; continue; }
+    if (ch === '{') depth++;
+    else if (ch === '}' && --depth === 0) { end = i; break; }
+  }
+  if (end <= start) throw new Error('AI 没有返回完整 JSON 对象');
   try { return JSON.parse(source.slice(start, end + 1)); } catch (err) { throw new Error('AI 返回的 JSON 无法解析'); }
 }
 
@@ -493,6 +506,10 @@ export function validateGameAIResult(kind, raw, facts = {}) {
   if (kind === 'staff_chat' || kind === 'guest_chat') {
     const allowed = ['neutral', 'happy', 'shy', 'tired', 'serious'];
     return { reply: requiredText(raw.reply, 'reply', 2, 180), emotion: allowed.includes(raw.emotion) ? raw.emotion : 'neutral' };
+  }
+  if (kind === 'meeting') {
+    if (!Array.isArray(raw.lines)) throw new Error('AI 会议返回缺少 lines');
+    return { lines: raw.lines.slice(0, 3).map((row, i) => ({ id: requiredText(row?.id, `lines[${i}].id`, 1, 80), line: requiredText(row?.line, `lines[${i}].line`, 2, 180) })) };
   }
   if (kind === 'tavern_identity') return {
     name: requiredText(raw.name, 'name', 2, 24),
@@ -651,4 +668,13 @@ export async function requestGameAI(kind, facts, options = {}) {
     fetchImpl: options.fetchImpl,
   });
   return validateGameAIResult(kind, parseGameAIJSON(content), facts);
+}
+
+/** UI flows use this boundary when an optional narrative request fails. */
+export async function requestGameAILocalFallback(kind, facts, local, options = {}) {
+  try { return await requestGameAI(kind, facts, options); }
+  catch (error) {
+    const value = typeof local === 'function' ? local(error) : local;
+    return { ...(value || {}), localFallback: true, fallbackReason: error?.message || 'AI unavailable' };
+  }
 }

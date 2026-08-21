@@ -10,6 +10,7 @@ export function tickerDt(tk) {
   if (Number.isFinite(ms) && ms > 0) return Math.min(ms / 1000, 0.05);
   return 1 / 60;
 }
+
 import { FLOOR_VARIANTS, floorVariant, glowPix, lightPoolPix, rugTile, wallDecoPix } from './src/floor.js';
 import { contactShadow, edgeOcclusion, floorLightTint, nightShadeAlpha, tileWarmth, worldLights } from './src/light.js';
 import { hexToNum, mix, PAL, Rng } from './src/pix.js';
@@ -18,15 +19,21 @@ import {
 } from './src/data.js';
 import { DAY_LEN, applyRecruitmentWorld, makeStaff, newEcon, Sim, worldIngredientPrice } from './src/sim.js';
 import { canPersistSim } from './src/save-policy.js';
-import { bedDisplayPlacement, bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern } from './src/world.js';
+import { bedDisplayPlacement, bpById, dirDelta,            furnFootprint, rotateRoomPoint,            Tavern, validateCandidateOrError } from './src/world.js';
 import {               UI } from './src/ui.js';
 import { TitleScreen, validGameSave } from './src/title.js';
 import { createSkyPlan, skyBandColor } from './src/sky.js';
 import { resetPlayerProfile, savePlayerProfile } from './src/player-profile.js';
 import { clampZoom, usableViewport } from './src/camera.js';
 import { applyStartLayout, emptyLayoutRefund } from './src/start-layouts.js';
-import { parseAndMigrateGameSave, SAVE_SCHEMA_VERSION, stringifyGameSave } from './src/save-schema.js';
+import { parseAndMigrateGameSave, SAVE_SCHEMA_VERSION, stringifyGameSave, legacyLayoutSeal, verifyLegacyLayoutSeal } from './src/save-schema.js';
 import { allBgmTracks, bgmManifest, bgmSettingsGroups, bgmTrackById, resolveWorldBgm } from './src/world-bgm.js';
+import { applyTutorialFurniturePlaced, applyTutorialRoomPlaced, syncTutorialFurniturePhase, tutorialFurnitureRoomSelection, tutorialMissingFurniture } from './src/tutorial-actions.js';
+import { advanceClosingPhase, resumeClosingPhase } from './src/closing-controller.js';
+import { runDawnTransition } from './src/dawn-controller.js';
+import { advancePendingNightBed } from './src/night-bed-controller.js';
+import { parseValidateSave as parseValidateSaveInput } from './src/save-validation.js';
+import { pixelWorldVisible as pixelVisible, worldPointVisible as gridVisible } from './src/render-visibility.js';
 
 const SAVE_KEY = 'wjbdy.save.v1';
 const MORNING_KEY = 'wjbdy.morning.v1';
@@ -483,7 +490,7 @@ class Audio2 {
 }
 
 // ---------- 游戏 ----------
-class Game                    {
+export class Game                    {
   app                   ;
   world = new PIXI.Container();
   floorLayer = new PIXI.Container();
@@ -515,6 +522,8 @@ class Game                    {
   worldBackgroundMidScale = 1;
   worldBackgroundParticles = [];
   worldTravelActive = false;
+  pendingNightBed = false;
+  tutorialTravelAnimator = null;
   worldTravelSprite = null;
   worldTravelVideo = null;
 
@@ -533,6 +542,8 @@ class Game                    {
   heat = 'off';
   /** 仅供自测读取：本帧热图着色格数 */
   heatCells = 0;
+  perfStats = { renderedActors: 0, culledActors: 0, renderedItems: 0, culledItems: 0, frames: 0, frameMs: 0, frameP95Ms: 0, longFrames: 0 };
+  perfFrameSamples = [];
   buildBp                = null;
   buildFurn                = null;
   buildQuality = 1;
@@ -563,7 +574,7 @@ class Game                    {
           lastW = 0;
           lastH = 0;
 
-  get blocked()          { return this.titleActive || this.creatorPending || this.worldTravelActive || !!(this.ui && this.ui.modal); }
+  get blocked()          { return this.titleActive || this.creatorPending || this.worldTravelActive || !!(this.ui && this.ui.modal) || !!this.sim?.nightState?.dawn?.active; }
 
   async boot()                {
     document.documentElement.dataset.materialPack = this.materialPack;
@@ -705,6 +716,7 @@ class Game                    {
           tavernName: ownerOptions.tavernName,
           tavernBlurb: ownerOptions.tavernBlurb,
           startLayout: ownerOptions.startLayout,
+          quickStart: ownerOptions.quickStart,
         }, (tavern) => {
           this.newTavern(app, name, sex, { ...ownerOptions, ...tavern });
           this.creatorPending = false;
@@ -718,13 +730,22 @@ class Game                    {
   }
 
   newTavern(app            , name        , sex        , ownerOptions = {})       {
+    const previous = { tavern: this.tavern, sim: this.sim, ownerName: this.ownerName, cam: this.cam, selection: this.selection, history: this.buildHistory, historyIndex: this.buildHistoryIndex };
+    try {
     this.tavern = new Tavern();
     this.sim = new Sim(this.tavern, newEcon(Math.floor(Math.random() * 1e9)));
     this.ownerName = name;
     this.sim.econ.tavernName = String(ownerOptions.tavernName || '多元便携旅店').trim().slice(0, 24) || '多元便携旅店';
     this.sim.econ.tavernBlurb = String(ownerOptions.tavernBlurb || '').trim().slice(0, 240);
     const t = this.tavern;
-    const layout = applyStartLayout(t, ownerOptions.startLayout || 'classic');
+    // 新档固定从玩家休息室开始；旧入口参数仅保留给兼容调用方。
+    const quickStart = !!ownerOptions.quickStart;
+    const layout = applyStartLayout(t, quickStart ? 'quick-start' : 'playerroom');
+    this.sim.econ.coins = quickStart ? 1320 : 3200;
+    this.sim.econ.day = quickStart ? 2 : 1;
+    this.sim.campaign = quickStart
+      ? { mode: 'tutorial', phase: 'prepare', chapter: 2, firstDayComplete: true, quickStartUnlocked: true, tutorialFlags: { quickStart: true }, postReportEvents: [], firstGrantClaimed: true }
+      : { mode: 'tutorial', phase: 'tutorial-build', chapter: 1, firstDayComplete: false, quickStartUnlocked: false, tutorialFlags: {}, postReportEvents: [], firstGrantClaimed: false };
     if (layout.refund) {
       const refund = emptyLayoutRefund();
       this.sim.econ.coins += refund;
@@ -733,20 +754,12 @@ class Game                    {
     const owner = makeStaff(this.sim.rng, this.sim.id(), true, app, name, ownerOptions);
     owner.sex = sex;
     savePlayerProfile(ownerOptions.profile || {}, this.currentSlot);
-    const e = t.entrance();
+    // 玩家出生在不可拆卸的私人休息室；公共入口专供客人和候选员工使用。
+    const ownerRoom = t.rooms.find((r) => r.kind === 'playerroom') || t.rooms.find((r) => r.kind === 'foyer');
+    const e = ownerRoom ? { x: ownerRoom.x + Math.floor(ownerRoom.w / 2), y: ownerRoom.y } : t.entrance();
     owner.x = e.x; owner.y = e.y + 1;
     owner.job = 'free';
     this.sim.staff.push(owner);
-    // 前台必须有人值守：开局送一名前台伙计（不收入职费）
-    const host = this.sim.currentWorld();
-    const clerk = makeStaff(this.sim.rng, this.sim.id(), false, undefined, undefined, { world: host });
-    applyRecruitmentWorld(clerk, host, this.sim.rng);
-    clerk.job = 'front';
-    clerk.x = e.x - 1; clerk.y = e.y + 2;
-    this.sim.staff.push(clerk);
-    // 开局伙计分到左边那间休息室（卧室 1 室 1 人，门上挂名）
-    const leftLounge = t.rooms.filter((r) => r.kind === 'lounge').sort((a, b) => a.x - b.x)[0];
-    if (leftLounge) leftLounge.occupant = clerk.id;
     this.sim.refreshPool();
     this.sim.manualOwner = this.manualPref();
     this.sim.toast(`${name}接过了钥匙：${this.sim.econ.tavernName}，开张了。`);
@@ -759,6 +772,10 @@ class Game                    {
     this.save();
     this.playStageMusic('close');
     this.ui.startTutorial(true);
+    } catch (error) {
+      this.tavern = previous.tavern; this.sim = previous.sim; this.ownerName = previous.ownerName; this.cam = previous.cam; this.selection = previous.selection; this.buildHistory = previous.history; this.buildHistoryIndex = previous.historyIndex;
+      throw error;
+    }
   }
 
   // ---------- 存档 ----------
@@ -777,11 +794,11 @@ class Game                    {
     for (let slot = 1; slot <= SAVE_SLOT_COUNT; slot++) {
       const raw = localStorage.getItem(saveKeyFor(slot));
       let data = null;
-      try { data = raw ? parseAndMigrateGameSave(raw) : null; } catch (e) { /* invalid */ }
+      try { data = raw ? this.parseValidateSave(raw).data : null; } catch (e) { /* invalid */ }
       const valid = !!data;
       out.push({
         slot, valid,
-        hasBackup: (() => { try { parseAndMigrateGameSave(localStorage.getItem(backupKeyFor(slot))); return true; } catch (error) { return false; } })(),
+        hasBackup: (() => { try { this.parseValidateSave(localStorage.getItem(backupKeyFor(slot))); return true; } catch (error) { return false; } })(),
         ownerName: valid ? (data.ownerName || '店主') : '',
         day: valid ? (data.sim?.econ?.day || 1) : 0,
         coins: valid ? Math.round(data.sim?.econ?.coins || 0) : 0,
@@ -801,9 +818,11 @@ class Game                    {
       tavern: this.tavern.serialize(), sim: this.sim.serialize(), ownerName: this.ownerName, cam: this.cam, zoom: this.zoom,
       meta: { version: SAVE_SCHEMA_VERSION, slot, savedAt: Date.now(), manual: !!manual },
     };
+    if (this.tavern.legacy && this.sim.campaign?.mode === 'legacy') data.meta.legacySeal = legacyLayoutSeal(data.tavern);
+    try { this.parseValidateSave(data); } catch (e) { this.sim.toast(`存档校验失败：${e.message}`); return false; }
     try {
       const old = localStorage.getItem(saveKeyFor(slot));
-      if (old) { try { parseAndMigrateGameSave(old); localStorage.setItem(backupKeyFor(slot), old); } catch (error) { /* 不用坏档覆盖备份 */ } }
+      if (old) { try { const validOld = this.parseValidateSave(old); localStorage.setItem(backupKeyFor(slot), stringifyGameSave(validOld.data)); } catch (error) { /* 不用坏档覆盖备份 */ } }
       localStorage.setItem(saveKeyFor(slot), stringifyGameSave(data));
     } catch (e) { return false; }
     return true;
@@ -811,27 +830,28 @@ class Game                    {
 
   saveToSlot(slot        )          {
     if (!canPersistSim(this.sim)) { this.sim.toast('营业中不能主动存档：请先完成今日营业'); this.audio.play('error'); return false; }
-    this.currentSlot = this.normalizeSlot(slot);
-    this.rememberActiveSlot();
-    const ok = this.save(this.currentSlot, true);
-    if (ok) { this.sim.toast(`已主动保存到档位 ${this.currentSlot}`); this.audio.play('chime', 0.7); }
+    const targetSlot = this.normalizeSlot(slot);
+    const ok = this.save(targetSlot, true);
+    if (ok) { this.currentSlot = targetSlot; this.rememberActiveSlot(); this.sim.toast(`已主动保存到档位 ${this.currentSlot}`); this.audio.play('chime', 0.7); }
     return ok;
   }
 
   loadSlot(slot        )          {
     slot = this.normalizeSlot(slot);
     let raw = localStorage.getItem(saveKeyFor(slot));
-    try { parseAndMigrateGameSave(raw); } catch (error) {
+    let validated; let fromBackup = false; const previousMain = localStorage.getItem(saveKeyFor(slot));
+    try { validated = this.parseValidateSave(raw); } catch (error) {
       const backup = localStorage.getItem(backupKeyFor(slot));
       try {
-        parseAndMigrateGameSave(backup);
-        raw = backup;
-        localStorage.setItem(saveKeyFor(slot), backup);
+        validated = this.parseValidateSave(backup);
+        raw = stringifyGameSave(validated.data);
+        fromBackup = true;
+        localStorage.setItem(saveKeyFor(slot), raw);
         this.sim.toast(`档位 ${slot} 主存档损坏，已自动恢复最近备份`);
       } catch (backupError) { this.sim.toast(`档位 ${slot} 没有可读取的存档`); this.audio.play('error'); return false; }
     }
     try {
-      this.loadFrom(raw);
+      this.loadFrom(validated);
       this.currentSlot = slot;
       this.rememberActiveSlot();
       this.creatorPending = false;
@@ -842,7 +862,7 @@ class Game                    {
       this.ui.render(true);
       this.ui.resumeTutorial();
       return true;
-    } catch (e) { this.sim.toast(`档位 ${slot} 读取失败`); this.audio.play('error'); return false; }
+    } catch (e) { if (fromBackup) { try { if (previousMain == null) localStorage.removeItem(saveKeyFor(slot)); else localStorage.setItem(saveKeyFor(slot), previousMain); } catch (_) { /* 保持运行态 */ } } this.sim.toast(`档位 ${slot} 读取失败`); this.audio.play('error'); return false; }
   }
 
   saveMorning()       {
@@ -855,7 +875,7 @@ class Game                    {
     slot = this.normalizeSlot(slot);
     const raw = localStorage.getItem(saveKeyFor(slot));
     let data;
-    try { data = parseAndMigrateGameSave(raw); } catch (error) { this.sim.toast(`档位 ${slot} 无法导出：${error.message}`); return false; }
+    try { data = this.parseValidateSave(raw).data; } catch (error) { this.sim.toast(`档位 ${slot} 无法导出：${error.message}`); return false; }
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -868,10 +888,10 @@ class Game                    {
   importSaveText(raw, slot = this.currentSlot) {
     slot = this.normalizeSlot(slot);
     try {
-      const data = parseAndMigrateGameSave(raw);
+      const { data } = this.parseValidateSave(raw);
       data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, slot, importedAt: Date.now(), savedAt: Date.now() };
       const current = localStorage.getItem(saveKeyFor(slot));
-      if (current) { try { parseAndMigrateGameSave(current); localStorage.setItem(backupKeyFor(slot), current); } catch (error) { /* ignore */ } }
+      if (current) { try { this.parseValidateSave(current); localStorage.setItem(backupKeyFor(slot), current); } catch (error) { /* ignore */ } }
       localStorage.setItem(saveKeyFor(slot), stringifyGameSave(data));
       this.sim.toast(`已导入并迁移到档位 ${slot}`);
       return true;
@@ -881,10 +901,15 @@ class Game                    {
   restoreBackup(slot = this.currentSlot) {
     slot = this.normalizeSlot(slot);
     const raw = localStorage.getItem(backupKeyFor(slot));
-    try { parseAndMigrateGameSave(raw); } catch (error) { this.sim.toast(`档位 ${slot} 没有可恢复的有效备份`); return false; }
-    localStorage.setItem(saveKeyFor(slot), raw);
+    let validated; try { validated = this.parseValidateSave(raw); } catch (error) { this.sim.toast(`档位 ${slot} 没有可恢复的有效备份`); return false; }
+    try { localStorage.setItem(saveKeyFor(slot), stringifyGameSave(validated.data)); } catch (error) { this.sim.toast(`档位 ${slot} 备份写入失败`); return false; }
     this.sim.toast(`已恢复档位 ${slot} 的最近备份`);
     return true;
+  }
+
+  parseValidateSave(raw) {
+    const result = parseValidateSaveInput(raw);
+    return { data: result.normalizedData, mode: result.trustedMode, sourceVersion: result.sourceVersion, strictLoadedTavern: result.strictLoadedTavern };
   }
 
   playStageMusic(phase, force = false) {
@@ -936,14 +961,22 @@ class Game                    {
   }
 
   loadFrom(json        )       {
-    const data = parseAndMigrateGameSave(json)
+    const previousTavern = this.tavern, previousSim = this.sim, previousOwnerName = this.ownerName;
+    try {
+    let sourceVersion = 0; try { const raw = typeof json === 'string' ? JSON.parse(json) : json; sourceVersion = Number(raw?.meta?.version ?? raw?.version) || 0; } catch { sourceVersion = 0; }
+    const parsed = json?.normalizedData ? json : json?.data ? json : parseValidateSaveInput(json);
+    const data = parsed.normalizedData || parsed.data
                                                                                                                         
                                                                                           
                                                                        
      ;
-    this.tavern = Tavern.load(data.tavern);
+    const trustedMode = parsed.trustedMode || parsed.mode || (data.sim?.campaign?.mode === 'legacy' && verifyLegacyLayoutSeal(data) ? 'legacy' : 'tutorial');
+    this.tavern = parsed.strictLoadedTavern || Tavern.load(data.tavern, { mode: trustedMode, strict: true });
     this.sim = new Sim(this.tavern, data.sim.econ);
+    data.sim.campaign = { ...(data.sim.campaign || {}), mode: trustedMode };
+    this.tavern.legacy = trustedMode === 'legacy';
     this.sim.loadState(data.sim);
+    this.resumeCampaignPhase();
     for (const st of this.sim.staff) st.app = normalizeApp(st.app);   // 旧存档的外观字段夹到新模型范围
     for (const st of this.sim.pool) st.app = normalizeApp(st.app);
     for (const ad of this.sim.ads) for (const c of ad.cands) c.app = normalizeApp(c.app);
@@ -956,6 +989,23 @@ class Game                    {
     this.buildBp = null; this.buildFurn = null; this.moveRoomId = null; this.moveFurnId = null;
     this.clearPlacementConfirmation();
     this.resetBuildHistory('读取存档');
+    } catch (error) {
+      this.tavern = previousTavern; this.sim = previousSim; this.ownerName = previousOwnerName;
+      throw error;
+    }
+  }
+
+  resumeCampaignPhase() {
+    const phase = this.sim.campaign?.phase;
+    if (this.sim.nightState?.dawn?.active) {
+      runDawnTransition(this.sim, { onStage: (stage) => this.ui.showDawnTransition?.(stage), animate: (done) => window.requestAnimationFrame(done), onComplete: () => { if (this.sim.finishNight({ force: false })) { this.save(); this.ui.hideDawnTransition?.(); this.ui.render(true); } } });
+      return 'dawn';
+    }
+    if (phase === 'report' && this.sim.lastStat) this.ui.openSettlement(this.sim.lastStat);
+    else if (phase === 'post-report-events') this.ui.afterSettlementClose();
+    else if (phase === 'meeting') this.ui.openMeeting(this.sim.econ.day === 1);
+    else if (phase === 'closing-title' || phase === 'closing-assemble') { this.closingState = { t: 0 }; resumeClosingPhase(this.sim); this.ui.render(true); }
+    return phase;
   }
 
   newGame(slot = this.currentSlot)       {
@@ -1054,6 +1104,7 @@ class Game                    {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       this.keys.add(e.key.toLowerCase());
       const k = e.key.toLowerCase();
+      if (this.sim.nightState?.dawn?.active) { e.preventDefault(); this.keys.clear(); this.sim.manualVec.x = 0; this.sim.manualVec.y = 0; return; }
       if (k === ' ') { this.setPaused(!this.paused); e.preventDefault(); }
       else if (k === '1') this.setSpeed(1);
       else if (k === '2') this.setSpeed(2);
@@ -1063,7 +1114,12 @@ class Game                    {
         if (this.buildBp || this.buildFurn || this.moveFurnId !== null) this.rotateBuild();
         else if (this.selection && this.selection.kind === 'furn') this.rotateFurn(this.selection.id);
       }
-      else if (k === 'escape') { this.cancelBuild(); this.selection = null; this.ui.closeModal(); }
+      else if (k === 'escape') {
+        // 会议是日报后的必经经营阶段：主会议 modal 不提供 X/ESC 旁路，
+        // 只能使用“提前散会”确认或返回会议专用按钮。
+        if (this.sim.campaign?.phase === 'meeting' && this.ui.modal) { this.sim.toast('请在会议中选择议题，或使用“结束会议”'); e.preventDefault(); return; }
+        this.cancelBuild(); this.selection = null; this.ui.closeModal();
+      }
       else if (k === 'delete' || k === 'backspace') this.deleteSelection();
       else if (k === 'e') this.interactNearby();
       else if (k === 'f' && this.selection) this.focusSelection();
@@ -1105,6 +1161,16 @@ class Game                    {
     });
   }
 
+  worldPointVisible(x, y, margin = 3) {
+    const view = this.renderViewport || this.mapViewportRect();
+    return gridVisible(x, y, { ...view, centerX: this.cam.x, centerY: this.cam.y }, this.zoom, T, margin);
+  }
+
+  pixelWorldVisible(px, py, margin = 3) {
+    const view = this.renderViewport || this.mapViewportRect();
+    return pixelVisible(px, py, { ...view, centerX: this.cam.x, centerY: this.cam.y }, this.zoom, T, margin);
+  }
+
   collapsedPanelNode(side)       {
     if (side === 'left') return this.ui.collapsed.left ? this.ui.railL : this.ui.left;
     return this.ui.collapsed.right ? this.ui.railR : this.ui.right;
@@ -1116,6 +1182,7 @@ class Game                    {
     for (const r of rs) { x0 = Math.min(x0, r.x); y0 = Math.min(y0, r.y); x1 = Math.max(x1, r.x + r.w); y1 = Math.max(y1, r.y + r.h); }
     const wPx = (x1 - x0) * T + padX, hPx = (y1 - y0) * T + padY;
     const view = this.mapViewportRect();
+    this.renderViewport = view;
     this.setZoom(Math.min(maxZoom, view.width / wPx, view.height / hPx));
     this.cam = { x: (x0 + x1) / 2, y: (y0 + y1) / 2 - 1 };
   }
@@ -1132,12 +1199,32 @@ class Game                    {
   }
 
   click(x        , y        , right         )       {
+    if (this.sim.nightState?.dawn?.active) return;
     if (right) { this.cancelBuild(); return; }
     if (this.blocked) return;
     if (this.moveRoomId !== null) { this.tryMoveRoom(x, y); return; }
     if (this.moveFurnId !== null) { this.tryMoveFurn(x, y); return; }
     if (this.buildBp) { this.tryBuildRoom(x, y); return; }
     if (this.buildFurn) { this.tryBuildFurn(x, y); return; }
+    // 教学画布在未选中正确 ghost 时只允许当前目标所需的房间选择。
+    // 角色、旧房间和空地图点击不能绕过 exact-next 方法层。
+    const campaign = this.sim.campaign;
+    if (campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && campaign.phase === 'tutorial-build') {
+      this.sim.toast('请先从高亮卡片选择当前教学目标');
+      return;
+    }
+    if (campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && campaign.phase === 'tutorial-furnish') {
+      const next = tutorialMissingFurniture(this.sim)[0];
+      if (!tutorialFurnitureRoomSelection(this.sim, this.tavern, x, y, next, (selection) => { this.selection = selection; })) { this.sim.toast('请点击能容纳当前教学家具的高亮房间'); return; }
+      this.ui.leftTab = 'furn'; this.ui.render(true);
+      return;
+    }
+    if (campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && campaign.phase === 'first-recruitment') {
+      const room = this.tavern.roomAt(x, y);
+      if (!room || room.kind !== 'playerroom') { this.sim.toast('先在玩家休息室的会议桌旁准备座位'); return; }
+      this.selection = { kind: 'room', id: room.id };
+      return;
+    }
     // 选择：角色 > 家具 > 房间
     let bestStaff               = null;
     for (const s of this.sim.staff) if (Math.abs(s.x - x) < 0.75 && Math.abs(s.y - y) < 0.75) bestStaff = s;
@@ -1153,6 +1240,23 @@ class Game                    {
     }
     const f = this.tavern.furnAt(x, y);
     if (f) {
+      if (f.kind === 'bunk' && this.sim.dayActive && this.tavern.roomOfFurn(f)?.kind === 'playerroom') {
+        const owner = this.sim.staff.find((s) => s.isOwner);
+        const stand = this.tavern.standTileNear(this.tavern.useTiles(f));
+        if (owner?.task?.kind === 'rest' && owner.task.bedId === f.id) { this.sim.cancelRest(owner.id, f.id); this.sim.toast('已取消床边休息'); this.ui.render(true); return; }
+        if (owner && stand && Math.hypot(owner.x - stand.x, owner.y - stand.y) > 1.8 && !this.sim.manualOwner) {
+          if (this.sim.campaign?.tutorialFlags?.bedPrompt && owner.task && owner.task.kind !== 'rest') {
+            owner.task = null; owner.actT = 0; owner.actTotal = 0; owner.carry = null;
+            this.sim.invalidateTasks?.('tutorial-bed-lesson');
+          }
+          owner.path = this.tavern.path(Math.round(owner.x), Math.round(owner.y), stand.x, stand.y) || [];
+          owner.pendingBedRest = f.id; this.sim.toast('店主正走向床边休息'); return;
+        }
+        if (owner && stand && Math.hypot(owner.x - stand.x, owner.y - stand.y) <= 1.8) {
+          const result = this.sim.requestBedRest(owner.id, f.id);
+          if (result.ok) { this.sim.toast('开始床边休息'); this.ui.render(true); return; }
+        }
+      }
       this.selection = { kind: 'furn', id: f.id };
       return;
     }
@@ -1183,9 +1287,28 @@ class Game                    {
   }
 
   interactNearby()       {
-    if (this.blocked) return;
+    if (this.blocked || this.sim.nightState?.dawn?.active) return;
     const own = this.sim.staff.find((s) => s.isOwner);
     if (!own) return;
+    if (this.sim.dayActive) {
+      const beds = [this.sim.bedFor(own.id)].filter(Boolean);
+      const bed = beds.sort((a, b) => Math.hypot(own.x - a.x, own.y - a.y) - Math.hypot(own.x - b.x, own.y - b.y))[0];
+      const stand = bed && this.tavern.standTileNear(this.tavern.useTiles(bed));
+      if (bed && stand && Math.hypot(own.x - stand.x, own.y - stand.y) < 1.8) {
+        if (own.task?.kind === 'rest' && own.task.bedId === bed.id) { own.task = null; own.path = []; this.sim.toast('已取消床边休息'); }
+        else this.sim.requestBedRest(own.id, bed.id);
+        return;
+      }
+    }
+    if (!this.sim.dayActive && this.sim.nightState?.active) {
+      const bed = this.sim.bedFor(own.id);
+      const stand = bed && this.tavern.standTileNear(this.tavern.useTiles(bed));
+      if (bed && stand && Math.hypot(own.x - stand.x, own.y - stand.y) >= 1.8 && !this.sim.manualOwner) {
+        own.path = this.tavern.path(Math.round(own.x), Math.round(own.y), stand.x, stand.y) || [];
+        this.pendingNightBed = true; this.sim.toast(this.sim.campaign?.mode === 'legacy' ? '店主正回到员工休息室床边' : '店主正回到玩家休息室床边'); return;
+      }
+      if (bed && stand && Math.hypot(own.x - stand.x, own.y - stand.y) < 1.8) { this.sim.nightState.ownerAtBed = true; this.ui.showModal('<h3>结束今天？</h3><div class="dim">确认后店主入睡，所有员工恢复状态并进入次日经营准备。</div><div class="row" style="margin-top:10px"><button data-act="nightbed">躺下，结束今天</button><button data-act="closemodal">再忙一会儿</button></div>'); return; }
+    }
     let bestStaff               = null; let bd = 2.8;
     for (const s of this.sim.staff) {
       if (s.isOwner) continue;
@@ -1251,7 +1374,10 @@ class Game                    {
 
   restoreBuildState(snapshot) {
     if (!snapshot || this.sim.dayActive) return false;
-    this.tavern = Tavern.load(snapshot.tavern);
+    const mode = this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial');
+    let restored;
+    try { restored = Tavern.load(snapshot.tavern, { mode, strict: true }); } catch (error) { this.sim.toast(error.message); return false; }
+    this.tavern = restored;
     this.sim.tavern = this.tavern;
     this.sim.econ.coins = snapshot.coins;
     const rooms = new Map(snapshot.staffRooms || []);
@@ -1296,8 +1422,20 @@ class Game                    {
     return cloneData({
       name: `${ROOM_LABEL[room.kind]} ${room.w}×${room.h}`,
       createdAt: Date.now(), bp: room.bp, rot, quality: room.quality, style: this.tavern.roomStyle(room),
-      furns: this.tavern.furnsIn(room.id).map((f) => ({ kind: f.kind, x: f.x - room.x, y: f.y - room.y, dir: f.dir, quality: f.quality })),
+      furns: this.tavern.furnsIn(room.id).filter((f) => !f.builtIn && !(base.builtIn || []).includes(f.kind)).map((f) => ({ kind: f.kind, x: f.x - room.x, y: f.y - room.y, dir: f.dir, quality: f.quality, purchasePrice: f.purchasePrice ?? 0 })),
     });
+  }
+
+  normalizeRoomBlueprint(data) {
+    const bp = data && bpById(data.bp);
+    if (!bp) return null;
+    const autoKinds = new Set(bp.builtIn || []);
+    const furns = (data.furns || []).filter((f) => !autoKinds.has(f.kind)).map((f) => ({
+      kind: f.kind, x: Number(f.x) || 0, y: Number(f.y) || 0, dir: ((Number(f.dir) || 0) % 4 + 4) % 4,
+      quality: Math.max(1, Math.min(3, Number(f.quality) || 1)),
+      purchasePrice: f.purchasePrice == null || Number(f.purchasePrice) === 0 ? (furnDef(f.kind)?.cost?.[(Number(f.quality) || 1) - 1] || 0) : Number(f.purchasePrice),
+    }));
+    return { ...cloneData(data), furns };
   }
 
   saveRoomBlueprint(id) {
@@ -1311,6 +1449,7 @@ class Game                    {
   }
 
   startRoomCopy(data) {
+    data = this.normalizeRoomBlueprint(data);
     if (this.sim.dayActive || !data || !bpById(data.bp)) { this.sim.toast('当前不能复制房间'); return; }
     this.clearPlacementConfirmation();
     this.roomCopy = cloneData(data); this.buildBp = data.bp; this.buildRot = data.rot || 0;
@@ -1326,6 +1465,7 @@ class Game                    {
   copyFurn(id) {
     const f = this.tavern.furnById(id);
     if (!f) return;
+    if (f.builtIn || f.kind === 'meetingtable') { this.sim.toast('内置会议家具不能复制'); return; }
     this.selection = { kind: 'furn', id };
     this.startBuildFurn(f.kind, f.quality);
     this.buildRot = f.dir;
@@ -1362,7 +1502,9 @@ class Game                    {
       const position = { x: f.x, y: f.y, dir: f.dir };
       Object.assign(f, cloneData(cur), position);
     }
-    this.tavern = Tavern.load(data); this.sim.tavern = this.tavern;
+    const mode = this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial');
+    try { validateCandidateOrError(this.tavern, data, mode, 'applyLayoutBlueprint'); } catch (error) { this.sim.toast(error.message); return false; }
+    this.tavern = Tavern.load(data, { mode, strict: true }); this.sim.tavern = this.tavern;
     for (const staff of this.sim.staff) { staff.task = null; staff.path = []; staff.carry = null; }
     this.selection = null; this.cancelBuild(); this.staticVersion = -1; this.dirtVersion = -1;
     this.recordBuildState(`套用${saved.name}`); this.save(); this.ui.render(true); this.sim.toast(`已套用：${saved.name}`);
@@ -1414,6 +1556,9 @@ class Game                    {
     if (!room) { this.moveRoomId = null; return; }
     const check = this.tavern.canMoveRoom(id, x, y, this.buildRot);
     if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error', 0.5); return; }
+    const candidate = Tavern.load(cloneData(this.tavern.serialize())); const movedCandidate = candidate.moveRoom(id, x, y, this.buildRot);
+    if (!movedCandidate) { this.sim.toast('房间无法移动到这里'); this.audio.play('error', 0.5); return; }
+    try { validateCandidateOrError(this.tavern, candidate.serialize(), this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial'), 'moveRoom'); } catch (error) { this.sim.toast(error.message); this.audio.play('error', 0.5); return; }
     const inside = (person      ) => this.tavern.roomAt(Math.round(person.x), Math.round(person.y))?.id === id;
     const actors = [...this.sim.staff, ...this.sim.guests].filter(inside);
     const moved = this.tavern.moveRoom(id, x, y, this.buildRot);
@@ -1429,6 +1574,7 @@ class Game                    {
     this.sim.fx.length = 0;
     this.staticVersion = -1;
     this.dirtVersion = -1;
+    this.sim.invalidateTasks?.('room-move');
     this.moveRoomId = null;
     this.selection = { kind: 'room', id };
     this.focusOn(moved.room.x + moved.room.w / 2, moved.room.y + moved.room.h / 2);
@@ -1441,6 +1587,7 @@ class Game                    {
   startMoveFurn(id        )       {
     const f = this.tavern.furnById(id);
     if (!f) return;
+    if (f.builtIn) this.sim.toast('内置家具只能在绑定房间内移动，不能出售或移出');
     this.clearPlacementConfirmation();
     this.buildBp = null; this.buildFurn = null; this.moveRoomId = null;
     this.moveFurnId = id;
@@ -1456,14 +1603,21 @@ class Game                    {
     if (!f) { this.moveFurnId = null; return; }
     const from = this.tavern.roomOfFurn(f);
     const to = this.tavern.roomAt(x, y);
-    if (!to || !from || to.id !== from.id) { this.sim.toast('只能搬到同一个房间里'); this.audio.play('error', 0.5); return; }
+    const allowedRooms = furnDef(f.kind)?.rooms || [];
+    if (!to || !from || (f.builtIn && f.boundRoomId && to.id !== f.boundRoomId) || (!f.builtIn && !allowedRooms.includes(to.kind))) { this.sim.toast('家具不能放入这个房间'); this.audio.play('error', 0.5); return; }
     const chk = this.tavern.canPlaceFurn(f.kind, x, y, this.buildRot, f.id);
     if (!chk.ok) { this.sim.toast(chk.reason); this.audio.play('error', 0.5); return; }
+    const candidate = cloneData(this.tavern.serialize());
+    const candidateFurn = candidate.furns.find((item) => item.id === id);
+    if (!candidateFurn) return;
+    candidateFurn.x = x; candidateFurn.y = y; candidateFurn.dir = this.buildRot;
+    try { validateCandidateOrError(this.tavern, candidate, this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial'), 'moveFurn'); } catch (error) { this.sim.toast(error.message); this.audio.play('error', 0.5); return; }
     // 家具挪位后旧任务的坐标就废了：让所有人重新领活（本来就是几秒内的事）
     for (const s of this.sim.staff) { s.task = null; s.path = []; s.carry = null; }
     f.x = x; f.y = y; f.dir = this.buildRot;
     f.busyBy = undefined;
     this.tavern.reindex();
+    this.sim.invalidateTasks?.('furn-move');
     const rescued = this.sim.rescueTrappedActors(true);
     this.staticVersion = -1;
     this.moveFurnId = null;
@@ -1476,11 +1630,32 @@ class Game                    {
 
   startBuildRoom(id        )       {
     if (this.sim.dayActive) { this.sim.toast('营业中不能建造，先完成今天'); this.audio.play('error'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'first-recruitment') {
+      const needsRecruitCorridor = !this.tavern.rooms.some((room) => room.kind === 'corridor');
+      const allowed = needsRecruitCorridor ? id === 'corridor2' : bpById(id)?.kind === 'lounge';
+      if (!allowed) { this.sim.toast(needsRecruitCorridor ? '先建一段连接员工房的走廊' : '现在只需要先建员工休息室'); return; }
+    }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['tutorial-build', 'first-recruitment'].includes(this.sim.campaign.phase)) { this.sim.toast('当前教学步骤不需要建新房间'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['foyer4', 'dining6', 'kitchen6', 'storage4', 'guestroom5'].includes(id) && !(this.sim.campaign.phase === 'first-recruitment' && ['corridor2', 'lounge5'].includes(id))) { this.sim.toast('第一天先按引导准备基础房间'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'tutorial-build') {
+      const order = ['foyer', 'dining', 'kitchen', 'storage', 'guestroom'];
+      const next = order.find((kind) => !this.tavern.rooms.some((room) => room.kind === kind));
+      if (bpById(id).kind !== next) { this.sim.toast(`教学下一步必须先建${ROOM_LABEL[next]}`); return; }
+    }
     this.clearPlacementConfirmation();
     this.roomCopy = null; this.buildBp = id; this.buildFurn = null; this.moveRoomId = null; this.moveFurnId = null; this.buildRot = 0;
   }
   startBuildFurn(kind        , q        )       {
     if (this.sim.dayActive) { this.sim.toast('营业中不能改造，先完成今天'); this.audio.play('error'); return; }
+    if (kind === 'meetingtable' || (furnDef(kind)?.builtIn && this.sim.campaign?.mode !== 'legacy')) { this.sim.toast('内置家具只能随绑定房间生成'); this.audio.play('error'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['tutorial-furnish', 'first-recruitment'].includes(this.sim.campaign.phase)) { this.sim.toast('先完成当前教学步骤，再按引导摆家具'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'first-recruitment' && kind !== 'chair') { this.sim.toast('先为会议桌增加一把椅子'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['desk', 'table', 'chair', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'].includes(kind)) { this.sim.toast('第一天先按引导准备基础家具'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'tutorial-furnish') {
+      const order = ['desk', 'table', 'chair', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'];
+      const next = tutorialMissingFurniture(this.sim)[0];
+      if (kind !== next) { this.sim.toast(`教学下一步必须先摆${furnDef(next).name}`); return; }
+    }
     const sel = this.selection;
     const room = sel && sel.kind === 'room' ? this.tavern.roomById(sel.id)
       : sel && sel.kind === 'furn' ? (() => { const f = this.tavern.furnById(sel.id); return f ? this.tavern.roomOfFurn(f) : null; })() : null;
@@ -1508,58 +1683,86 @@ class Game                    {
   }
 
   tryBuildRoom(x        , y        )       {
+    const tutorialPhaseAtEntry = this.sim.campaign?.phase;
     const bp = bpById(this.buildBp          );
-    const check = this.tavern.canPlaceRoom(bp, x, y, this.buildRot);
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['tutorial-build', 'first-recruitment'].includes(this.sim.campaign.phase)) { this.sim.toast('当前教学步骤不需要建新房间'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'first-recruitment') {
+      const needsRecruitCorridor = !this.tavern.rooms.some((room) => room.kind === 'corridor');
+      const allowed = needsRecruitCorridor ? bp.id === 'corridor2' : bp.kind === 'lounge';
+      if (!allowed) { this.sim.toast(needsRecruitCorridor ? '当前阶段先建连接员工房的走廊' : '当前阶段只能建员工休息室'); return; }
+    }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'tutorial-build') {
+      const order = ['foyer', 'dining', 'kitchen', 'storage', 'guestroom'];
+      const next = order.find((kind) => !this.tavern.rooms.some((room) => room.kind === kind));
+      if (bp.kind !== next) { this.sim.toast(`教学下一步必须建${ROOM_LABEL[next]}`); return; }
+    }
+    if (bp?.unique && this.tavern.rooms.some((room) => room.kind === bp.kind)) { this.sim.toast(`${bp.name}只能建造一个`); this.audio.play('error'); return; }
+    const check = this.tavern.canPlaceRoom(bp, x, y, this.buildRot, this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial'));
     if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error'); return; }
     const copy = this.roomCopy;
     const area = (this.buildRot ? bp.h : bp.w) * (this.buildRot ? bp.w : bp.h);
     const roomUpgradeCost = copy ? Array.from({ length: Math.max(0, copy.quality - 1) }, (_, i) => Math.round(area * 26 * (i + 1))).reduce((a, b) => a + b, 0) : 0;
     const styleCost = copy ? styleById(copy.style).cost : 0;
     const furnitureCost = copy ? copy.furns.reduce((sum, f) => sum + furnDef(f.kind).cost[f.quality - 1], 0) : 0;
-    const totalCost = bp.cost + roomUpgradeCost + styleCost + furnitureCost;
+    const totalCost = (bp.buildCost ?? bp.cost) + roomUpgradeCost + styleCost + furnitureCost;
     if (this.sim.econ.coins < totalCost) { this.sim.toast(`界币不足，需要 ${totalCost}`); this.audio.play('error'); return; }
-    if (copy) {
-      const trial = Tavern.load(cloneData(this.tavern.serialize()));
-      const trialRoom = trial.placeRoom(bp, x, y, this.buildRot);
-      trialRoom.quality = copy.quality;
-      const furniture = [...copy.furns].sort((a, b) => Number(a.kind === 'chair') - Number(b.kind === 'chair'));
-      for (const f of furniture) {
-        const fcheck = trial.canPlaceFurn(f.kind, x + f.x, y + f.y, f.dir);
-        if (!fcheck.ok) { this.sim.toast(`蓝图家具无法落位：${furnDef(f.kind).name} · ${fcheck.reason}`); this.audio.play('error'); return; }
-        trial.placeFurn(f.kind, x + f.x, y + f.y, f.dir, f.quality);
-      }
-      if (!trial.roomsConnectedByOpenings(trial.rooms, new Set(trial.furnIdx.keys()))) { this.sim.toast('蓝图会堵住门洞，换一个连接面再试'); this.audio.play('error'); return; }
+    const candidate = this.tavern.serialize(); const candidateRoomId = candidate.nr; const candidateRoom = { id: candidateRoomId, kind: bp.kind, bp: bp.id, x, y, w: this.buildRot ? bp.h : bp.w, h: this.buildRot ? bp.w : bp.h, quality: copy?.quality || 1, clean: 100, maint: 100, style: copy?.style || 'rustic', purchasePrice: bp.buildCost ?? bp.cost ?? 0 }; candidate.rooms = [...candidate.rooms, candidateRoom]; candidate.nr++;
+    for (const builtIn of bp.builtIn || []) { const bx = x + Math.max(0, Math.floor(candidateRoom.w / 2) - 1), by = y + Math.max(0, candidateRoom.h - 2); candidate.furns.push({ id: candidate.nf++, kind: builtIn, x: bx, y: by, dir: 0, quality: 1, builtIn: true, purchasePrice: 0, boundRoomId: candidateRoomId }); }
+    if (copy) for (const f of [...copy.furns].sort((a, b) => Number(a.kind === 'chair') - Number(b.kind === 'chair'))) {
+      candidate.furns.push({ id: candidate.nf++, kind: f.kind, x: x + f.x, y: y + f.y, dir: f.dir, quality: f.quality, purchasePrice: f.purchasePrice ?? furnDef(f.kind).cost[f.quality - 1] ?? 0, builtIn: false });
     }
+    if (bp.kind === 'lounge' && !candidate.rooms.some((r) => r.kind === 'corridor')) { this.sim.toast('员工休息室需要通过走廊连接'); this.audio.play('error'); return; }
+    try { validateCandidateOrError(this.tavern, candidate, this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial'), 'buildRoom'); } catch (error) { this.sim.toast(error.message); this.audio.play('error'); return; }
     const purchaseKey = this.placementKey(copy ? 'roomcopy' : 'room', bp.id, x, y, this.buildRot, totalCost);
     if (!this.confirmPlacement(purchaseKey, `是否购买并建造${copy?.name || bp.name}（-${totalCost}）？再次单击确认，双击直接购买`)) return;
     this.sim.econ.coins -= totalCost;
     const room = this.tavern.placeRoom(bp, x, y, this.buildRot);
+    for (const builtIn of bp.builtIn || []) {
+      const bx = x + Math.max(0, Math.floor(room.w / 2) - 1), by = y + Math.max(0, room.h - 2);
+      if (this.tavern.canPlaceFurn(builtIn, bx, by, 0).ok) { const f = this.tavern.placeFurn(builtIn, bx, by, 0, 1); f.builtIn = true; f.purchasePrice = 0; f.boundRoomId = room.id; this.sim.campaign.tutorialFlags[`furn_${builtIn}`] = true; }
+    }
     if (copy) {
       room.quality = copy.quality; room.style = copy.style;
-      for (const f of [...copy.furns].sort((a, b) => Number(a.kind === 'chair') - Number(b.kind === 'chair'))) this.tavern.placeFurn(f.kind, x + f.x, y + f.y, f.dir, f.quality);
+      for (const f of [...copy.furns].sort((a, b) => Number(a.kind === 'chair') - Number(b.kind === 'chair'))) {
+        const placed = this.tavern.placeFurn(f.kind, x + f.x, y + f.y, f.dir, f.quality);
+        placed.purchasePrice = f.purchasePrice ?? furnDef(f.kind).cost[f.quality - 1] ?? 0;
+      }
       this.tavern.reindex();
     }
     this.sim.toast(`${copy ? copy.name : ROOM_LABEL[bp.kind]}落位（-${totalCost}）`);
+    applyTutorialRoomPlaced(this.sim, bp.kind, tutorialPhaseAtEntry);
     this.audio.play('build');
     for (let i = 0; i < 14; i++) this.sim.fx.push({ x: room.x + Math.random() * room.w, y: room.y + Math.random() * room.h, t: 0.5 + Math.random() * 0.3, kind: 'spark' });
     this.selection = { kind: 'room', id: room.id };
+    this.sim.invalidateTasks?.('room-build');
     this.recordBuildState(`建造${copy?.name || bp.name}`);
     this.save();
   }
 
   tryBuildFurn(x        , y        )       {
+    const tutorialPhaseAtEntry = this.sim.campaign?.phase;
     const kind = this.buildFurn          ;
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['tutorial-furnish', 'first-recruitment'].includes(this.sim.campaign.phase)) { this.sim.toast('先完成当前教学步骤，再按引导摆家具'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'tutorial-furnish') {
+      const order = ['desk', 'table', 'chair', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'];
+      const next = tutorialMissingFurniture(this.sim)[0];
+      if (kind !== next) { this.sim.toast(`教学下一步必须摆${furnDef(next).name}`); return; }
+    }
     const def = furnDef(kind);
     const cost = def.cost[this.buildQuality - 1];
     const check = this.tavern.canPlaceFurn(kind, x, y, this.buildRot);
     if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error'); return; }
+    const candidate = this.tavern.serialize(); candidate.furns = [...candidate.furns, { id: candidate.nf, kind, x, y, dir: this.buildRot, quality: this.buildQuality, purchasePrice: cost, builtIn: false }]; candidate.nf++;
+    try { validateCandidateOrError(this.tavern, candidate, this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial'), 'buildFurn'); } catch (error) { this.sim.toast(error.message); this.audio.play('error'); return; }
     if (this.sim.econ.coins < cost) { this.sim.toast('界币不足'); this.audio.play('error'); return; }
     const purchaseKey = this.placementKey('furn', kind, x, y, this.buildRot, this.buildQuality);
     if (!this.confirmPlacement(purchaseKey, `是否购买并放置${def.name}（-${cost}）？再次单击确认，双击直接购买`)) return;
     this.sim.econ.coins -= cost;
-    const f = this.tavern.placeFurn(kind, x, y, this.buildRot, this.buildQuality);
+    const f = this.tavern.placeFurn(kind, x, y, this.buildRot, this.buildQuality); f.purchasePrice = cost;
+    applyTutorialFurniturePlaced(this.sim, kind, tutorialPhaseAtEntry, this.sim.meetingSeatCapacity());
     this.audio.play('place');
     this.selection = { kind: 'furn', id: f.id };
+    this.sim.invalidateTasks?.('furn-build');
     this.recordBuildState(`放置${def.name}`);
     this.save();
   }
@@ -1567,6 +1770,18 @@ class Game                    {
   openDay()       {
     if (this.sim.sealed) { this.sim.toast('酒馆已被封印'); return; }
     if (this.sim.dayActive) return;
+    syncTutorialFurniturePhase(this.sim);
+    if (!this.sim.canOpenBusinessNow() && !(['tutorial-build', 'tutorial-furnish'].includes(this.sim.campaign?.phase) && this.sim.econ.day === 1)) { this.sim.toast('当前阶段不能开门营业'); return; }
+    if (['settlement', 'meeting', 'night'].includes(this.sim.campaign?.phase)) { this.sim.toast('请先完成日报、会议与夜间休息'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) {
+      const flags = this.sim.campaign.tutorialFlags || {};
+      const presentRooms = new Set(this.tavern.rooms.map((room) => room.kind));
+      const missingRooms = ['foyer', 'dining', 'kitchen', 'storage', 'guestroom'].filter((kind) => !presentRooms.has(kind));
+      if (missingRooms.length) { this.sim.toast(`教学准备未完成：还需要${missingRooms.map((kind) => ROOM_LABEL[kind]).join('、')}`); return; }
+      const missingFurniture = tutorialMissingFurniture(this.sim);
+      if (missingFurniture.length) { this.sim.toast(`教学家具未完成：还需要${missingFurniture.map((kind) => furnDef(kind).name).join('、')}`); return; }
+      this.sim.campaign.phase = 'day1-open'; this.sim.campaign.tutorialFlags.day1Opened = true;
+    }
     const readiness = this.openingReadiness();
     if (readiness.blocking.length) {
       this.sim.toast(`无法开门：${readiness.blocking.join('；')}`);
@@ -1577,13 +1792,44 @@ class Game                    {
     this.cancelBuild();
     this.save();
     this.saveMorning();
-    this.sim.openDay();
+    const started = this.sim.openDay();
+    if (!started && this.sim.campaign?.phase === 'world-transition') {
+      this.runTutorialTravel();
+      return;
+    }
     this.drawStars();
     this.paused = false;
     this.audio.play('portal');
     this.playStageMusic('open');
     this.audio.playAmb('amb');
     this.audio.setMusicLevel(0.8);
+  }
+
+  async runTutorialTravel() {
+    // 教学迁界也必须经过可见的世界转场层；测试可注入 animator，玩家则
+    // 看到一整帧以上的遮幕与文字，而不是 openDay 同步改写 world。
+    const veil = new PIXI.Graphics();
+    veil.rect(0, 0, this.app.renderer.width, this.app.renderer.height).fill({ color: 0x120d2b, alpha: .96 });
+    const title = new PIXI.Text({ text: '首次免费迁往玄黄界', style: { fontFamily: 'FusionPixel, monospace', fontSize: 28, fill: 0xffe6b0, align: 'center' } });
+    title.anchor.set(.5); title.position.set(this.app.renderer.width / 2, this.app.renderer.height / 2);
+    this.worldTravelLayer.removeChildren();
+    this.worldTravelLayer.addChild(veil, title);
+    this.worldTravelLayer.visible = true;
+    this.sim.toast('位面转场：晨光正在穿过门缝……');
+    const animator = this.tutorialTravelAnimator || (() => new Promise((resolve) => window.setTimeout(resolve, 700)));
+    try { await animator({ layer: this.worldTravelLayer, targetWorld: 'magma' }); }
+    catch (error) { this.worldTravelLayer.visible = false; this.worldTravelLayer.removeChildren(); throw error; }
+    if (this.sim.campaign?.phase !== 'world-transition') { this.worldTravelLayer.visible = false; this.worldTravelLayer.removeChildren(); return false; }
+    const arrived = this.sim.activatePendingWorldSwitch();
+    this.sim.campaign.tutorialFlags.worldTravelComplete = !!arrived;
+    this.sim.campaign.phase = arrived ? 'prepare' : 'world-transition';
+    if (arrived) this.sim.toast('穿越完成：玄黄大世界的晨光照进了旅店');
+    this.worldTravelLayer.visible = false;
+    this.worldTravelLayer.removeChildren();
+    this.save();
+    // 玩家不需要再次点击“开门营业”：转场完成后自动接续第3日营业。
+    if (arrived && !this.sim.dayActive) this.openDay();
+    return !!arrived;
   }
 
   worldBackgroundUrls(id        )            {
@@ -1691,6 +1937,10 @@ class Game                    {
   openingReadiness() {
     const blocking = []; const warnings = [];
     const hasSeats = this.tavern.allTables().some((t) => this.tavern.tableSeats(t).length > 0);
+    if (this.sim.campaign?.mode !== 'legacy') {
+      const meetingSeats = this.tavern.meetingTables().reduce((sum, t) => sum + this.tavern.meetingSeats(t).length, 0);
+      if (meetingSeats < this.sim.staff.length) blocking.push(`会议桌座位不足（需要 ${this.sim.staff.length} 把椅子）`);
+    }
     const hasStorage = this.tavern.furnsOfKind('shelf').length > 0 || this.tavern.furnsOfKind('icebox').length > 0;
     const kitchens = this.tavern.rooms.filter((r) => r.kind === 'kitchen');
     const productionLines = kitchens.reduce((sum, room) => sum + Math.min(
@@ -1729,14 +1979,35 @@ class Game                    {
   }
 
   finishDay()       {
-    const stat = this.sim.closeDay();
+    const stat = this.sim.closeBusiness();
+    this.sim.toast('本日经营结束 · 打烊时间');
+    this.sim.campaign.phase = 'closing-title';
+    this.closingState = { t: 0 };
     this.audio.setMusicLevel(0.48);
     this.playStageMusic('settle');
     this.audio.playAmb('amb-night');
     this.audio.play('daybell');
     this.audio.play('coin');
     this.save();
-    this.ui.openSettlement(stat);
+    this.ui.render(true);
+  }
+
+  finishNight() {
+    if (!this.sim.confirmNightBed()) return false;
+    if (this.sim.nightState?.dawn?.active) return false;
+    this.sim.nightState.dawn = { active: true, stage: 'start', token: `dawn:${this.sim.econ.day}`, text: '休息结束 经营时段', done: false };
+    this.save();
+    runDawnTransition(this.sim, {
+      onStage: (stage) => this.ui.showDawnTransition?.(stage),
+      onText: (text) => this.sim.toast(text),
+      animate: (done) => window.requestAnimationFrame(() => window.setTimeout(done, 360)),
+      onComplete: () => {
+        if (!this.sim.finishNight({ force: false })) return;
+        this.save(); this.audio.playAmb('amb'); this.ui.hideDawnTransition?.(); this.ui.render(true);
+      },
+    });
+    this.ui.render(true);
+    return true;
   }
 
   hire(id        )       { this.sim.hire(id); this.save(); }
@@ -1755,6 +2026,7 @@ class Game                    {
   setJob(id        , job     )       {
     const s = this.sim.staff.find((x) => x.id === id);
     if (!s) return;
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) { this.sim.toast('第一天先熟悉基础工作，岗位会在招募后开放'); return; }
     if (this.sim.dayActive) { this.sim.toast('营业中不能调岗，请在收盘规划时安排'); return; }
     s.job = job;
     s.task = null;
@@ -1768,6 +2040,7 @@ class Game                    {
   setStaffRoom(id        , roomId               )       {
     const s = this.sim.staff.find((x) => x.id === id);
     if (!s) return;
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) { this.sim.toast('第一天暂不调整负责区域'); return; }
     if (this.sim.dayActive) { this.sim.toast('营业中不能调整负责区域，请在收盘规划时安排'); return; }
     s.roomId = roomId;
     s.task = null;
@@ -1787,6 +2060,7 @@ class Game                    {
   }
   setStaffRoomMode(id, mode) {
     const s = this.sim.staff.find((x) => x.id === id);
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) { this.sim.toast('第一天暂不调整区域模式'); return; }
     if (!s || this.sim.dayActive) { if (this.sim.dayActive) this.sim.toast('营业中不能调整区域模式'); return; }
     s.roomMode = mode === 'strict' ? 'strict' : 'prefer';
     s.task = null; s.path = []; s.carry = null;
@@ -1794,20 +2068,25 @@ class Game                    {
   }
   setPrio(id        , p        )       {
     const s = this.sim.staff.find((x) => x.id === id);
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) { this.sim.toast('第一天暂不调整抢单优先级'); return; }
     if (s) { s.prio = Math.max(0, Math.min(3, p)); this.save(); }
   }
   setDutyMode(id, mode) {
     const s = this.sim.staff.find((person) => person.id === id);
     if (!s) return;
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) { this.sim.toast('第一天暂不调整职责模式'); return; }
     s.dutyMode = mode === 'manual' ? 'manual' : 'auto';
+    this.sim.invalidateTasks?.('priority-mode');
     s.bubble = { text: s.dutyMode === 'manual' ? '按自定义优先级工作' : '恢复岗位自动安排', t: 2 };
     this.save(); this.ui.render(true);
   }
   setDutyPriority(id, duty, priority) {
     const s = this.sim.staff.find((person) => person.id === id);
     if (!s || !s.dutyPriorities || !(duty in s.dutyPriorities)) return;
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) { this.sim.toast('第一天暂不调整自定义优先级'); return; }
     s.dutyPriorities[duty] = Math.max(0, Math.min(4, priority));
     s.dutyMode = 'manual';
+    this.sim.invalidateTasks?.('priority-change');
     const taskDuty = { greet: 'front', seat: 'front', checkout: 'front', order: 'service', serve: 'service', cook: 'cook', mix: 'mix', facility: 'facility', tidy: 'clean', clean: 'clean', bus: 'carry' }[s.task?.kind];
     if (taskDuty === duty && s.dutyPriorities[duty] === 0) {
       s.task = null; s.path = []; s.carry = null; s.actT = 0; s.actTotal = 0; s.note = ''; s.pose = 'idle';
@@ -1889,23 +2168,35 @@ class Game                    {
 
   demolishRoom(id        )       {
     if (this.sim.dayActive) { this.sim.toast('营业中不能拆除'); this.audio.play('error'); return; }
-    const check = this.tavern.canRemoveRoom(id);
+    const check = this.tavern.canRemoveRoom(id, this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial'));
     if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error'); return; }
     const r = this.tavern.roomById(id);
     if (!r) return;
     const bp = BLUEPRINTS.find((b) => b.id === r.bp);
+    if (r.kind === 'playerroom') { this.sim.toast('玩家休息室不可拆除'); return; }
+    const mode = this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial');
+    const source = cloneData(this.tavern.serialize());
+    const removedFurniture = this.tavern.furns.filter((f) => this.tavern.roomOfFurn(f)?.id === id);
+    source.rooms = source.rooms.filter((room) => room.id !== id);
+    source.furns = source.furns.filter((furn) => !removedFurniture.some((f) => f.id === furn.id));
+    source.dirt = source.dirt.filter((d) => !(d.x >= r.x && d.x < r.x + r.w && d.y >= r.y && d.y < r.y + r.h));
+    try { validateCandidateOrError(this.tavern, source, mode, 'removeRoom'); } catch (error) { this.sim.toast(error.message); this.audio.play('error'); return; }
     const removed = this.tavern.removeRoom(id);
-    let refund = Math.round((bp ? bp.cost : 0) * 0.7);
-    for (const f of removed) refund += Math.round(furnDef(f.kind).cost[f.quality - 1] * 0.7);
+    let refund = Math.round(Number(r.purchasePrice ?? bp?.buildCost ?? bp?.cost ?? 0) * 0.7);
+    for (const f of removed) if (!f.builtIn) refund += Math.round(Number(f.purchasePrice ?? furnDef(f.kind).cost[f.quality - 1] ?? 0) * 0.7);
     this.sim.econ.coins += refund;
+    for (const staff of this.sim.staff) { staff.task = null; staff.path = []; staff.carry = null; staff.free = null; }
+    for (const guest of this.sim.guests) guest.path = [];
     this.sim.toast(`拆除完成，返还 ${refund}`);
     this.selection = null;
+    this.sim.invalidateTasks?.('room-remove');
     this.recordBuildState('拆除房间');
     this.save();
   }
   upgradeFurn(id        )       {
     const f = this.tavern.furnById(id);
     if (!f || f.quality >= 3) return;
+    if (f.builtIn) { this.sim.toast('内置家具不可升级'); return; }
     const nextQuality = f.quality + 1;
     const needStar = furnQualityUnlock(f.kind, nextQuality);
     const room = this.tavern.roomOfFurn(f);
@@ -1923,6 +2214,7 @@ class Game                    {
     const hdChair = !!(atlas && f.kind === 'chair');
     f.quality++;
     this.tavern.version++;    // 触发静态层重建，否则新外观不刷新
+    this.sim.invalidateTasks?.('furn-upgrade');
     this.playUpgradeFx({
       type: 'furn',
       x: (f.x + fw / 2) * T,
@@ -1949,8 +2241,12 @@ class Game                    {
     if (this.sim.dayActive) { this.sim.toast('营业中不能拆除家具'); this.audio.play('error'); return; }
     const f = this.tavern.furnById(id);
     if (!f) return;
+    if (f.builtIn) { this.sim.toast('内置家具不可出售'); return; }
+    const candidate = this.tavern.serialize(); candidate.furns = candidate.furns.filter((x) => x.id !== id);
+    try { validateCandidateOrError(this.tavern, candidate, this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial'), 'removeFurn'); } catch (error) { this.sim.toast(error.message); return; }
     this.sim.econ.coins += Math.round(furnDef(f.kind).cost[f.quality - 1] * 0.7);
     this.tavern.removeFurn(id);
+    this.sim.invalidateTasks?.('furn-remove');
     this.selection = null;
     this.recordBuildState('拆除家具');
     this.save();
@@ -2029,6 +2325,8 @@ class Game                    {
       const nd = (f.dir + i) % 4;
       const check = this.tavern.canPlaceFurn(f.kind, f.x, f.y, nd, f.id);
       if (check.ok) {
+        const candidate = this.tavern.serialize(); const target = candidate.furns.find((x) => x.id === id); if (target) target.dir = nd;
+        try { validateCandidateOrError(this.tavern, candidate, this.sim.campaign?.mode || (this.tavern.legacy ? 'legacy' : 'tutorial'), 'rotateFurn'); } catch { continue; }
         f.dir = nd;
         this.tavern.reindex();
         this.audio.play('place');
@@ -2064,6 +2362,13 @@ class Game                    {
 
   // ---------- 帧 ----------
   frame(dt        )       {
+    const frameStart = performance.now();
+    if (this.sim.nightState?.dawn?.active) {
+      this.sim.manualVec.x = 0; this.sim.manualVec.y = 0; this.keys.clear();
+      this.ui.showDawnTransition?.(this.sim.nightState.dawn.stage || 'start');
+      this.ui.render(true);
+      const frameMs = performance.now() - frameStart; this.recordPerfFrame(frameMs); return;
+    }
     const up = this.keys.has('w') || this.keys.has('arrowup');
     const down = this.keys.has('s') || this.keys.has('arrowdown');
     const left = this.keys.has('a') || this.keys.has('arrowleft');
@@ -2085,13 +2390,23 @@ class Game                    {
 
     const active = !this.paused && !this.blocked;
     this.sim.uiTick(dt);
-    if (active) this.sim.update(dt * this.speed);
+    const closingFrame = advanceClosingPhase(this.sim, this.closingState ||= { t: 0 }, dt * this.speed, (stat) => { this.sim.toast('打烊时间 · 集合完成'); this.ui.openSettlement(stat); });
+    if (!closingFrame && (active || this.sim.campaign?.phase === 'closing-assemble')) this.sim.update(dt * this.speed);
     else {
       // 暂停/弹窗冻结经营，但直控店主仍按真实时间走路，避免安卓上原地踏步。
       if (this.sim.manualOwner && own && !this.titleActive && !this.creatorPending) this.sim.driveOwner(own, dt);
       this.sim.update(0);
       if (this.sim.manualOwner && own) this.sim.tickAnim(dt);
       if (this.blocked && !this.sim.running) this.sim.tickDepartures(dt);
+    }
+    if (this.sim.nightState?.active && (this.sim.nightState.proactiveInFlight || this.sim.nightState.proactiveReadyQueue?.length || this.sim.nightState.proactiveReadyStaff) && !this.ui.modal) {
+      const ready = this.sim.consumeNightProactiveReady();
+      if (ready) { this.ui.openNightProactive?.(ready); this.save(); }
+    }
+    advancePendingNightBed(this, dt * this.speed);
+    if (own?.pendingBedRest && !own.path.length && this.sim.dayActive) {
+      const result = this.sim.requestBedRest(own.id, own.pendingBedRest);
+      if (result.ok) { delete own.pendingBedRest; this.sim.toast('开始床边休息'); this.ui.render(true); }
     }
     // 接入 AI 后，在收尾前一分钟后台生成一张严格结构化的当日专属经营事件。
     if (this.sim.dayActive && this.sim.dayT >= DAY_LEN - 60 && !this.sim.aiEventRequested) {
@@ -2112,7 +2427,9 @@ class Game                    {
     for (const a of this.furnAnims) {
       a.phase += dt;
       a.sp.texture = a.frames[Math.floor(a.phase * 7) % a.frames.length];
-      a.sp.visible = a.always || !!(this.tavern.furnById(a.furn) || {}).busyBy;
+      const furn = this.tavern.furnById(a.furn);
+      const visible = furn ? this.pixelWorldVisible((furn.x + 0.5) * T, (furn.y + 0.5) * T, 2) : false;
+      a.sp.visible = visible && (a.always || !!furn.busyBy);
     }
     this.tickUpgradeFx(dt);
     for (const s of this.sim.sounds) this.audio.play(s, s === 'portal' ? 0.5 : 0.8);
@@ -2123,6 +2440,16 @@ class Game                    {
 
     this.render();
     this.ui.tick(dt);
+    this.recordPerfFrame(performance.now() - frameStart);
+  }
+
+  recordPerfFrame(frameMs) {
+    this.perfStats.frameMs = frameMs;
+    this.perfFrameSamples.push(frameMs);
+    if (this.perfFrameSamples.length > 240) this.perfFrameSamples.shift();
+    const sorted = [...this.perfFrameSamples].sort((a, b) => a - b);
+    this.perfStats.frameP95Ms = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * .95))] || frameMs;
+    if (frameMs > 33.3) this.perfStats.longFrames++;
   }
 
   ensureWorldBackground() {
@@ -2279,6 +2606,7 @@ class Game                    {
   }
 
   render()       {
+    this.perfStats.frames++;
     const zoom = this.zoom;
     if (this.app.renderer.width !== this.lastW || this.app.renderer.height !== this.lastH) {
       this.lastW = this.app.renderer.width; this.lastH = this.app.renderer.height;
@@ -2286,6 +2614,7 @@ class Game                    {
     }
     this.world.scale.set(zoom);
     const view = this.mapViewportRect();
+    this.renderViewport = view;
     this.world.x = Math.round(view.centerX - this.cam.x * T * zoom);
     this.world.y = Math.round(view.centerY - this.cam.y * T * zoom);
     const skyTime = performance.now() * 0.001;
@@ -2301,6 +2630,7 @@ class Game                    {
     this.renderOverlay();
     // 音乐层：营业中提高
     this.audio.setMusicLevel(this.worldTravelActive ? 0 : this.sim.dayActive ? 0.72 : 0.4);
+    if (typeof window !== 'undefined') window.__hotelPerf = { ...this.perfStats, task: this.sim.taskPerfSnapshot?.(), frame: this.perfStats.frames, ui: { panelRebuilds: this.ui.panelRebuilds || 0 } };
   }
 
   rebuildStatic()       {
@@ -2721,7 +3051,7 @@ class Game                    {
   }
 
   rebuildDirt()       {
-    const sig = this.tavern.dirt.reduce((a, d) => a + d.x * 31 + d.y * 7 + d.level * 3, this.tavern.dirt.length * 1000);
+    const sig = this.tavern.dirt.map((d) => `${d.x},${d.y},${d.level}`).sort().join('|');
     if (sig === this.dirtVersion) return;
     this.dirtVersion = sig;
     this.dirtLayer.removeChildren();
@@ -2739,6 +3069,7 @@ class Game                    {
           cuePhase = new Map                ();
 
   renderActors()       {
+    this.perfStats.renderedActors = 0; this.perfStats.culledActors = 0;
     const seen = new Set        ();
     // 正在使用设施的客人：各房间一套专属姿态（躺床／泡汤半身／打球挥杆）
     const facUse = new Map                ();
@@ -2758,6 +3089,13 @@ class Game                    {
     }
     const put = (id        , app            , x        , y        , dir        , pose      , animT        , carry               , restOn             )       => {
       seen.add(id);
+      if (!this.worldPointVisible(x, y)) {
+        this.perfStats.culledActors++;
+        const old = this.actorSprites.get(id); if (old) old.visible = false;
+        const shadow = this.actorShadows.get(id); if (shadow) shadow.visible = false;
+        return;
+      }
+      this.perfStats.renderedActors++;
       let sp = this.actorSprites.get(id);
       if (!sp) {
         sp = new PIXI.Sprite();
@@ -2894,7 +3232,8 @@ class Game                    {
           furnAnims                                                                                              = [];
           glowT = 0;
           itemUsed = 0;
-          itemSprite(tex              , x        , y        )       {
+  itemSprite(tex              , x        , y        )       {
+    if (!this.worldPointVisible(x / T, y / T)) { this.perfStats.culledItems++; return; }
     let sp = this.itemPool[this.itemUsed];
     if (!sp) {
       sp = new PIXI.Sprite();
@@ -2904,10 +3243,12 @@ class Game                    {
     }
     sp.texture = tex; sp.x = x; sp.y = y; sp.visible = true;
     this.itemUsed++;
+    this.perfStats.renderedItems++;
   }
 
   renderItems()       {
     this.itemUsed = 0;
+    this.perfStats.renderedItems = 0; this.perfStats.culledItems = 0;
     const readyOrders = this.sim.orders.filter((order) => order.stage === 'ready');
     const orderById = new Map(this.sim.orders.map((order) => [order.id, order]));
     const eatingGroupByTable = new Map(this.sim.groups.filter((group) => group.state === 'eating').map((group) => [group.tableId, group]));
@@ -2943,7 +3284,8 @@ class Game                    {
     const bubbleBoxes = [];
     // 标签在屏幕空间（不随缩放模糊）
     const label = (text        , wx        , wy        , color = 0xffe6b0)       => {
-      if (li >= this.labels.length) return;
+      // Overlay callers use pixel-world coordinates; worldPointVisible consumes logical grid coordinates.
+      if (li >= this.labels.length || !this.worldPointVisible(wx / T, wy / T, 2)) return;
       const t = this.labels[li++];
       t.text = text;
       t.x = Math.round(this.world.x + wx * this.zoom);
@@ -2953,7 +3295,7 @@ class Game                    {
       t.style.fill = color === undefined ? 0xffe6b0 : color;
     };
     const bubble = (text, wx, wy, tone = 'neutral') => {
-      if (li >= this.labels.length || !text) return;
+      if (li >= this.labels.length || !text || !this.worldPointVisible(wx / T, wy / T, 2)) return;
       const t = this.labels[li++];
       t.text = text;
       t.style.wordWrap = true;
@@ -3109,6 +3451,7 @@ class Game                    {
     for (const s of this.sim.staff) {
       const cp = this.tavern.clampFeet(s.x, s.y);
       const cx = (cp.x + 0.5) * T, cy = (cp.y + 1) * T;
+      if (!this.pixelWorldVisible(cx, cy, 3)) continue;
       g.rect(cx - 4, cy + 1, 8, 3).fill({ color: JOB_COLOR[s.job] === undefined ? 0xffe6b0 : JOB_COLOR[s.job], alpha: 0.95 });
       if (s.task && s.actT > 0 && s.actTotal > 0) {
         const p = 1 - s.actT / s.actTotal;
@@ -3126,6 +3469,7 @@ class Game                    {
       if (!m) continue;
       const cp = this.tavern.clampFeet(m.x, m.y);
       const cx = (cp.x + 0.5) * T, cy = (cp.y + 1) * T;
+      if (!this.pixelWorldVisible(cx, cy, 3)) continue;
       const speakingGuest = gr.members.find((member) => member.bubble);
       const origin = worldById(m.originWorldId || gr.originWorldId);
       const pct = gr.patience / gr.maxPatience;
@@ -3166,6 +3510,7 @@ class Game                    {
       gr.members.forEach((m, i) => {
         const cp = this.tavern.clampFeet(m.x, m.y);
         const cx = (cp.x + 0.5) * T, cy = (cp.y + 1) * T, t = m.animT;
+        if (!this.pixelWorldVisible(cx, cy, 3)) return;
         if (f.kind === 'pool') {
           g.ellipse(cx, cy - 11, 13, 4).fill({ color: 0x11455c, alpha: 0.5 });
           for (let k = 0; k < 2; k++) {
@@ -3213,6 +3558,7 @@ class Game                    {
     // FX
     for (const f of this.sim.fx) {
       const cx = (f.x + 0.5) * T, cy = (f.y + 0.5) * T;
+      if (!this.pixelWorldVisible(cx, cy, 3)) continue;
       if (f.kind === 'spark') g.rect(cx - 2, cy - 2 - (1 - f.t) * 12, 3, 3).fill(hexToNum(PAL.hi));
       else if (f.kind === 'portal') g.circle(cx, cy, (1 - f.t / 0.6) * 22).stroke({ width: 3, color: hexToNum(PAL.cyan), alpha: f.t });
       else if (f.kind === 'steam') g.rect(cx - 3, cy - 14 * (1 - f.t / 0.5), 5, 6).fill({ color: 0xf5f1e6, alpha: 0.6 * f.t * 2 });
@@ -3231,8 +3577,9 @@ class Game                    {
   }
 }
 
-const game = new Game();
-game.boot().catch((err) => {
+const game = typeof document !== 'undefined' ? new Game() : null;
+if (typeof window !== 'undefined' && game) window.__hotelGame = game;
+game?.boot().catch((err) => {
   console.error(err);
   const d = document.createElement('div');
   d.style.cssText = 'position:fixed;inset:0;display:flex;align-items:center;justify-content:center;color:#FF6B5A;font-family:monospace;padding:20px;text-align:center';

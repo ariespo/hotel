@@ -1220,7 +1220,7 @@ export const FURN_SIZE                                   = {
   telescope: [2, 1], arcadem: [1, 1], cauldron: [2, 1], crystal: [1, 1],
   fireplace: [2, 1], bunk: [2, 1], icebox: [2, 1], lightbar: [2, 1],
   bed: [2, 1], billiardtable: [2, 1], piano: [2, 1], pool: [2, 2], desk: [2, 1],
-  table: [1, 1], chair: [1, 1], keg: [1, 1], plant: [1, 1], lamp: [1, 1], lightcol: [1, 1],
+  table: [1, 1], meetingtable: [5, 1], chair: [1, 1], keg: [1, 1], plant: [1, 1], lamp: [1, 1], lightcol: [1, 1],
 };
 
 const cache = new Map             ();
@@ -1230,7 +1230,7 @@ export function furnPix(kind        , quality        , accent = BRASS_DEFAULT)  
   if (hit) return hit;
   const [w, h] = FURN_SIZE[kind] || [1, 1];
   const p = new Pix(w * T, h * T);
-  const fn = DRAW[kind];
+  const fn = DRAW[kind] || (kind === 'meetingtable' ? DRAW.table : null);
   BRASS = mat(accent);            // 镶边色随房间装修风格
   if (fn) fn(p, quality);
   BRASS = mat(BRASS_DEFAULT);
@@ -1240,7 +1240,7 @@ export function furnPix(kind        , quality        , accent = BRASS_DEFAULT)  
 
 /** 各房间的墙面主色（壁纸） */
 export const ROOM_WALL                         = {
-  foyer: '#4A4058', dining: '#8C6B4A', kitchen: '#6E7A82', storage: '#6B5A45',
+  playerroom: '#665A78', foyer: '#4A4058', dining: '#8C6B4A', kitchen: '#6E7A82', storage: '#6B5A45',
   bar: '#5A3A4A', lounge: '#57604F',
   guestroom: '#7A6650', parlor: '#5C3C55', onsen: '#4E6B78', billiard: '#4A3A2E', corridor: '#5A5064',
   theater: '#3E3A55', garden: '#5E7A4E', observatory: '#2E2A4E', arcade: '#2A2A44', alchemy: '#3E2E4A',

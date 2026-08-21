@@ -3,11 +3,10 @@ import { isIP } from 'node:net';
 
 const MAX_REQUEST_BYTES = 64 * 1024;
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
-// 完整世界编译需要返回数千个 token。DeepSeek 实测单次编译会接近 45 秒，
-// 因此不能沿用短对话任务的 45 秒上游时限；给模型留出充足时间，同时仍
-// 在 Vercel 函数上限之前主动中止，确保能返回可读的 504。
-export const UPSTREAM_TIMEOUT_MS = 150000;
-export const config = { maxDuration: 180 };
+// 客户端统一以15秒作为失败边界，服务端同步收紧，避免日报/会议请求
+// 在代理端继续悬挂；调用方会自动回退本地内容。
+export const UPSTREAM_TIMEOUT_MS = 15000;
+export const config = { maxDuration: 30 };
 
 function normalizeBaseUrl(value) {
   let url = String(value || '').trim().replace(/\/+$/, '');

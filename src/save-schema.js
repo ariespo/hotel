@@ -4,7 +4,14 @@ import { starsOf, WORLD_PROFILES, worldsForStars } from './data.js';
 import { RACE_NAMES } from './chargen.js';
 import { normalizeCustomWorld } from './world-system.js';
 
-export const SAVE_SCHEMA_VERSION = 10;
+export const SAVE_SCHEMA_VERSION = 11;
+
+const LEGACY_SEAL_SALT = 'wjbdy-v10-legacy-seal-v1';
+export function legacyLayoutSeal(tavern) {
+  const canonical = JSON.stringify({ rooms: (tavern?.rooms || []).map(({ id, kind, bp, x, y, w, h }) => ({ id, kind, bp, x, y, w, h })), furns: (tavern?.furns || []).map(({ id, kind, x, y, dir, quality, builtIn, boundRoomId }) => ({ id, kind, x, y, dir, quality, builtIn: !!builtIn, boundRoomId: boundRoomId || null })) });
+  return `${stableHash(`${LEGACY_SEAL_SALT}|${canonical}`).toString(16)}-${stableHash(canonical).toString(16)}`;
+}
+export function verifyLegacyLayoutSeal(data) { return !!data?.meta?.legacySeal && data.meta.legacySeal === legacyLayoutSeal(data.tavern); }
 
 function stableHash(text) {
   let hash = 2166136261;
@@ -131,6 +138,27 @@ export function migrateGameSaveData(source) {
     normalizeContestState(data.sim.econ);
     data.meta.version = 10;
     version = 10;
+  }
+  if (version < 11) {
+    data.meta.migrationProvenance = 'v10-legacy';
+    const econ = data.sim.econ;
+    data.sim.campaign = data.sim.campaign && typeof data.sim.campaign === 'object' ? { mode: 'legacy', ...data.sim.campaign } : {
+      mode: 'legacy', phase: 'prepare', chapter: 0, firstDayComplete: true, quickStartUnlocked: true,
+      tutorialFlags: {}, postReportEvents: [], firstGrantClaimed: false,
+    };
+    data.sim.meetingState = data.sim.meetingState && typeof data.sim.meetingState === 'object' ? data.sim.meetingState : {
+      points: 0, cards: [], selected: [], resolved: [], open: false,
+    };
+    data.sim.nightState = data.sim.nightState && typeof data.sim.nightState === 'object' ? data.sim.nightState : {
+      active: false, employeeUses: {}, playerTalks: {}, proactive: [], ownerAtBed: false,
+    };
+    econ.worldStayState = econ.worldStayState && typeof econ.worldStayState === 'object' ? econ.worldStayState : {
+      worldId: econ.currentWorldId || 'hearth_coast', days: 1,
+    };
+    data.tavern.legacy = true;
+    data.meta.legacySeal = legacyLayoutSeal(data.tavern);
+    data.meta.version = 11;
+    version = 11;
   }
   if (version > SAVE_SCHEMA_VERSION) throw new Error(`存档版本 ${version} 高于当前支持的 ${SAVE_SCHEMA_VERSION}`);
   data.meta = { ...data.meta, version: SAVE_SCHEMA_VERSION, migratedAt: originalVersion < SAVE_SCHEMA_VERSION ? Date.now() : data.meta.migratedAt || 0 };

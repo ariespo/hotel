@@ -6,10 +6,11 @@ import { makeWorldName, WORLD_RACE_WEIGHTS } from './world-identities.js';
                                          
 
 export const ROOM_LABEL                           = {
-  foyer: '位面门厅', dining: '餐饮间', kitchen: '厨房', storage: '储藏室', bar: '酒吧', lounge: '员工休息室',
+  playerroom: '玩家休息室', foyer: '位面门厅', dining: '餐饮间', kitchen: '厨房', storage: '储藏室', bar: '酒吧', lounge: '员工休息室',
   guestroom: '客房', parlor: '酒廊', onsen: '温泉', billiard: '台球室', corridor: '走廊', theater: '放映厅', garden: '豪华庭院', observatory: '星象台', arcade: '游艺厅', alchemy: '炼金房',
 };
 export const ROOM_FLOOR                           = {
+  playerroom: 'floor-carpet',
   foyer: 'floor-wood', dining: 'floor-wood', kitchen: 'floor-kitchen',
   storage: 'floor-storage', bar: 'floor-wood', lounge: 'floor-carpet',
   guestroom: 'floor-tatami', parlor: 'floor-carpet', onsen: 'floor-onsen', billiard: 'floor-parquet',
@@ -49,18 +50,19 @@ export function styleById(id        )             {
 ;                                                                                                                                                          
 
 export const BLUEPRINTS              = [
-  { id: 'foyer4', kind: 'foyer', name: '位面门厅 4×4', w: 4, h: 4, cost: 0, unlock: 0, note: '酒馆的根，客人从此进入', buildable: false },
+  { id: 'playerroom8', kind: 'playerroom', name: '玩家休息室 8×7', w: 8, h: 7, cost: 0, unlock: 0, note: '店主不可拆除的私人休息室与会议室', buildable: false, unique: true },
+  { id: 'foyer4', kind: 'foyer', name: '位面门厅 4×4', w: 4, h: 4, cost: 0, buildCost: 50, unlock: 0, note: '酒馆的根，客人从此进入；只能建造一个', buildable: true, unique: true, builtIn: ['desk'] },
   { id: 'dining6', kind: 'dining', name: '餐饮间 6×5', w: 6, h: 5, cost: 420, unlock: 0, note: '放桌椅接待客人', buildable: true },
   { id: 'kitchen6', kind: 'kitchen', name: '厨房 6×5', w: 6, h: 5, cost: 480, unlock: 0, note: '备餐→灶台→出餐台', buildable: true },
   { id: 'storage4', kind: 'storage', name: '储藏室 4×4', w: 4, h: 4, cost: 260, unlock: 0, note: '储物架供厨师取料', buildable: true },
   { id: 'bar6', kind: 'bar', name: '酒吧 6×4', w: 6, h: 4, cost: 620, unlock: 1, note: '酒桶出饮品，翻台快', buildable: true },
-  { id: 'lounge5', kind: 'lounge', name: '休息室 5×4', w: 5, h: 4, cost: 520, unlock: 0, note: '员工在此恢复体力；每间休息室只住 1 名员工', buildable: true },
+  { id: 'lounge5', kind: 'lounge', name: '休息室 5×4', w: 5, h: 4, cost: 520, unlock: 0, note: '员工在此恢复体力；每间休息室只住 1 名员工', buildable: true, builtIn: ['bunk'] },
   { id: 'dining10', kind: 'dining', name: '大餐厅 10×8', w: 10, h: 8, cost: 1500, unlock: 3, note: '容量大，但动线更长', buildable: true },
   { id: 'kitchen9', kind: 'kitchen', name: '大厨房 9×7', w: 9, h: 7, cost: 1600, unlock: 3, note: '可容纳多套产线', buildable: true },
   { id: 'storage6', kind: 'storage', name: '大储藏室 6×5', w: 6, h: 5, cost: 700, unlock: 3, note: '更多储物架缓冲', buildable: true },
-  { id: 'corridor3', kind: 'corridor', name: '走廊 3×8', w: 3, h: 8, cost: 160, unlock: 0, note: '只用来连通房间，把动线拉直（客人不会在这里停留）', buildable: true },
-  { id: 'corridor6', kind: 'corridor', name: '走廊 6×2', w: 6, h: 2, cost: 140, unlock: 0, note: '横向连通两侧房间', buildable: true },
-  { id: 'corridor2', kind: 'corridor', name: '走廊 2×3', w: 2, h: 3, cost: 60, unlock: 0, note: '短走廊，垂直连通上下房间', buildable: true },
+  { id: 'corridor3', kind: 'corridor', name: '走廊 3×8', w: 3, h: 8, cost: 60, unlock: 0, note: '长走廊：加速移动、降低噪声与污渍', buildable: true },
+  { id: 'corridor6', kind: 'corridor', name: '走廊 6×2', w: 6, h: 2, cost: 45, unlock: 0, note: '横向连通两侧房间', buildable: true },
+  { id: 'corridor2', kind: 'corridor', name: '走廊 2×3', w: 2, h: 3, cost: 20, unlock: 0, note: '短走廊：教学阶段推荐使用', buildable: true },
   { id: 'guestroom5', kind: 'guestroom', name: '客房 5×4', w: 5, h: 4, cost: 720, unlock: 1, note: '摆客床，客人来过夜（住宿费按人头）', buildable: true },
   { id: 'parlor6', kind: 'parlor', name: '酒廊 6×5', w: 6, h: 5, cost: 880, unlock: 2, note: '高级餐饮区：桌椅＋酒桶＋钢琴，氛围自带加成', buildable: true },
   { id: 'onsen6', kind: 'onsen', name: '温泉 6×5', w: 6, h: 5, cost: 980, unlock: 2, note: '摆汤池，客人来泡汤（无需厨房）', buildable: true },
@@ -87,13 +89,14 @@ export const FURN_DEFS            = [
   { kind: 'pass', name: '出餐台', rooms: ['kitchen'], cost: [100, 240, 520], note: '成品暂存，服务员取餐', cap: [2, 3, 4] },
   { kind: 'sink', name: '洗涤槽', rooms: ['kitchen'], cost: [110, 260, 540], note: '洗脏盘，脏盘堆积会降卫生', time: [6, 4.4, 3.2] },
   { kind: 'table', name: '餐桌', rooms: ['dining', 'bar', 'parlor'], cost: [70, 170, 360], note: '按实际椅子接待 1–4 人；基础餐桌也支持三人同行', cap: [3, 4, 4] },
-  { kind: 'chair', name: '椅子', rooms: ['dining', 'bar', 'lounge', 'parlor'], cost: [30, 80, 170], note: '靠背朝向必须对着餐桌', cap: [1, 1, 1] },
+  { kind: 'chair', name: '椅子', rooms: ['dining', 'bar', 'lounge', 'parlor', 'playerroom'], cost: [30, 80, 170], note: '靠背朝向必须对着餐桌或会议桌', cap: [1, 1, 1] },
   { kind: 'keg', name: '酒桶', rooms: ['bar', 'parlor'], cost: [150, 340, 700], note: '调酒并暂存成品，服务员直接从吧台取酒', cap: [2, 3, 4], time: [4, 3, 2.2] },
   { kind: 'couch', name: '沙发', rooms: ['lounge'], cost: [140, 320, 640], note: '员工在此恢复体力/压力', time: [1, 1.4, 1.9] },
   { kind: 'fireplace', name: '壁炉', rooms: ['dining', 'bar', 'lounge', 'foyer', 'parlor', 'guestroom', 'onsen', 'billiard'], cost: [200, 460, 900], note: '暖光炉火，大幅提升同房间客人舒适度', charm: [0.5, 0.8, 1.2] },
   { kind: 'plant', name: '位面盆栽', rooms: ['dining', 'bar', 'lounge', 'foyer', 'kitchen', 'storage', 'parlor', 'guestroom', 'onsen', 'billiard', 'corridor'], cost: [40, 100, 220], note: '哪儿都能摆，小幅提升氛围', charm: [0.18, 0.3, 0.5] },
   { kind: 'lamp', name: '星灯', rooms: ['dining', 'bar', 'lounge', 'foyer', 'parlor', 'guestroom', 'onsen', 'billiard', 'corridor'], cost: [60, 150, 320], note: '照亮角落，提升氛围', charm: [0.25, 0.42, 0.7] },
-  { kind: 'bunk', name: '大床', rooms: ['lounge'], cost: [180, 400, 780], note: '员工的大床：比沙发恢复更多体力、压力降更快', time: [12, 10, 8] },
+  { kind: 'bunk', name: '大床', rooms: ['lounge', 'playerroom'], cost: [180, 400, 780], note: '员工或店主的大床：比沙发恢复更多体力、压力降更快', time: [15, 10, 5], builtIn: true },
+  { kind: 'meetingtable', name: '会议桌', rooms: ['playerroom'], cost: [0, 0, 0], note: '5×1会议桌，最多容纳12把椅子', cap: [12, 12, 12], builtIn: true, meeting: true },
   { kind: 'bookshelf', name: '书架', rooms: ['lounge'], cost: [120, 280, 560], note: '打烊后员工会来翻书，缓解压力', time: [1, 1.4, 1.9] },
   { kind: 'teatable', name: '茶桌', rooms: ['lounge'], cost: [90, 210, 430], note: '打烊后员工会来泡壶茶，回饥饿、缓士气', time: [1, 1.4, 1.9] },
   { kind: 'vanity', name: '梳妆台', rooms: ['lounge'], cost: [110, 260, 520], note: '打烊后员工会对镜整理仪容，提振士气', time: [1, 1.4, 1.9] },
@@ -451,6 +454,18 @@ export function worldById(id, customWorlds = []) {
 
 export function worldsForStars(stars) {
   return WORLD_PROFILES.filter((world) => world.unlockStars <= Math.max(0, Number(stars) || 0));
+}
+
+const ROUTE_ORDER = Object.freeze(['hearth_coast', 'magma_ridge', 'verdant_court', 'neon_ring', 'moonsea', 'evernight', 'honey_sky', 'iron_hive', 'mask_realm', 'inverted_dreamsea', 'ash_dragoncourt', 'timeless_bazaar']);
+export function worldUnlockDay(id) {
+  const index = ROUTE_ORDER.indexOf(id);
+  if (index < 0) return 1;
+  if (index === 0) return 1;
+  if (index === 1) return 3;
+  return 6 + (index - 2) * 3;
+}
+export function worldsForDay(day = 1) {
+  return WORLD_PROFILES.filter((world) => worldUnlockDay(world.id) <= Math.max(1, Number(day) || 1));
 }
 
 export const DISH_FUN = [

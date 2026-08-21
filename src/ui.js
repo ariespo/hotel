@@ -14,7 +14,7 @@ import { advanceTutorialState, loadTutorialState, resetTutorialState, retreatTut
 import {
   AD_REQ_MULT, AD_TIERS, BLUEPRINTS, DISH_FUN, DUTIES, DUTY_LABEL, FLAVOR_LABEL, FLAVORS, FURN_DEFS, furnDef, furnQualityUnlock, ING_KEYS, ING_LABEL, ING_PRICE,                        JOB_LABEL, JOBS, SEASON_NAMES, STYLES,
   NEED_HELP, ROOM_LABEL, SKILL_HELP, SKILL_KEYS, SKILL_LABEL, STAR_CERTIFICATIONS, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
-  WORLD_PROFILES, worldById,
+  WORLD_PROFILES, worldById, worldUnlockDay,
 } from './data.js';
 import { AGE_MAX, effectiveSkill, fairWageRange, jobFocusSkill, PERK_MAX_LEVEL, perkCostAt, perkLevel, perkNeedAt, perkNoteAt, perkTierOf, relatedPerkSkill, restockPlan, skillBonusOf, SKILL_EFFECT_CAP, SKILL_POINT_CAP, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
 import { CONTEST_HEATS, contestHostOf, contestNameOf, equippedTitleOf, stageById, TAVERN_PRESETS, TITLE_TIERS } from './contest.js';
@@ -23,6 +23,9 @@ import { worldRaceIds } from './world-identities.js';
 import { CUSTOM_WORLD_LIMIT, customWorldCreationCost, normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
+import { acceptInvite, ackCertification, ackFinale, completeCurrentAndAdvance, continueStarCelebration, currentPostReport, declineInvite, drivePostReportEvents as drivePostReportEventsShared, finishActiveMatch } from './post-report-controller.js';
+import { applyMeetingLines, closeMeetingWithConfirmation, meetingAction, meetingAIContext } from './meeting-controller.js';
+import { syncTutorialFurniturePhase, tutorialMissingFurniture } from './tutorial-actions.js';
 
 // V2 在分层美术资产完成前仅供验收，不降低正式游戏的默认立绘质量。
 if (typeof document !== 'undefined') document.documentElement.classList.add('portrait-v2');
@@ -45,6 +48,30 @@ export const TARGET_RECRUIT_SKILL_PRESETS = [
   { id: 'attendant', name: '设施场务', note: '负责设施准备、照看与收尾，兼顾三类特色能力。', skills: { looks: 42, cook: 38, mix: 38, serve: 48, clean: 66, carry: 66, calm: 66 } },
   { id: 'support', name: '后勤清洁', note: '擅长清洁、搬运和稳定现场。', skills: { looks: 38, cook: 44, mix: 38, serve: 42, clean: 72, carry: 68, calm: 48 } },
 ];
+
+/** 共享职责优先级入口，员工详情和行为测试共用同一条生产路径。 */
+export function handlePriorityUiAction(gameOrUi, action, payload = {}) {
+  const game = gameOrUi?.sim && gameOrUi?.setDutyMode ? gameOrUi : gameOrUi?.g;
+  if (!game || !Number.isFinite(Number(payload.id))) return false;
+  const id = Number(payload.id);
+  if (action === 'mode') {
+    game.setDutyMode(id, payload.mode === 'manual' ? 'manual' : 'auto');
+    return true;
+  }
+  if (action === 'priority') {
+    const priority = Number(payload.priority);
+    if (!payload.duty || !Number.isFinite(priority)) return false;
+    game.setDutyPriority(id, payload.duty, priority);
+    return true;
+  }
+  return false;
+}
+
+/** 教程房间卡的生产判定：建造阶段按房间 kind，首员阶段按具体蓝图 id。 */
+export function tutorialBlueprintTarget(phase, blueprint, target) {
+  if (!blueprint || !target) return false;
+  return phase === 'tutorial-build' ? blueprint.kind === target : phase === 'first-recruitment' ? blueprint.id === target : false;
+}
 
 export function specialEmployeeRecruit(name) {
   if (String(name).trim().toLowerCase() !== 'samb') return null;
@@ -344,8 +371,15 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 #owner-act,#ui.compact #owner-act,#ui.material-hd #owner-act{width:58px;height:58px;min-width:58px;min-height:58px;padding:0!important;border-radius:50%;color:#FFF8E6}
 @media (max-width:2199px){.top-actions-secondary{display:none}.top-overflow{display:inline-flex}}
 @media (min-width:1041px) and (max-width:1599px){#top .top-identity{display:none}#top .top-economy{min-width:250px;padding-left:8px;padding-right:8px}}
+@media (min-width:1041px) and (max-width:1599px){#top{overflow:hidden}#top .top-group{padding-left:5px;padding-right:5px;flex-shrink:1}#top .top-date{min-width:132px;font-size:13px}#top .top-speed{flex:0 0 auto}.top-speed button{min-width:36px;height:40px;padding:3px 6px}.top-economy{min-width:188px!important;font-size:13px;gap:6px}.top-actions{min-width:0;flex:1 1 auto;gap:4px;padding-left:5px;padding-right:3px}.top-actions>button{min-width:0!important;padding:4px 7px;font-size:12px}.top-actions>button[data-act="savemenu"]{min-width:68px!important}.top-overflow>button{min-width:32px;padding:4px 6px}}
 @media (max-width:1040px) and (orientation:landscape){#ui.compact.manual-owner #owner-pad{left:max(12px,env(safe-area-inset-left));bottom:calc(16px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)))}#ui.compact.manual-owner #owner-act{right:max(14px,env(safe-area-inset-right));bottom:calc(28px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)))}#ui.compact.manual-owner.left-open #owner-pad{left:auto;right:max(86px,calc(env(safe-area-inset-right) + 72px))}}
 #star-cele{position:fixed;inset:0;z-index:40;display:none;pointer-events:auto;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,#3a2414cc 0%,#120904e6 72%);overflow:hidden;cursor:pointer}
+#dawn-transition{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:linear-gradient(#10172ee8,#f2b86be8);color:#fff8dc;pointer-events:auto;transition:background 360ms ease;}
+#dawn-transition[hidden]{display:none}
+#dawn-transition[data-stage="middle"]{background:linear-gradient(#303f73ee,#eaa76bee)}
+#dawn-transition[data-stage="end"]{background:linear-gradient(#f7cf83ee,#fff0b8ee);color:#5a3b24}
+.dawn-transition-title{font-size:clamp(24px,4vw,48px);font-weight:800;letter-spacing:.18em;text-shadow:0 3px 0 #5a3b2488;animation:dawnTitle .8s ease-in-out infinite alternate}
+@keyframes dawnTitle{to{transform:translateY(-5px);opacity:.86}}
 #star-cele.on{display:flex}
 #star-cele .cele-bits{position:absolute;inset:0;pointer-events:none;overflow:hidden}
 #star-cele .cele-bit{position:absolute;top:-12px;width:8px;height:12px;border-radius:2px;animation:celeFall 1.8s linear forwards}
@@ -496,6 +530,51 @@ function htmlText(value        )         {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+// 姓名旁统一使用紧邻的小字性别标记；未知性别不猜测颜色。
+export function sexMark(person) {
+  const sex = person?.sex === '女' ? '女' : person?.sex === '男' ? '男' : '';
+  if (!sex) return '';
+  return `<small class="sex-mark ${sex === '女' ? 'sex-f' : 'sex-m'}" aria-label="性别${sex}">${sex}</small>`;
+}
+
+export function renderPersonName(person, tag = 'span') {
+  const safeTag = /^[a-z][a-z0-9-]*$/i.test(tag) ? tag : 'span';
+  return `<${safeTag}>${htmlText(person?.name || '')}${sexMark(person)}</${safeTag}>`;
+}
+
+/** 捏人选项的生产事件入口；UI 监听器与无 DOM 回归测试共用。 */
+export function dispatchCreatorOption(event, category) {
+  event?.preventDefault?.(); event?.stopPropagation?.();
+  const raw = event?.currentTarget?.dataset?.opt ?? event?.target?.dataset?.opt;
+  const value = Number(raw);
+  if (!category || !Number.isInteger(value) || typeof category.set !== 'function') return false;
+  category.set(value);
+  return true;
+}
+
+// Production and tests share the same dynamic-panel signature. Every field rendered
+// by the status panels that can change without a tab change is represented here.
+export function panelStateSignature(sim, ui, tavern) {
+  return JSON.stringify({
+    phase: sim.campaign?.phase, day: sim.econ.day, active: sim.dayActive, tab: ui.leftTab, right: ui.rightTab,
+    tavern: tavern.version, selection: ui.g?.selection, modal: !!ui.modal,
+    tutorial: { ...(sim.campaign?.tutorialFlags || {}), phase: sim.campaign?.phase }, night: {
+      active: sim.nightState?.active, queue: sim.nightState?.proactiveQueue, ready: sim.nightState?.proactiveReadyQueue,
+      inFlight: sim.nightState?.proactiveInFlight,
+    },
+    staff: sim.staff.map((x) => [x.id, x.task?.key || '', x.task?.kind || '', Math.round(x.needs?.stamina || 0), Math.round(x.needs?.stress || 0), Math.round(x.needs?.morale || 0), Math.round(x.needs?.hunger || 0), Math.round(x.aff || 0), x.free?.kind || '', x.free?.targetId || 0, Math.round(x.free?.t || 0), x.bubble?.text || '', x.note || '', x.job, x.dutyMode, x.roomMode, x.roomId, x.dutyPriorities]),
+    groups: sim.groups.map((x) => [x.id, x.state, x.want, Math.round(x.patience || 0), Math.round(x.maxPatience || 0), x.tableId || 0, x.orderId || 0, x.facId || 0, x.waitT || 0, x.hygiene || 0, x.satisfaction || 0, x.members?.map((m) => [m.id, m.state, m.bubble?.text || ''])]),
+    orders: sim.orders.map((x) => [x.id, x.stage, x.servicePicked, x.passId || 0]),
+    rooms: tavern.rooms.map((r) => [r.id, Math.round(r.clean || 0), Math.round(r.maint || 0), Math.round(r.quietness || 0), Math.round(r.noise || 0), Math.round(r.comfort || 0)]),
+    furniture: tavern.furns.map((f) => [f.id, f.kind, f.dirty || 0, f.plates || 0, f.busyBy || 0]),
+  });
+}
+
+export function tutorialBedStep(sim) {
+  if (sim?.campaign?.mode !== 'tutorial' || sim.econ?.day !== 1 || !sim.dayActive || !sim.campaign?.tutorialFlags?.bedPrompt || sim.campaign?.tutorialFlags?.bedLessonComplete) return null;
+  return { title: '该回床上补一会儿体力了', target: '#app canvas', action: '管理模式点玩家床，直控模式走到床边按 E' };
+}
+
 export class UI {
   g         ;
   root             ;
@@ -578,8 +657,9 @@ export class UI {
     this.ownerPad = el('<div id="owner-pad" role="group" aria-label="店主方向键"><button type="button" data-dir="up" aria-label="上">▲</button><button type="button" data-dir="left" aria-label="左">◀</button><button type="button" data-dir="right" aria-label="右">▶</button><button type="button" data-dir="down" aria-label="下">▼</button></div>');
     this.ownerAct = el('<button type="button" id="owner-act" aria-label="尝试交互">交互</button>');
     this.starCele = el('<div id="star-cele" hidden></div>');
+    this.dawnLayer = el('<div id="dawn-transition" hidden aria-live="polite"><div class="dawn-transition-title">休息结束 经营时段</div></div>');
     this.starCeleStat = null;
-    this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim, this.ownerPad, this.ownerAct, this.tutorialLayer, this.starCele);
+    this.root.append(this.top, this.left, this.right, this.bottom, this.toastBox, this.chatterBox, this.railL, this.railR, this.scrim, this.ownerPad, this.ownerAct, this.tutorialLayer, this.starCele, this.dawnLayer);
     this.starCele.addEventListener('click', () => this.finishStarCelebration());
     this.bindOwnerControls();
     this.bindVisualViewport();
@@ -649,6 +729,22 @@ export class UI {
       const target = e.target;
       if (target?.dataset?.act === 'adworldname') this.adSpec.customWorldName = target.value;
     });
+  }
+
+  showDawnTransition(stage = 'start') {
+    if (!this.dawnLayer) return;
+    this.dawnLayer.hidden = false;
+    this.dawnLayer.dataset.stage = stage;
+    this.dawnLayer.style.pointerEvents = 'auto';
+    this.root.classList.add('dawn-locked');
+  }
+
+  hideDawnTransition() {
+    if (!this.dawnLayer) return;
+    this.dawnLayer.hidden = true;
+    this.dawnLayer.dataset.stage = 'done';
+    this.dawnLayer.style.pointerEvents = 'none';
+    this.root.classList.remove('dawn-locked');
   }
 
   bindVisualViewport() {
@@ -796,9 +892,10 @@ export class UI {
   }
 
   renderRails()       {
+    const lockedDayOne = this.g.sim.campaign?.mode === 'tutorial' && this.g.sim.econ.day === 1;
     const btn = (side        , tab        , icon        , name        ) =>
       `<button data-act="rail" data-s="${side}" data-v="${tab}" title="${name}" aria-label="打开${name}面板">${uiIcon(icon)}</button>`;
-    this.railL.innerHTML = btn('left', 'room', 'room', '房间') + btn('left', 'furn', 'furn', '家具') + btn('left', 'menu', 'menu', '菜单') + btn('left', 'econ', 'econ', '经营');
+    this.railL.innerHTML = btn('left', 'room', 'room', '房间') + btn('left', 'furn', 'furn', '家具') + (lockedDayOne ? '' : btn('left', 'menu', 'menu', '菜单') + btn('left', 'econ', 'econ', '经营'));
     this.railR.innerHTML = btn('right', 'staff', 'staff', '员工') + btn('right', 'guest', 'guest', '客人') + btn('right', 'world', 'world', '万界') + btn('right', 'task', 'task', '工作') + btn('right', 'log', 'log', '日志');
   }
 
@@ -812,12 +909,15 @@ export class UI {
     try { localStorage.setItem('wjbdy.ui.v1', JSON.stringify(this.collapsed)); } catch (err) { /* 忽略 */ }
   }
 
-          onClick(e       )       {
+  onClick(e       )       {
     const t = (e.target               ).closest('[data-act]')                      ;
     if (!t) return;
     const act = t.dataset.act          ;
     const v = t.dataset.v || '';
     const g = this.g;
+    if (g.sim.campaign?.mode === 'tutorial' && this.tutorialActive && !this.campaignActionAllowed(act, v)) {
+      g.sim.toast('先完成当前高亮的教学步骤'); return;
+    }
     const fromOverflow = !!t.closest('.top-overflow-menu');
     if (this.needsPurchaseConfirmation(act, t)) {
       if (!this.confirmPurchase(t, act)) return;
@@ -830,17 +930,18 @@ export class UI {
     else if (act === 'tutorialskip') this.skipTutorial();
     else if (act === 'pause') g.setPaused(!g.paused);
     else if (act === 'speed') g.setSpeed(parseInt(v, 10));
-    else if (act === 'ltab') { this.leftTab = v; this.render(true); }
+    else if (act === 'ltab') { if (this.tutorialPanelLocked(v)) { g.sim.toast('第一天先完成基础教学，菜单和经营面板会在之后开放'); return; } this.leftTab = v; this.render(true); }
     else if (act === 'collapse') { this.collapsed[v                    ] = true; this.render(true); }
     else if (act === 'rail') {
       const side = t.dataset.s === 'right' ? 'right' : 'left';
+      if (side === 'left' && this.tutorialPanelLocked(v)) { g.sim.toast('第一天先完成基础教学'); return; }
       if (this.compact) this.collapsed[side === 'left' ? 'right' : 'left'] = true;
       this.collapsed[side] = false;
       if (side === 'left') this.leftTab = v; else this.rightTab = v;
       this.render(true);
     }
     else if (act === 'rtab') { this.rightTab = v; if (v !== 'staff') this.staffView = 'list'; this.render(true); }
-    else if (act === 'staffrecruit') { this.staffView = 'recruit'; this.render(true); }
+    else if (act === 'staffrecruit') { if (this.g.sim.campaign?.mode === 'tutorial' && this.g.sim.econ.day === 1 && !this.g.sim.campaign.tutorialFlags?.recruitUnlocked) { this.g.sim.toast('先看完经营小报、建好员工休息室，招聘入口就会出现'); return; } this.staffView = 'recruit'; this.render(true); }
     else if (act === 'staffback') { this.staffView = 'list'; this.render(true); }
     else if (act === 'bottomtoggle') { this.bottomCollapsed = !this.bottomCollapsed; this.renderBottom(); }
     else if (act === 'bp') g.startBuildRoom(v);
@@ -897,6 +998,21 @@ export class UI {
         this.candidateCompareIds.delete(id);
         if (this.candidateCompareFocusId === id) this.candidateCompareFocusId = 0;
         if (comparing) this.closeModal();
+        if (g.sim.campaign?.phase === 'employee-intro') {
+          // 招募成功是剧情节点：即使玩家此前把教程卡最小化，也要立即
+          // 打开入场介绍，不能让“继续引导 1/18”成为唯一入口。
+          this.tutorialActive = true;
+          this.render(true);
+          const newcomer = g.sim.staff.find((staff) => staff.id === id);
+          this.showModal(`<h3>新同伴入场</h3><p>${newcomer ? renderPersonName(newcomer, 'span') : '新员工'}从烟雾中显现出来，惊讶地看着这座传说中的旅店。</p><p class="dim">“我本来只是试着投递简历，没想到多元便携旅店的传说是真的！”</p><div class="row"><button data-act="employeeintroconfirm" class="intro-confirm-action">确认，和新同伴开会</button></div>`, false, false, { variant: 'important' });
+        }
+      }
+    }
+    else if (act === 'employeeintroconfirm') {
+      const campaign = g.sim.campaign;
+      if (campaign?.mode === 'tutorial' && g.sim.confirmEmployeeIntro()) {
+        g.save();
+        this.openMeeting(true);
       }
     }
     else if (act === 'directrecruit') this.openTargetRecruit();
@@ -904,8 +1020,8 @@ export class UI {
     else if (act === 'fire') this.openFireConfirm(parseInt(v, 10));
     else if (act === 'job') g.setJob(parseInt(t.dataset.id          , 10), v       );
     else if (act === 'prio') g.setPrio(parseInt(t.dataset.id          , 10), parseInt(v, 10));
-    else if (act === 'dutymode') g.setDutyMode(parseInt(t.dataset.id, 10), v);
-    else if (act === 'dutyprio') g.setDutyPriority(parseInt(t.dataset.id, 10), t.dataset.s, parseInt(v, 10));
+    else if (act === 'dutymode') handlePriorityUiAction(g, 'mode', { id: parseInt(t.dataset.id, 10), mode: v });
+    else if (act === 'dutyprio') handlePriorityUiAction(g, 'priority', { id: parseInt(t.dataset.id, 10), duty: t.dataset.s, priority: parseInt(v, 10) });
     else if (act === 'stafftrain') this.openStaffTrainingPlan(parseInt(t.dataset.id, 10), v);
     else if (act === 'trainingchoice') this.runStaffTraining(parseInt(t.dataset.id, 10), t.dataset.s, v);
     else if (act === 'staffequip') {
@@ -985,13 +1101,68 @@ export class UI {
     else if (act === 'ownerprompts') { this.syncPlayerProfileForm(); this.openPromptSettings(); }
     else if (act === 'aibg') this.generateAIBackground(parseInt(v, 10));
     else if (act === 'viewbg') this.openAIBackground(parseInt(v, 10));
-    else if (act === 'finale') this.openFinale();
     else if (act === 'closemodal') {
       const afterSettlement = !!this.settlementAIStat && !!this.modal;
       this.closeModal();
       if (!this.g.sim.dayActive) { this.g.playStageMusic('close'); this.g.audio.playAmb('amb-night'); }
       if (afterSettlement) this.afterSettlementClose();
+      // 固定 d1-taste 的结果卡关闭后，直接进入床教学；不要把玩家
+      // 送回已经停用的旧 17 步导览“继续引导”入口。
+      if (tutorialBedStep(this.g.sim)) {
+        this.tutorialActive = true;
+        this.render(true);
+      }
     }
+    else if (act === 'meetingcard') { if (meetingAction(this.g.sim, v)) { this.g.save?.(); this.openMeeting(); } }
+    else if (act === 'meetingdone') {
+      const sim = this.g.sim;
+      if (sim.meetingState.points > 0 && !t.dataset.confirm) {
+        this.showModal('<h3>提前散会？</h3><div class="dim">还有未使用的行动点。确定要跳过剩余议题并进入夜间吗？</div><div class="row" style="margin-top:10px"><button data-act="meetingconfirm">确认散会</button><button data-act="meetingreturn">返回会议</button></div>', false, false, { variant: 'important' });
+      } else if (closeMeetingWithConfirmation(sim, !!t.dataset.confirm).ok) { sim.beginNight(); this.g.save?.(); this.closeModal(); this.render(true); }
+    }
+    else if (act === 'meetingreturn') { this.closeModal(); this.openMeeting(); }
+    else if (act === 'meetingconfirm') { if (closeMeetingWithConfirmation(this.g.sim, true).ok) { this.g.sim.beginNight(); this.g.save?.(); this.closeModal(); this.render(true); } }
+    else if (act === 'nightproactive') {
+      const id = parseInt(v, 10); const choice = t.dataset.choice || 'immediate';
+      const ok = choice === 'immediate' ? this.g.sim.talkToOwnerAtNight(id) : this.g.sim.queueProactiveInteraction(id, choice);
+      if (ok) { this.g.save?.(); this.closeModal(); this.render(true); }
+    }
+    else if (act === 'nightqueue') {
+      if (!v) this.openNightQueue();
+      else if (this.g.sim.processProactiveInteraction(Number(v))) {
+        this.g.save?.();
+        if (this.g.sim.nightState?.proactiveQueue?.length) this.openNightQueue();
+        else { this.closeModal(); this.render(true); }
+      }
+    }
+    else if (act === 'posteventnext') {
+      const current = currentPostReport(this.g.sim);
+      const event = current && current.id === v ? current : null;
+      if (event && event.kind === 'grant' && this.g.sim.campaign?.mode === 'tutorial' && this.g.sim.econ.day === 1 && !this.g.sim.campaign.tutorialFlags?.firstEmployeeHired) {
+        // 赠礼是首员教学的门槛：收下后停在世界界面，玩家可以退出
+        // 弹窗、亲自修员工房；不能被旧的“消息队列→自动开会”流程带走。
+        this.g.sim.campaign.tutorialFlags.giftAccepted = true;
+        this.g.sim.campaign.phase = 'first-recruitment';
+        // The generic controller's empty-queue exit is `meeting`; the first
+        // tutorial grant is the explicit exception and must open recruitment
+        // preparation before a lounge/chair/employee exists.
+        const accepted = completeCurrentAndAdvance(this.g.sim, 'grant');
+        if (accepted) this.g.sim.campaign.phase = 'first-recruitment';
+        this.tutorialActive = true;
+        this.g.save();
+        this.closeModal();
+        this.render(true);
+      } else if (event) {
+        const completed = event.kind === 'certification' ? ackCertification(this.g.sim) : event.kind === 'five-star-finale' ? ackFinale(this.g.sim) : completeCurrentAndAdvance(this.g.sim, event.kind);
+        this.g.save();
+        if (completed) this.drivePostReportEvents();
+      }
+    }
+    else if (act === 'contestresultnext') { this.closeModal(); this.drivePostReportEvents(); }
+    else if (act === 'finalenext') {
+      if (ackFinale(this.g.sim)) { this.closeModal(); this.drivePostReportEvents(); }
+    }
+    else if (act === 'nightbed') { if (this.g.sim.nightState?.ownerAtBed) { this.closeModal(); this.g.finishNight(); } }
     else if (act === 'newgame') g.newGame();
     else if (act === 'loadmorning') g.loadMorning();
     else if (act === 'savemenu') this.openSaveManager();
@@ -1039,7 +1210,8 @@ export class UI {
     else if (act === 'manage') { g.select('staff', parseInt(v, 10)); this.closeModal(); }
     else if (act === 'dtab') { this.detailTab = v          ; this.openStaffDetail(this.detailId); }
     else if (act === 'chat') {
-      if (aiConfigured()) this.openAIStaffChat(this.detailId);
+      if (this.g.sim.nightState?.active) { if (this.g.sim.ownerTalkAtNight(this.detailId)) { this.g.save?.(); this.openStaffDetail(this.detailId); } }
+      else if (aiConfigured()) this.openAIStaffChat(this.detailId);
       else { g.sim.chatWith(this.detailId); this.openStaffDetail(this.detailId); }
     }
     else if (act === 'iact') this.runInteract(v, parseInt(t.dataset.id          , 10), t.dataset.k          );
@@ -1096,12 +1268,7 @@ export class UI {
     else if (act === 'contestdecline') this.resolveContestInvite(false);
     else if (act === 'contestheat') { this.contestTactics[t.dataset.s] = v; this.openContestMatch(); }
     else if (act === 'contestgo') this.runContestMatch();
-    else if (act === 'contestafter') {
-      const stat = this.contestAfterStat;
-      this.contestAfterStat = null;
-      if (stat) this.continueSettlement(stat);
-      else this.closeModal();
-    }
+    else if (act === 'contestafter') this.closeModal();
     else if (act === 'titles') this.openTitleCabinet();
     else if (act === 'titleequip') { g.sim.equipTitle(v); g.save(); this.openTitleCabinet(); }
     if (fromOverflow && act !== 'overflow-toggle') this.topOverflowOpen = false;
@@ -1165,7 +1332,8 @@ export class UI {
 
   renderToasts()       {
     const list = this.g.sim.toasts;
-    this.toastBox.innerHTML = list.slice(-3).map((t) => `<div class="toast">${t.text}</div>`).join('');
+    const html = list.slice(-3).map((t) => `<div class="toast">${t.text}</div>`).join('');
+    if (html !== this.lastToastHTML) { this.lastToastHTML = html; this.toastBox.innerHTML = html; }
   }
 
   currentTutorialState()       {
@@ -1201,6 +1369,9 @@ export class UI {
     const state = this.currentTutorialState();
     if (!state.started || state.completed || state.skipped) return false;
     if (closeOpenModal) this.closeModal();
+    // Reconcile real furniture before rendering the top bar/tutorial overlay.
+    // This repairs older saves that lack a flag for protected starting furniture.
+    syncTutorialFurniturePhase(this.g.sim);
     this.tutorialActive = true;
     this.render(true);
     return true;
@@ -1256,8 +1427,16 @@ export class UI {
   }
 
   renderTutorial()       {
-    for (const node of document.querySelectorAll('.tutorial-target')) node.classList.remove('tutorial-target', 'tutorial-satisfied');
+    for (const node of document.querySelectorAll('.tutorial-target')) {
+      if (node.classList.contains('tutorial-next-card')) continue;
+      node.classList.remove('tutorial-target', 'tutorial-satisfied'); node.style.zIndex = ''; node.style.pointerEvents = '';
+    }
     const state = this.currentTutorialState();
+    if (this.g.sim.campaign?.mode === 'tutorial' && !this.g.sim.campaign?.tutorialFlags?.quickStart) {
+      if (this.tutorialActive && !state.skipped && !state.completed) this.renderCampaignTutorial();
+      else { this.tutorialLayer.style.display = 'none'; this.tutorialLayer.innerHTML = ''; }
+      return;
+    }
     if (!this.tutorialActive || !state.started || state.completed || state.skipped) {
       this.tutorialLayer.style.display = 'none';
       if (this.tutorialLayer.innerHTML) this.tutorialLayer.innerHTML = '';
@@ -1265,6 +1444,7 @@ export class UI {
       return;
     }
     const step = TUTORIAL_STEPS[state.index];
+    const waiting = !!step.action && !state.satisfied;
     const selector = state.satisfied && step.afterTarget ? step.afterTarget : step.target;
     if (selector) {
       const target = [...document.querySelectorAll(selector)].find((node) => {
@@ -1272,8 +1452,8 @@ export class UI {
         return rect.width > 0 && rect.height > 0 && getComputedStyle(node).visibility !== 'hidden';
       });
       if (target) target.classList.add('tutorial-target', ...(state.satisfied ? ['tutorial-satisfied'] : []));
+      if (target) { target.style.position = 'relative'; target.style.zIndex = '31'; target.style.pointerEvents = waiting ? 'auto' : ''; }
     }
-    const waiting = !!step.action && !state.satisfied;
     const points = step.points?.length ? `<ul>${step.points.map((point) => `<li>${htmlText(point)}</li>`).join('')}</ul>` : '';
     const primary = state.index === TUTORIAL_STEPS.length - 1 ? '完成引导' : state.satisfied ? '看完了，下一步' : '下一步';
     const renderKey = `${state.index}|${state.satisfied ? 1 : 0}|${waiting ? 1 : 0}`;
@@ -1287,6 +1467,87 @@ export class UI {
       this.tutorialRenderKey = renderKey;
     }
     this.tutorialLayer.style.display = 'block';
+    this.tutorialLayer.style.pointerEvents = 'auto';
+    this.tutorialLayer.style.background = 'rgba(22,12,8,.48)';
+  }
+
+  renderCampaignTutorial() {
+    const sim = this.g.sim;
+    // Loading/resuming can enter here before the normal action handler runs.
+    // Reconcile first so a complete layout never produces an undefined target.
+    syncTutorialFurniturePhase(sim);
+    const phase = sim.campaign.phase;
+    const tutorialBedPrompt = !!tutorialBedStep(sim);
+    const missingRooms = ['foyer', 'dining', 'kitchen', 'storage', 'guestroom'].filter((kind) => !sim.tavern.rooms.some((room) => room.kind === kind));
+    const missingFurniture = tutorialMissingFurniture(sim);
+    const nextRoom = missingRooms[0];
+    const nextFurniture = missingFurniture[0];
+    const roomPanelOpen = this.leftTab === 'room' && !!document.querySelector('[data-tutorial-type="room-blueprint"]');
+    const furnPanelOpen = this.leftTab === 'furn' && !!document.querySelector('[data-tutorial-type="furniture"]');
+    const recruitmentNeedsCorridor = phase === 'first-recruitment' && !sim.tavern.rooms.some((room) => room.kind === 'corridor');
+    const recruitmentNeedsChair = phase === 'first-recruitment' && !recruitmentNeedsCorridor && sim.tavern.rooms.some((room) => room.kind === 'lounge') && !sim.campaign.tutorialFlags?.meetingChairReady;
+    const roomSelector = roomPanelOpen && nextRoom ? `[data-tutorial-type="room-blueprint"][data-tutorial-key="${nextRoom}"]` : '[data-act="rail"][data-v="room"]';
+    const furnSelector = furnPanelOpen && nextFurniture ? `[data-tutorial-type="furniture"][data-tutorial-key="${nextFurniture}"]` : '[data-act="rail"][data-v="furn"],[data-act="ltab"][data-v="furn"]';
+    const nextFurnitureName = nextFurniture ? (furnDef(nextFurniture)?.name || '下一件家具') : '所有家具';
+    const steps = {
+      'tutorial-build': ['准备', `先建${ROOM_LABEL[nextRoom] || '下一间房'}`, nextRoom === 'foyer' ? '从你的休息室出发，先建一座位面门厅。客人要从那里找到你。' : `很好，接下来把${ROOM_LABEL[nextRoom]}建起来。每一间房都会让旅店学会一件新本事。`, roomSelector],
+      'tutorial-furnish': ['准备', `摆好${nextFurnitureName}`, nextFurniture ? '房间已经连起来了。现在按顺序摆好真正工作的家具，系统会检查每一件设备的使用面。' : '家具都已准备好，确认后就可以开门营业。', furnSelector],
+      'ready-open': ['营业', '门外已经有人等着了', '最后检查一下动线，点击“开门营业”，我们一起迎接第一批客人。', '[data-act="open"]'],
+      'business': tutorialBedPrompt ? ['营业', '该回床上补一会儿体力了', '一个人同时照看旅店和客人会很累。点亮的床就是你的休息处：管理模式点床会自动走过去，直控模式走到床边按 E。客人的耐心会在这段时间耗尽，这是今天要学会面对的第一课。', '#app canvas'] : null,
+      'day1-open': tutorialBedPrompt ? ['营业', '该回床上补一会儿体力了', '一个人同时照看旅店和客人会很累。点亮的床就是你的休息处：管理模式点床会自动走过去，直控模式走到床边按 E。客人的耐心会在这段时间耗尽，这是今天要学会面对的第一课。', '#app canvas'] : null,
+      'first-recruitment': ['打烊', recruitmentNeedsCorridor ? '先铺一段连接走廊' : recruitmentNeedsChair ? '先给会议桌添一把椅子' : '一个人太辛苦了', recruitmentNeedsCorridor ? '员工休息室不能悬在旅店外面。先铺一段短走廊，给未来的新同伴留一条回房的路。' : recruitmentNeedsChair ? '员工房已经准备好了。会议桌旁再添一把椅子，第一位新同伴才有位置参加每日会议。' : '王国的赠礼已经到账。先建一间员工休息室，招募按钮就会像变魔术一样出现。', recruitmentNeedsCorridor ? (roomPanelOpen ? '[data-tutorial-type="room-blueprint"][data-tutorial-key="corridor"]' : '[data-act="rail"][data-v="room"]') : recruitmentNeedsChair ? (furnPanelOpen ? '[data-tutorial-type="furniture"][data-tutorial-key="chair"]' : '[data-act="rail"][data-v="furn"],[data-act="ltab"][data-v="furn"]') : '[data-act="rail"][data-v="room"]'],
+      'settlement': ['打烊', '今天辛苦了', '先看看经营小报，再和大家坐到会议桌旁聊聊今天发生的事。', '#top'],
+      'meeting': ['会议', '大家都到齐了', '从经营、团队和世界三个方向挑选最重要的议题，听听每个人的想法。', '#modal'],
+      'night': ['夜间', '轮到旅店安静下来', '和员工聊两句，或者回到自己的床边躺下，结束这一天。', '#app canvas'],
+      'employee-intro': ['新同伴', '简历真的变成了一个人', '先和新员工打个招呼。确认这段入场介绍后，才会一起坐到会议桌旁。', '[data-act="employeeintroconfirm"]'],
+    }[phase];
+    if (!steps) { this.tutorialLayer.style.display = 'none'; return; }
+    const [chapter, title, body, selector] = steps;
+    for (const node of document.querySelectorAll('.tutorial-target')) {
+      // Room blueprint cards carry the target class from renderLeft so the
+      // exact card remains visibly actionable even while the campaign overlay
+      // refreshes. Other targets are recalculated below as usual.
+      if (node.classList.contains('tutorial-next-card')) continue;
+      node.classList.remove('tutorial-target'); node.style.zIndex = ''; node.style.pointerEvents = '';
+    }
+    const target = [...document.querySelectorAll(selector)].find((node) => node.getBoundingClientRect().width > 0);
+    if (target) { target.classList.add('tutorial-target'); target.style.position = 'relative'; target.style.zIndex = '31'; target.style.pointerEvents = 'auto'; }
+    const key = `${phase}|${sim.econ.day}|${sim.campaign.tutorialFlags?.day1Opened ? 1 : 0}|${tutorialBedPrompt ? 1 : 0}`;
+    if (this.tutorialRenderKey !== key) {
+      const introAction = phase === 'employee-intro' ? '<button data-act="employeeintroconfirm" class="tutorial-primary-action">确认，和新同伴开会</button>' : '';
+      this.tutorialLayer.innerHTML = `<section class="tutorial-card" role="dialog" aria-label="剧情引导"><div class="tutorial-head"><span class="tutorial-step">${chapter} · 第${sim.econ.day}天</span><h2>${title}</h2></div><p>${body}</p><div class="tutorial-hint">高亮区域之外暂时不能操作；完成当前真实目标后，引导会自动进入下一段。</div><div class="tutorial-actions">${introAction}<button data-act="tutorialmin">暂时收起</button><button data-act="tutorialskip" class="warn">跳过引导</button></div></section>`;
+      this.tutorialRenderKey = key;
+    }
+    this.tutorialLayer.style.display = 'block'; this.tutorialLayer.style.pointerEvents = 'none'; this.tutorialLayer.style.background = 'rgba(22,12,8,.48)';
+    const card = this.tutorialLayer.querySelector('.tutorial-card'); if (card) card.style.pointerEvents = 'auto';
+  }
+
+  campaignActionAllowed(act, value = '') {
+    if (['tutorialmin', 'tutorialskip'].includes(act)) return true;
+    // 经营中的基础时间控制始终可用。某些教学阶段（例如 day1-open
+    // 尚未触发床提示时）没有可见剧情卡，但不能因此把倍速/暂停变成死按钮。
+    if (['pause', 'speed'].includes(act)) return true;
+    const phase = this.g.sim.campaign.phase;
+    if (phase === 'tutorial-build') {
+      if (act === 'rail' || act === 'ltab') return value === 'room';
+      return ['bp', 'cancelbuild', 'rotate', 'buildundo', 'buildredo'].includes(act);
+    }
+    if (['tutorial-furnish', 'tutorial-bed-complete'].includes(phase)) {
+      if (act === 'rail' || act === 'ltab') return value === (phase === 'tutorial-build' ? 'room' : 'furn');
+      return ['furn', 'cancelbuild', 'rotate', 'buildundo', 'buildredo'].includes(act);
+    }
+    if (phase === 'ready-open') return ['open', 'readiness', 'tutorialmin', 'tutorialskip'].includes(act);
+    if (phase === 'first-recruitment') {
+      const loungeId = BLUEPRINTS.find((item) => item.kind === 'lounge')?.id || '';
+      const corridorId = 'corridor2';
+      const needsCorridor = !this.g.sim.tavern.rooms.some((room) => room.kind === 'corridor');
+      return ['rail', 'ltab', 'bp', 'furn', 'cancelbuild', 'rotate', 'buildundo', 'buildredo'].includes(act)
+        && (act !== 'rail' && act !== 'ltab' || ['room', 'furn'].includes(value))
+        && (act !== 'bp' || value === (needsCorridor ? corridorId : loungeId)) && (act !== 'furn' || value === 'chair');
+    }
+    if (phase === 'employee-intro') return ['employeeintroconfirm', 'tutorialmin', 'tutorialskip'].includes(act);
+    if (phase === 'recruit') return ['rtab', 'rail', 'staffrecruit', 'staffback', 'detail', 'selstaff', 'hire', 'directrecruit', 'adopen', 'adpost', 'adcancelai', 'adclear', 'adseen', 'adbias', 'adrace', 'adsex', 'adtier', 'adworld', 'adworldname', 'candcompare', 'candcomparefocus', 'candcompareopen', 'candgaphighlight', 'candjobfilter', 'candsort', 'candworldfilter', 'tutorialmin', 'tutorialskip'].includes(act);
+    return ['tutorialmin', 'tutorialskip', 'meetingcard', 'meetingdone', 'meetingconfirm', 'meetingreturn', 'nightbed', 'nightproactive', 'nightqueue', 'closemodal', 'posteventnext', 'rtab', 'rail', 'detail', 'selstaff'].includes(act);
   }
 
   render(force         )       {
@@ -1296,11 +1557,18 @@ export class UI {
     this.root.classList.toggle('manual-owner', this.g.sim.manualOwner && (this.compact || this.touchUi));
     this.renderRails();
     this.renderTop();
-    this.renderLeft();
-    this.renderRight();
-    this.renderBottom();
-    this.applyCollapse();
-    this.renderTutorial();
+    const s = this.g.sim;
+    const panelSignature = panelStateSignature(s, this, this.g.tavern);
+    const structuralChanged = force || panelSignature !== this.lastPanelSignature;
+    if (structuralChanged) {
+      this.lastPanelSignature = panelSignature;
+      this.renderLeft();
+      this.renderRight();
+      this.renderBottom();
+      this.applyCollapse();
+      this.renderTutorial();
+      this.panelRebuilds = (this.panelRebuilds || 0) + 1;
+    }
     if (force) this.renderToasts();
   }
 
@@ -1325,24 +1593,39 @@ export class UI {
       <div class="top-group top-speed"><button data-act="pause" class="${g.paused ? 'on' : ''}" aria-label="${g.paused ? '继续' : '暂停'}">${g.paused ? '▶' : 'Ⅱ'}</button>${[1, 2, 4].map((n) => `<button data-act="speed" data-v="${n}" class="${g.speed === n && !g.paused ? 'on' : ''}">${n}X</button>`).join('')}</div>
       <div class="top-group top-economy"><span class="hi">${uiIcon('econ', '界币')} ${Math.round(e.coins)}</span><span>声望 <span class="star">${'★'.repeat(stars)}</span><span class="dim">${'☆'.repeat(5 - stars)}</span> ${Math.round(e.rep)}/${nextTh}</span></div>
       <div class="top-group top-status">${certButton}${s.endingSeen ? '<span class="good">五星认证</span>' : ''}${e.strikes ? `<span class="bad">封印警告 ${e.strikes}/3</span>` : ''}${lowStock.length ? `<span class="bad">缺料：${lowStock.map((k) => ING_LABEL[k]).join('/')}</span>` : ''}${this.dynamicAIStatus?.state === 'loading' ? `<span class="hi">✦ ${htmlText(this.dynamicAIStatus.text)}</span><button data-act="aicanceldynamic">取消</button>` : this.dynamicAIStatus?.state === 'error' ? `<span class="bad">${htmlText(this.dynamicAIStatus.text)}</span><button data-act="airetrydynamic">重试</button>` : ''}</div>
-      <div class="top-group top-actions">${s.dayActive ? '' : `<button data-act="readiness">${uiIcon('ready', '营业准备')} 营业准备</button><button data-act="open" class="primary-action">开门营业</button>`}${tutorial.started && !tutorial.completed && !tutorial.skipped && !this.tutorialActive ? `<button data-act="tutorialresume">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>` : ''}<button data-act="mobilemanual" class="mobile-manual ${s.manualOwner ? 'on' : ''}">${s.manualOwner ? '自动' : '直控'}</button><button data-act="savemenu">${uiIcon('save', '档位')} 档位 ${this.g.currentSlot}</button><span class="top-actions-secondary"><button data-act="help">${uiIcon('help', '帮助')} 帮助</button><button data-act="prompts">${uiIcon('prompt', '提示词')} 提示词</button><button data-act="home">回店</button><button data-act="fullview" title="容纳全部房间">全店视图</button><button data-act="settings">设置</button></span><div class="top-overflow ${this.topOverflowOpen ? 'open' : ''}"><button data-act="overflow-toggle" aria-label="更多工具" aria-haspopup="true" aria-expanded="${this.topOverflowOpen}">⋮</button><div class="top-overflow-menu" role="menu">${certPending ? `<button data-act="certinfo" class="hi" role="menuitem">${certLabel}</button>` : ''}<button data-act="help" role="menuitem">${uiIcon('help', '帮助')} 帮助</button><button data-act="prompts" role="menuitem">${uiIcon('prompt', '提示词')} 提示词</button><button data-act="home" role="menuitem">回店</button><button data-act="fullview" role="menuitem" title="容纳全部房间">全店视图</button><button data-act="settings" role="menuitem">设置</button></div></div></div>`);
+      <div class="top-group top-actions">${s.canOpenBusinessNow() ? `<button data-act="readiness">${uiIcon('ready', '营业准备')} 营业准备</button><button data-act="open" class="primary-action">开门营业</button>` : ''}${tutorial.started && !tutorial.completed && !tutorial.skipped && !this.tutorialActive && !tutorialBedStep(s) ? `<button data-act="tutorialresume">继续引导 ${tutorial.index + 1}/${TUTORIAL_STEPS.length}</button>` : ''}<button data-act="mobilemanual" class="mobile-manual ${s.manualOwner ? 'on' : ''}">${s.manualOwner ? '自动' : '直控'}</button><button data-act="savemenu">${uiIcon('save', '档位')} 档位 ${this.g.currentSlot}</button><span class="top-actions-secondary"><button data-act="help">${uiIcon('help', '帮助')} 帮助</button><button data-act="prompts">${uiIcon('prompt', '提示词')} 提示词</button><button data-act="home">回店</button><button data-act="fullview" title="容纳全部房间">全店视图</button><button data-act="settings">设置</button></span><div class="top-overflow ${this.topOverflowOpen ? 'open' : ''}"><button data-act="overflow-toggle" aria-label="更多工具" aria-haspopup="true" aria-expanded="${this.topOverflowOpen}">⋮</button><div class="top-overflow-menu" role="menu">${certPending ? `<button data-act="certinfo" class="hi" role="menuitem">${certLabel}</button>` : ''}<button data-act="help" role="menuitem">${uiIcon('help', '帮助')} 帮助</button><button data-act="prompts" role="menuitem">${uiIcon('prompt', '提示词')} 提示词</button><button data-act="home" role="menuitem">回店</button><button data-act="fullview" role="menuitem" title="容纳全部房间">全店视图</button><button data-act="settings" role="menuitem">设置</button></div></div></div>`);
   }
 
-          phase()         {
+  phase()         {
     const t = this.g.sim.dayT;
     return t < 45 ? '暖场' : t < 160 ? '上客' : t < 180 ? '低谷' : t < 270 ? '晚高峰' : '收尾';
   }
 
-          renderLeft()       {
+  tutorialPanelLocked(tab) {
+    return this.g.sim.campaign?.mode === 'tutorial' && this.g.sim.econ.day === 1 && ['menu', 'econ'].includes(tab);
+  }
+
+  renderLeft()       {
     const g = this.g;
+    if (this.tutorialPanelLocked(this.leftTab)) this.leftTab = 'room';
     const stars = g.sim.stars();
     let body = '';
     if (this.leftTab === 'room') {
       body = `<div class="row" style="flex-wrap:wrap;margin-bottom:7px"><button data-act="buildundo" ${g.buildHistoryIndex <= 0 ? 'disabled' : ''}>↶ 撤销</button><button data-act="buildredo" ${g.buildHistoryIndex >= g.buildHistory.length - 1 ? 'disabled' : ''}>↷ 重做</button><button data-act="blueprints">蓝图库</button><button data-act="savelayout">保存整店布局</button></div>`;
       body += BLUEPRINTS.filter((b) => b.buildable).map((b) => {
-        const locked = b.unlock > stars;
-        return `<div class="card ${g.buildBp === b.id ? 'sel' : ''}" ${locked ? '' : `data-act="bp" data-v="${b.id}"`}>
-          <div class="row"><b>${b.name}</b><span class="${g.sim.econ.coins < b.cost ? 'bad' : 'hi'}">${b.cost}</span></div>
+        const tutorialGuestroom = g.sim.campaign?.mode === 'tutorial' && g.sim.econ.day <= 3 && b.kind === 'guestroom';
+        const locked = b.unlock > stars && !tutorialGuestroom;
+        const tutorialPhase = g.sim.campaign?.phase;
+        const roomsLeft = ['foyer', 'dining', 'kitchen', 'storage', 'guestroom'].filter((kind) => !g.tavern.rooms.some((room) => room.kind === kind));
+        const target = tutorialPhase === 'tutorial-build' ? roomsLeft[0] : tutorialPhase === 'first-recruitment'
+          ? (g.tavern.rooms.some((room) => room.kind === 'corridor') ? (BLUEPRINTS.find((item) => item.kind === 'lounge')?.id || '') : 'corridor2') : '';
+        // tutorial-build tracks the required room by kind; first-recruitment tracks
+        // the concrete lounge blueprint id. Keep the card's action live only for
+        // the exact target while the Game method remains the final gate.
+        const tutorialTarget = tutorialBlueprintTarget(tutorialPhase, b, target);
+        const tutorialDisabled = ['tutorial-build', 'first-recruitment'].includes(tutorialPhase) && !tutorialTarget;
+        return `<div class="card ${g.buildBp === b.id ? 'sel' : ''} ${tutorialTarget ? 'tutorial-next-card tutorial-target' : ''}" data-tutorial-key="${b.kind}" data-tutorial-type="room-blueprint" ${locked || tutorialDisabled ? 'aria-disabled="true"' : `data-act="bp" data-v="${b.id}"`}>
+          <div class="row"><b>${b.name}</b><span class="${g.sim.econ.coins < (b.buildCost ?? b.cost) ? 'bad' : 'hi'}">${b.buildCost ?? b.cost}</span></div>
           <div class="dim">${locked ? `★${b.unlock} 解锁` : b.note}</div></div>`;
       }).join('');
       body += `<div class="dim">选中蓝图后在地图上点击落位；R 旋转，Esc 取消。新房间必须与已有房间贴边。</div>`;
@@ -1353,19 +1636,24 @@ export class UI {
       if (!room) {
         body = '<h3>布置家具</h3><div class="dim">请先在地图上点击一个具体房间，再查看该房间可以布置的家具。</div>';
       } else {
-        const available = FURN_DEFS.filter((f) => f.rooms.includes(room.kind));
+        // 新档的自动内置家具不进购买目录；legacy 允许补购旧档缺失的 bunk/desk，会议桌仍不可普通购买。
+        const available = FURN_DEFS.filter((f) => f.rooms.includes(room.kind)
+          && (this.g.sim.campaign?.mode === 'legacy' ? !['meetingtable'].includes(f.kind) : !f.builtIn && !['bunk', 'desk', 'meetingtable'].includes(f.kind)));
         body = `<div class="row"><b>${ROOM_LABEL[room.kind]} #${room.id}</b><span class="dim">可布置 ${available.length} 类</span></div>
           <div class="dim" style="margin-bottom:6px">只显示适用于当前房间的家具；放置后可以继续布置同一房间。</div>`;
         body += available.map((f) => {
           const q = g.buildFurn === f.kind ? g.buildQuality : 1;
-          return `<div class="card ${g.buildFurn === f.kind ? 'sel' : ''}">
-            <div class="row" data-act="furn" data-v="${f.kind}" data-q="${q}"><b>${f.name}</b><span class="hi">${f.cost[q - 1]}</span></div>
+          const furnitureLeft = tutorialMissingFurniture(g.sim);
+          const tutorialTarget = g.sim.campaign?.phase === 'tutorial-furnish' && furnitureLeft[0] === f.kind;
+          const tutorialDisabled = g.sim.campaign?.phase === 'tutorial-furnish' && !tutorialTarget;
+          return `<div class="card ${g.buildFurn === f.kind ? 'sel' : ''} ${tutorialTarget ? 'tutorial-next-card' : ''}" data-tutorial-key="${f.kind}" data-tutorial-type="furniture" aria-disabled="${tutorialDisabled ? 'true' : 'false'}">
+            <div class="row" ${tutorialDisabled ? 'aria-disabled="true"' : `data-act="furn" data-v="${f.kind}" data-q="${q}"`}><b>${f.name}</b><span class="hi">${f.cost[q - 1]}</span></div>
             <div class="dim">${f.note}</div>
             <div class="row">品质 ${[1, 2, 3].map((k) => {
               const needStar = furnQualityUnlock(f.kind, k);
               const locked = stars < needStar || room.quality < k;
               const why = stars < needStar ? `需要 ★${needStar}` : room.quality < k ? `需要房间品质 ${'I'.repeat(k)}` : '';
-              return `<button ${locked ? `disabled title="${why}"` : `data-act="furn" data-v="${f.kind}" data-q="${k}"`} class="${g.buildFurn === f.kind && g.buildQuality === k ? 'on' : ''}">${'I'.repeat(k)}${locked ? '🔒' : ''}</button>`;
+              return `<button ${locked || tutorialDisabled ? `disabled aria-disabled="true" title="${why || '请按引导顺序操作'}"` : `data-act="furn" data-v="${f.kind}" data-q="${k}"`} class="${g.buildFurn === f.kind && g.buildQuality === k ? 'on' : ''}">${'I'.repeat(k)}${locked ? '🔒' : ''}</button>`;
             }).join('')}</div>
           </div>`;
         }).join('');
@@ -1476,6 +1764,15 @@ export class UI {
     return [...this.allRecruitmentCandidates()].sort((a, b) => this.candidateRoleScore(b, gap.job) - this.candidateRoleScore(a, gap.job) || staffAnalysis(b).score - staffAnalysis(a).score)[0]?.id || 0;
   }
 
+  recruitmentGate(person = null) {
+    const s = this.g.sim;
+    if (!s.tavern.rooms.some((room) => room.kind === 'lounge')) return { ok: false, reason: '先建员工休息室（每名员工需要一间）' };
+    if (s.staff.length >= s.maxStaff()) return { ok: false, reason: `员工上限 ${s.maxStaff()}：先建更多员工休息室` };
+    if (s.campaign?.mode !== 'legacy' && s.staff.length + 1 > s.meetingSeatCapacity()) return { ok: false, reason: '会议桌座位不足：先增加一把会议椅' };
+    if (person && s.econ.coins < person.wage * 3) return { ok: false, reason: '界币不足以支付入职费' };
+    return { ok: true, reason: '' };
+  }
+
   candidateDecisionControls() {
     const all = this.allRecruitmentCandidates();
     const worlds = [...new Set(all.map((person) => person.originWorldName || '未知'))].sort((a, b) => a.localeCompare(b, 'zh-CN'));
@@ -1512,7 +1809,7 @@ export class UI {
     if (!chosen.some((person) => person.id === this.candidateCompareFocusId)) this.candidateCompareFocusId = chosen[0].id;
     const gap = this.recruitmentGap();
     const gapSkill = jobFocusSkill(gap.job);
-    const tabs = `<div class="compare-person-tabs">${chosen.map((person) => `<button data-act="candcomparefocus" data-v="${person.id}" class="${person.id === this.candidateCompareFocusId ? 'on' : ''}">${htmlText(person.name)}</button>`).join('')}</div>`;
+    const tabs = `<div class="compare-person-tabs">${chosen.map((person) => `<button data-act="candcomparefocus" data-v="${person.id}" class="${person.id === this.candidateCompareFocusId ? 'on' : ''}">${renderPersonName(person, 'span')}</button>`).join('')}</div>`;
     const columns = chosen.map((person) => {
       const analysis = staffAnalysis(person);
       const focused = person.id === this.candidateCompareFocusId;
@@ -1524,7 +1821,7 @@ export class UI {
       })).join('');
       return `<section class="compare-column ${focused ? 'focused' : ''}" data-candidate-id="${person.id}">
         <div class="compare-portrait">${portraitFrame(person.app, 'compare', person.name)}</div>
-        <div class="compare-identity"><h4>${htmlText(person.name)}</h4><div>${htmlText(person.originWorldName || '未知世界')} · 日薪 ${person.wage}</div><div class="dim">推荐岗位：${JOB_LABEL[analysis.recommendedJob]} · 综合 ${analysis.score}</div></div>
+        <div class="compare-identity"><h4>${htmlText(person.name)}${sexMark(person)}</h4><div>${htmlText(person.originWorldName || '未知世界')} · 日薪 ${person.wage}</div><div class="dim">推荐岗位：${JOB_LABEL[analysis.recommendedJob]} · 综合 ${analysis.score}</div></div>
         <div class="compare-analysis">${htmlText(this.candidateAnalysisSentence(person, analysis, gap))}</div>
         <div class="compare-skills">${skills}</div>
         ${background ? `<details><summary aria-expanded="false">背景与求职动机</summary><div class="dim">${htmlText(this.candidateBackgroundSummary(background))}</div><div>${htmlText(background.aspiration || background.background || '')}</div>${background.quirk ? `<div class="dim">习惯：${htmlText(background.quirk)}</div>` : ''}</details>` : ''}
@@ -1532,7 +1829,8 @@ export class UI {
       </section>`;
     }).join('');
     const focus = chosen.find((person) => person.id === this.candidateCompareFocusId) || chosen[0];
-    this.showModal(`<h3>候选人并排比较</h3><section class="candidate-compare-modal"><div class="candidate-compare-head"><span>当前缺口：<b>${JOB_LABEL[gap.job]}</b> · 主能力 ${SKILL_LABEL[gapSkill]}</span><span class="spacer"></span><button data-act="candgaphighlight" class="${this.candidateGapHighlight ? 'on' : ''}">固定高亮当前缺口：${this.candidateGapHighlight ? '开' : '关'}</button></div>${tabs}<div class="compare-grid" style="--compare-count:${chosen.length}">${columns}</div><div class="compare-footer"><span class="dim">选中候选人后仍需再次确认入职费</span><button class="compare-hire" data-act="hire" data-v="${focus.id}">雇用「${htmlText(focus.name)}」</button></div></section>`, true, false, { variant: 'important' });
+    const gate = this.recruitmentGate(focus);
+    this.showModal(`<h3>候选人并排比较</h3><section class="candidate-compare-modal"><div class="candidate-compare-head"><span>当前缺口：<b>${JOB_LABEL[gap.job]}</b> · 主能力 ${SKILL_LABEL[gapSkill]}</span><span class="spacer"></span><button data-act="candgaphighlight" class="${this.candidateGapHighlight ? 'on' : ''}">固定高亮当前缺口：${this.candidateGapHighlight ? '开' : '关'}</button></div>${tabs}<div class="compare-grid" style="--compare-count:${chosen.length}">${columns}</div><div class="compare-footer"><span class="dim">${gate.ok ? '选中候选人后仍需再次确认入职费' : htmlText(gate.reason)}</span><button class="compare-hire" data-act="hire" data-v="${focus.id}" ${gate.ok ? '' : `disabled title="${htmlText(gate.reason)}"`}>${gate.ok ? `雇用「${htmlText(focus.name)}」` : '暂不可雇用'}</button></div></section>`, true, false, { variant: 'important' });
   }
 
   candidateBackgroundSummary(background) {
@@ -1587,7 +1885,10 @@ export class UI {
       if (this.staffView === 'list') {
         body = `<div class="dim staff-summary">员工 ${s.staff.length}/${s.maxStaff()}　1 人 1 间卧室（休息室）</div>`;
         body += s.staff.map((st) => this.staffCard(st)).join('');
-        body += `<button class="staff-recruit-entry" data-act="staffrecruit">＋　新增员工</button>`;
+        if (!(s.campaign?.mode === 'tutorial' && s.econ.day === 1 && !s.campaign.tutorialFlags?.recruitUnlocked)) {
+          const gate = this.recruitmentGate();
+          body += `<button class="staff-recruit-entry" data-act="staffrecruit" ${gate.ok ? '' : `disabled title="${htmlText(gate.reason)}"`}>＋　${gate.ok ? '新增员工' : gate.reason}</button>`;
+        }
       } else {
         body = `<div class="recruitment-head"><button data-act="staffback">返回员工</button><h3>招聘中心</h3><span style="width:72px"></span></div>`;
         const directUnlocked = s.stars() >= 4;
@@ -1644,12 +1945,13 @@ export class UI {
     } else if (this.rightTab === 'world') {
       const forecast = new Set(s.econ.worldForecast || []);
       const allWorlds = s.worlds();
-      const unlocked = allWorlds.filter((world) => world.custom || world.unlockStars <= s.stars());
+      const isWorldUnlocked = (world) => world.custom || (s.campaign?.mode === 'legacy' ? world.unlockStars <= s.stars() : worldUnlockDay(world.id) <= s.econ.day);
+      const unlocked = allWorlds.filter(isWorldUnlocked);
       const current = s.currentWorld();
       const filteredWorlds = allWorlds.filter((world) => {
         const info = s.econ.worldKnowledge?.[world.id] || { level: 0 };
         if (this.worldFilter === 'visited') return info.level > 0;
-        if (this.worldFilter === 'unlocked') return (world.custom || world.unlockStars <= s.stars()) && world.id !== current.id;
+        if (this.worldFilter === 'unlocked') return isWorldUnlocked(world) && world.id !== current.id;
         if (this.worldFilter === 'custom') return !!world.custom;
         if (this.worldFilter === 'existing') return world.source?.mode === 'existing_work';
         return true;
@@ -1659,7 +1961,7 @@ export class UI {
       body += filteredWorlds.map((world) => {
         const info = s.econ.worldKnowledge?.[world.id] || { level: 0, arrivals: 0, served: 0 };
         const unseen = info.level > (Number(s.econ.worldSeenLevels?.[world.id]) || 0);
-        if (world.unlockStars > s.stars()) return `<div class="card"><div class="row"><b>未接通的位面</b><span class="dim">需要 ★${world.unlockStars}</span></div></div>`;
+        if (!isWorldUnlocked(world)) return `<div class="card"><div class="row"><b>尚未开放的位面</b><span class="dim">${s.campaign?.mode === 'legacy' ? `需要 ★${world.unlockStars}` : `第 ${worldUnlockDay(world.id)} 天开放`}</span></div></div>`;
         if (!info.level) return `<div class="card"><div class="row"><b>${world.icon} 尚未到访</b><span class="dim">航路已接通</span></div><div class="dim">等待第一批旅客穿过位面门。</div></div>`;
         return `<div class="card" data-act="worldcard" data-v="${htmlText(world.id)}" style="border-left-color:${world.id === current.id ? '#8DDB4A' : forecast.has(world.id) ? '#E45AD1' : '#C9922F'}"><div class="row"><b>${world.icon} ${world.name}${world.id === current.id ? ' · 当前' : ''}${noticeDot(unseen, '有未读世界资料')}</b><span>${forecast.has(world.id) ? '潮汐增强' : `接待 ${info.served || 0} 人`}</span></div>
           <div>${htmlText(world.identity.summary)}</div>
@@ -1694,7 +1996,7 @@ export class UI {
     const selected = this.candidateCompareIds.has(p.id);
     const recommended = p.id === bestGapId;
     return `<div class="card candidate-card ${recommended ? 'recommended' : ''}"><div class="row">${portraitFrame(p.app, 'main', p.name)}
-        <span style="flex:1"><b>${p.name}</b><div class="dim">${p.race}·${p.sex}·${p.age}岁</div><div class="hi">出生世界：${htmlText(p.originWorldName || '未知')}</div></span>
+        <span style="flex:1">${renderPersonName(p, 'b')}<div class="dim">${p.race}·${p.sex || '性别未知'}·${p.age}岁</div><div class="hi">出生世界：${htmlText(p.originWorldName || '未知')}</div></span>
         <span class="hi">日薪${p.wage}</span></div>
       ${recommended ? `<div class="good"><b>★ 最适合当前缺口</b> · ${JOB_LABEL[gap.job]}匹配 ${this.candidateRoleScore(p, gap.job)}</div>` : ''}
       ${p.worldSpecialty ? `<div class="hi">世界专长：${htmlText(p.worldSpecialty.name)} · ${htmlText(p.worldSpecialty.note)}</div>` : ''}
@@ -1703,17 +2005,18 @@ export class UI {
       <div class="dim"><span class="good">优势 ${analysis.strengths.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span> · <span class="bad">短板 ${analysis.weaknesses.map((item) => `${SKILL_LABEL[item.key]}${item.value}`).join('、')}</span></div>
       <div class="row" style="justify-content:flex-start;flex-wrap:wrap">${p.traits.map((t) => this.traitTag(t)).join('')}<span class="dim" title="根据综合技能与性格自动规划">自动优先级 ${p.prio}</span></div>
       ${bg ? `<div class="dim candidate-summary">${htmlText(this.candidateBackgroundSummary(bg))}</div><details class="candidate-details"><summary aria-expanded="false">展开背景与求职动机</summary><div class="dim">${htmlText(bg.role || '')}</div><div>${htmlText(bg.aspiration || bg.background || '')}</div>${bg.quirk ? `<div class="dim">习惯：${htmlText(bg.quirk)}</div>` : ''}</details>` : ''}
-      <div class="row"><button data-act="candcompare" data-v="${p.id}" class="${selected ? 'on' : ''}">${selected ? '✓ 比较中' : '加入比较'}</button><button data-act="hire" data-v="${p.id}">雇用（入职费${p.wage * 3}）</button>
+      ${(() => { const gate = this.recruitmentGate(p); return `<div class="row"><button data-act="candcompare" data-v="${p.id}" class="${selected ? 'on' : ''}">${selected ? '✓ 比较中' : '加入比较'}</button><button data-act="hire" data-v="${p.id}" ${gate.ok ? '' : `disabled title="${htmlText(gate.reason)}"`}>${gate.ok ? `雇用（入职费${p.wage * 3}）` : gate.reason}</button>`; })()}
         ${bg ? `<button data-act="viewbg" data-v="${p.id}">查看背景</button>` : aiConfigured() ? `<button data-act="aibg" data-v="${p.id}">AI 生成背景</button>` : ''}</div></div>`;
   }
 
   staffCard(st       )         {
+    const tutorialLocked = this.g.sim.campaign?.mode === 'tutorial' && this.g.sim.econ.day === 1 && !this.g.sim.campaign.tutorialFlags?.firstEmployeeHired;
     const sel = this.g.selection && this.g.selection.kind === 'staff' && this.g.selection.id === st.id;
     const room = st.roomId ? this.g.tavern.roomById(st.roomId) : null;
     return `<div class="card staff-card ${sel ? 'sel' : ''}" data-act="selstaff" data-v="${st.id}">
       <div class="staff-card-grid">${portraitFrame(st.app, 'main', st.name)}
-        <div class="staff-card-main"><div class="staff-card-head"><span class="staff-identity" style="flex:1"><b>${htmlText(st.name)}<small class="sex-mark ${st.sex === '女' ? 'sex-f' : 'sex-m'}">${htmlText(st.sex || '')}</small></b><span class="staff-role-tag">${st.isOwner ? '店主' : JOB_LABEL[st.job]}</span>
-          <div class="dim">${JOB_LABEL[st.job]} · ${room ? `${st.roomMode === 'strict' ? '仅限' : '优先'} ${ROOM_LABEL[room.kind]}` : '全店机动'}</div></span><button class="staff-detail-action" data-act="detail" data-v="${st.id}" aria-label="查看${htmlText(st.name)}详情"><span class="staff-detail-mark" aria-hidden="true"></span></button></div>
+        <div class="staff-card-main"><div class="staff-card-head"><span class="staff-identity" style="flex:1">${renderPersonName(st, 'b')}${tutorialLocked ? '' : `<span class="staff-role-tag">${st.isOwner ? '店主' : JOB_LABEL[st.job]}</span>`}
+          <div class="dim">${tutorialLocked ? '基础状态' : `${JOB_LABEL[st.job]} · ${room ? `${st.roomMode === 'strict' ? '仅限' : '优先'} ${ROOM_LABEL[room.kind]}` : '全店机动'}`}</div></span><button class="staff-detail-action" data-act="detail" data-v="${st.id}" aria-label="查看${htmlText(st.name)}详情"><span class="staff-detail-mark" aria-hidden="true"></span></button></div>
           <span class="dim staff-current">${st.task ? '正在：' + st.task.label : st.free ? this.freeLabel(st.free.kind) : st.note || '待命'}</span>
           <div class="staff-metrics">${metricRow({ icon: 'stamina', label: '体力', value: st.needs.stamina, color: 'var(--positive)', padValue: 3, act: 'needinfo', actValue: 'stamina', id: st.id })}${metricRow({ icon: 'morale', label: '士气', value: st.needs.morale, color: 'var(--info)', padValue: 3, act: 'needinfo', actValue: 'morale', id: st.id })}${metricRow({ icon: 'affinity', label: '好感', value: st.aff, color: 'var(--rose)', padValue: 3, act: 'needinfo', actValue: 'aff', id: st.id })}</div>
         </div></div></div>`;
@@ -1723,7 +2026,7 @@ export class UI {
           roomName(r      )         {
     if (r.kind === 'lounge' && r.occupant) {
       const st = this.g.sim.staff.find((x) => x.id === r.occupant);
-      if (st) return `${st.name}的卧室`;
+      if (st) return `${renderPersonName(st, 'span')}的卧室`;
     }
     return ROOM_LABEL[r.kind];
   }
@@ -1742,6 +2045,12 @@ export class UI {
     const sel = g.selection;
     this.bottom.classList.toggle('bottom-collapsed', this.bottomCollapsed);
     this.bottom.classList.toggle('bottom-expanded', !this.bottomCollapsed && (g.moveRoomId !== null || !!g.buildBp || !!g.buildFurn || !!sel));
+    if (!g.sim.dayActive && g.sim.nightState?.active && !g.sim.meetingState?.open) {
+      const q = g.sim.nightState.proactiveQueue || [];
+      const bedText = g.sim.campaign?.mode === 'legacy' ? '员工休息室床边' : '玩家休息室床边';
+      this.setBottomHTML(`<b class="hi">夜间自由活动</b><div class="dim">可以继续建设、调整排班或与员工交谈。请让店主走到${bedText}后按 E 结束今天。</div>${q.length ? `<button data-act="nightqueue">待回应 ${q.length}</button>` : ''}`);
+      return;
+    }
     if (g.moveRoomId !== null) {
       const room = g.tavern.roomById(g.moveRoomId);
       this.setBottomHTML(`<b class="hi">移动房间：${room ? this.roomName(room) : ''}</b>
@@ -1773,7 +2082,7 @@ export class UI {
       if (!gu) { this.setBottomHTML('<div class="dim">客人已离店。</div>'); return; }
       const gr = this.g.sim.groups.find((x) => x.id === gu.groupId);
       this.setBottomHTML(`<div class="row portrait-head">${portraitFrame(gu.app, 'compact', gu.name)}
-        <div style="flex:1"><b>${gu.name}</b> <span class="dim">${gu.race}</span>
+        <div style="flex:1"><b>${htmlText(gu.name)}${sexMark(gu)}</b> <span class="dim">${gu.race}</span>
         <div class="dim">${gr ? `同行 ${gr.size} 人 · 状态 ${gr.state} · 耐心 ${Math.round(gr.patience)}s · 预算 ${gr.budget}` : ''}</div>
         <div class="dim">口味偏好：${gr ? gr.taste.map((t) => g.sim.dishOf(t).name).join('、') : ''}${gr && gr.flavors && gr.flavors.length ? `（${gr.flavors.map((f) => FLAVOR_LABEL[f] || f).join('/')}党）` : ''}</div></div></div>`);
     }
@@ -1794,7 +2103,7 @@ export class UI {
     return `<div class="row" style="align-items:flex-start">
       ${portraitFrame(st.app, 'compact', st.name)}
       <div style="flex:1">
-        <div class="row"><b>${htmlText(st.name)}<small class="sex-mark ${st.sex === '女' ? 'sex-f' : 'sex-m'}">${htmlText(st.sex || '')}</small></b><span class="dim">${st.race}·${st.age}岁·${st.ht}cm/${st.wt}kg·${HT_NAMES[st.app.ht]}${BD_NAMES[st.app.bd]}</span>
+        <div class="row"><b>${htmlText(st.name)}${sexMark(st)}</b><span class="dim">${st.race}·${st.age}岁·${st.ht}cm/${st.wt}kg·${HT_NAMES[st.app.ht]}${BD_NAMES[st.app.bd]}</span>
         <span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</span></div>
         <div class="row" style="flex-wrap:wrap">${SKILL_KEYS.map((k) => `<span>${this.skillTag(k, st.id)} ${bar(st.skills[k], 100, '#F3B84B')} ${st.skills[k]}</span>`).join('')}</div>
         <div class="row" style="flex-wrap:wrap"><span>${this.needTag('stamina', st.id)}${bar(st.needs.stamina, 100, '#8DDB4A')}</span><span>${this.needTag('hunger', st.id)}${bar(st.needs.hunger, 100, '#E45AD1')}</span><span>${this.needTag('stress', st.id)}${bar(st.needs.stress, 100, '#FF6B5A')}</span><span>${this.needTag('morale', st.id)}${bar(st.needs.morale, 100, '#39D7D2')}</span></div>
@@ -1832,12 +2141,12 @@ export class UI {
       ${r.kind === 'lounge' ? `<div class="row"><span class="dim">住户（1 室 1 人）</span>
         <select data-act="occupant" data-v="${r.id}">
           <option value="0" ${!r.occupant ? 'selected' : ''}>空闲</option>
-          ${this.g.sim.staff.filter((x) => !x.isOwner).map((x) => `<option value="${x.id}" ${r.occupant === x.id ? 'selected' : ''}>${x.name}</option>`).join('')}
+          ${this.g.sim.staff.filter((x) => !x.isOwner).map((x) => `<option value="${x.id}" ${r.occupant === x.id ? 'selected' : ''}>${htmlText(x.name)} · ${htmlText(x.sex || '性别未知')}</option>`).join('')}
         </select></div>` : ''}
       <div class="row" style="flex-wrap:wrap"><span>清洁 ${bar(r.clean, 100, '#8DDB4A')} ${Math.round(r.clean)}</span>
         <span>维护 ${bar(r.maint, 100, '#39D7D2')} ${Math.round(r.maint)}</span>
         <span>家具槽位 ${used}/${slots}</span></div>
-      <div class="dim">家具：${furns.length ? furns.map((f) => furnDef(f.kind).name + '×' + 1).join('、') : '无'}｜驻守：${staff.length ? staff.map((s) => s.name).join('、') : '无'}</div>
+      <div class="dim">家具：${furns.length ? furns.map((f) => furnDef(f.kind).name + '×' + 1).join('、') : '无'}｜驻守：${staff.length ? staff.map((s) => renderPersonName(s, 'span')).join('、') : '无'}</div>
       <div class="row" style="flex-wrap:wrap;align-items:center"><span class="dim">装修风格</span>
         ${STYLES.map((st) => {
           const cur = this.g.tavern.roomStyle(r) === st.id;
@@ -1878,14 +2187,14 @@ export class UI {
       <div class="row"><button data-act="rotbuild" class="on">⟳ 转个方向（R）</button><button data-act="movefurn" data-v="${f.id}">取消搬动</button></div>` : ''}
       <div class="row"><button data-act="rotfurn" data-v="${f.id}">R 旋转朝向</button>
         <button data-act="movefurn" data-v="${f.id}" class="${this.g.moveFurnId === f.id ? 'on' : ''}">↔ 移动位置</button>
-        <button data-act="copyfurn" data-v="${f.id}" ${this.g.sim.dayActive ? 'disabled' : ''}>⧉ 复制家具</button>
-        ${f.quality < 3 ? (() => {
+        <button data-act="copyfurn" data-v="${f.id}" ${this.g.sim.dayActive || f.builtIn ? 'disabled' : ''}>⧉ 复制家具</button>
+        ${f.builtIn ? '<button disabled title="内置家具不可升级">内置家具不可升级</button>' : f.quality < 3 ? (() => {
           const nq = f.quality + 1; const ns = furnQualityUnlock(f.kind, nq); const room = this.g.tavern.roomOfFurn(f);
           const locked = this.g.sim.stars() < ns || !room || room.quality < nq;
           const why = this.g.sim.stars() < ns ? `★${ns} 解锁` : `房间需品质 ${'I'.repeat(nq)}`;
           return locked ? `<button disabled title="${why}">升级（${why}）</button>` : `<button data-act="upfurn" data-v="${f.id}">升级（${upCost}）</button>`;
         })() : '<span class="dim">已满级</span>'}
-        <button data-act="delfurn" data-v="${f.id}" class="warn">拆除（返还70%）</button></div>
+        <button data-act="delfurn" data-v="${f.id}" class="warn" ${f.builtIn ? 'disabled title="内置家具不可出售"' : ''}>${f.builtIn ? '内置家具不可出售' : '拆除（返还70%）'}</button></div>
     </div></div>`;
   }
 
@@ -1894,7 +2203,7 @@ export class UI {
     const sim = this.g.sim; const econ = sim.econ;
     const worlds = sim.worlds();
     const world = sim.worldById(id);
-    const unlocked = world.custom || world.unlockStars <= sim.stars();
+    const unlocked = world.custom || (sim.campaign?.mode === 'legacy' ? world.unlockStars <= sim.stars() : worldUnlockDay(world.id) <= sim.econ.day);
     const current = world.id === econ.currentWorldId;
     const pending = econ.pendingWorldSwitch?.worldId === world.id;
     const knowledgeLevel = Number(econ.worldKnowledge?.[world.id]?.level) || 0;
@@ -2406,9 +2715,9 @@ export class UI {
     }
     const history = (st.aiChatLog || []).slice(0, 6).reverse();
     this.showModal(`<div class="row portrait-head">${portraitFrame(st.app, 'detail', st.name)}
-        <div style="flex:1"><h3 style="margin:0">和 ${htmlText(st.name)} 聊聊</h3><div class="dim">${htmlText(st.race)}·${JOB_LABEL[st.job]}｜${this.g.sim.affLevel(st.aff).name} ${Math.round(st.aff)}</div></div></div>
+        <div style="flex:1"><h3 style="margin:0">和 ${renderPersonName(st, 'span')} 聊聊</h3><div class="dim">${htmlText(st.race)}·${JOB_LABEL[st.job]}｜${this.g.sim.affLevel(st.aff).name} ${Math.round(st.aff)}</div></div></div>
       <div style="max-width:680px;max-height:260px;overflow:auto;margin-top:8px">
-        ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${htmlText(st.name)}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有 AI 对话记录。说点什么吧。</div>'}
+        ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${renderPersonName(st, 'span')}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有 AI 对话记录。说点什么吧。</div>'}
       </div>
       ${error ? `<div class="bad" style="margin-top:7px">${htmlText(error)}</div>` : ''}
       <textarea id="aiplayerline" maxlength="120" rows="3" placeholder="输入店主想说的话……" style="width:100%;box-sizing:border-box;margin-top:8px"></textarea>
@@ -2443,7 +2752,16 @@ export class UI {
       this.g.save();
       this.openAIStaffChat(id);
     } catch (err) {
-      if (this.modal === startedModal) this.openAIStaffChat(id, controller.signal.aborted ? '已取消生成；可重试或改用本地回复。' : `AI 回复失败：${err?.message || '未知错误'}`);
+      if (this.modal === startedModal && !controller.signal.aborted) {
+        const reply = `${st.name}把手里的活计放下片刻：「先把眼前的客人照顾好，其他的明天再想。」`;
+        const local = this.g.sim.showAIChatReply(st.id, reply);
+        if (local) {
+          st.aiChatLog ||= [];
+          st.aiChatLog.unshift({ day: this.g.sim.econ.day, playerName: this.g.sim.staff.find((p) => p.isOwner)?.name || '店主', player: line.slice(0, 120), reply: local, emotion: 'calm', localFallback: true });
+          this.g.sim.toast('AI 暂不可用，已使用本地回复'); this.g.save(); this.openAIStaffChat(id); return;
+        }
+      }
+      if (this.modal === startedModal) this.openAIStaffChat(id, controller.signal.aborted ? '已取消生成。' : 'AI 暂不可用，已准备本地回复。');
     } finally {
       if (this.chatAIController === controller) this.chatAIController = null;
     }
@@ -2492,10 +2810,10 @@ export class UI {
     const history = (guest.aiChatLog || []).slice(0, 12).reverse();
     const affinity = this.guestAffinityFacts(guest, group);
     this.showModal(`<div class="row portrait-head">${portraitFrame(guest.app, 'detail', guest.name)}
-        <div style="flex:1"><h3 style="margin:0">和 ${htmlText(guest.name)} 聊聊</h3><div class="dim">${htmlText(guest.race)}·${guest.regularId ? '常客' : '住店客'}｜${htmlText(affinity.level)} ${affinity.value}</div></div></div>
+        <div style="flex:1"><h3 style="margin:0">和 ${htmlText(guest.name)}${sexMark(guest)} 聊聊</h3><div class="dim">${htmlText(guest.race)}·${guest.regularId ? '常客' : '住店客'}｜${htmlText(affinity.level)} ${affinity.value}</div></div></div>
       ${guest.relationshipSummary ? `<div class="card"><b>长久记忆</b><div class="dim">${htmlText(guest.relationshipSummary)}</div></div>` : ''}
       <div style="max-width:680px;max-height:300px;overflow:auto;margin-top:8px">
-        ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${htmlText(guest.name)}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有对话记录。你是这里的店主，可以询问入住体验，也可以随意闲聊。</div>'}
+        ${history.length ? history.map((item) => `<div class="card"><div><b>${htmlText(item.playerName || '店主')}：</b>${htmlText(item.player)}</div><div style="margin-top:4px"><b>${renderPersonName(guest, 'span')}：</b>${htmlText(item.reply)}</div></div>`).join('') : '<div class="dim">还没有对话记录。你是这里的店主，可以询问入住体验，也可以随意闲聊。</div>'}
       </div>
       ${error ? `<div class="bad" style="margin-top:7px">${htmlText(error)}</div>` : ''}
       <textarea id="aiguestline" maxlength="160" rows="3" placeholder="输入店主想对客人说的话……" style="width:100%;box-sizing:border-box;margin-top:8px"></textarea>
@@ -2531,7 +2849,14 @@ export class UI {
       if (guest.aiChatLog.length > 20) guest.aiChatLog.pop();
       this.openAIGuestChat(id);
     } catch (err) {
-      if (this.modal === startedModal) this.openAIGuestChat(id, controller.signal.aborted ? '已取消生成；可重试或改用本地回复。' : `AI 回复失败：${err?.message || '未知错误'}`);
+      if (this.modal === startedModal && !controller.signal.aborted) {
+        const reply = '客人轻轻点头：「我先看看店里的安排，慢慢来就好。」';
+        guest.bubble = { text: reply, t: 3.2 };
+        guest.aiChatLog ||= [];
+        guest.aiChatLog.unshift({ day: this.g.sim.econ.day, playerName: this.g.sim.staff.find((p) => p.isOwner)?.name || '店主', player: line.slice(0, 160), reply, emotion: 'calm', localFallback: true });
+        this.g.sim.toast('AI 暂不可用，已使用本地回复'); this.openAIGuestChat(id); return;
+      }
+      if (this.modal === startedModal) this.openAIGuestChat(id, controller.signal.aborted ? '已取消生成。' : 'AI 暂不可用，已准备本地回复。');
     } finally {
       if (this.chatAIController === controller) this.chatAIController = null;
     }
@@ -2574,7 +2899,7 @@ export class UI {
     const person = this.personById(id);
     if (!person) return;
     const bg = person.background;
-    this.showModal(`<div class="row portrait-head">${portraitFrame(person.app, 'detail', person.name)}<div style="flex:1"><h3 style="margin:0">${htmlText(person.name)}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div><div class="hi">出生世界：${htmlText(person.originWorldName || '未记录')}</div></div></div>
+    this.showModal(`<div class="row portrait-head">${portraitFrame(person.app, 'detail', person.name)}<div style="flex:1"><h3 style="margin:0">${renderPersonName(person, 'span')}的人物背景</h3><div class="dim">${person.race}·${person.sex}·${person.age}岁</div><div class="hi">出生世界：${htmlText(person.originWorldName || '未记录')}</div></div></div>
       ${bg ? `<div class="card" style="margin-top:9px"><b>来店之前</b><div style="white-space:pre-wrap;line-height:1.65">${htmlText(bg.background)}</div></div>
         <div class="row"><span class="dim">个人目标</span><span>${htmlText(bg.aspiration)}</span></div>
         <div class="row"><span class="dim">日常习惯</span><span>${htmlText(bg.quirk)}</span></div>` : '<div class="dim" style="margin-top:9px">尚未生成人物背景。</div>'}
@@ -2585,7 +2910,7 @@ export class UI {
   async generateAIBackground(id        )       {
     const person = this.personById(id);
     if (!person) return;
-    const startedModal = this.showModal(`<h3>正在构思 ${htmlText(person.name)} 的背景…</h3><div class="hi">AI 会严格依据现有属性生成，不改变角色数值。</div><div class="row" style="margin-top:10px"><button data-act="closemodal">取消等待</button></div>`);
+    const startedModal = this.showModal(`<h3>正在构思 ${renderPersonName(person, 'span')} 的背景…</h3><div class="hi">AI 会严格依据现有属性生成，不改变角色数值。</div><div class="row" style="margin-top:10px"><button data-act="closemodal">取消等待</button></div>`);
     const facts = {
       name: person.name, sex: person.sex, age: person.age, race: person.race,
       traits: person.traits.map((id2) => { const trait = TRAITS.find((item) => item.id === id2); return trait ? { name: trait.name, note: trait.note } : { name: id2 }; }),
@@ -2659,7 +2984,7 @@ export class UI {
     if (!help) return;
     const staff = staffId ? this.g.sim.staff.find((s) => s.id === staffId) : null;
     const current = staff && Number.isFinite(Number(staff.skills?.[key]))
-      ? `<div class="hi" style="margin-top:8px">${htmlText(staff.name)}当前${help.name}：${Math.round(staff.skills[key])}</div>` : '';
+      ? `<div class="hi" style="margin-top:8px">${renderPersonName(staff, 'span')}当前${help.name}：${Math.round(staff.skills[key])}</div>` : '';
     this.showModal(`<h3>${htmlText(help.name)}</h3>
       <div>${htmlText(help.summary)}</div>
       <div class="card" style="margin-top:10px"><b>数值作用</b>${help.effects.map((line) => `<div style="margin-top:5px">${htmlText(line)}</div>`).join('')}</div>
@@ -2673,7 +2998,7 @@ export class UI {
     const staff = staffId ? this.g.sim.staff.find((s) => s.id === staffId) : null;
     const raw = key === 'aff' ? staff?.aff : staff?.needs?.[key];
     const current = staff && Number.isFinite(Number(raw))
-      ? `<div class="hi" style="margin-top:8px">${htmlText(staff.name)}当前${help.name}：${Math.round(raw)}</div>` : '';
+      ? `<div class="hi" style="margin-top:8px">${renderPersonName(staff, 'span')}当前${help.name}：${Math.round(raw)}</div>` : '';
     this.showModal(`<h3>${htmlText(help.name)}</h3>
       <div>${htmlText(help.summary)}</div>
       <div class="card" style="margin-top:10px"><b>数值作用</b>${help.effects.map((line) => `<div style="margin-top:5px">${htmlText(line)}</div>`).join('')}</div>${current}
@@ -2698,10 +3023,11 @@ export class UI {
 
   localTrainingResult(result) {
     const choice = result.choice;
-    this.showModal(`<h3>${htmlText(result.world.icon)} ${htmlText(result.staffName)}的进修归来</h3>
+    const resultPerson = this.g.sim.staff.find((person) => person.id === result.staffId) || { name: result.staffName, sex: '' };
+    this.showModal(`<h3>${htmlText(result.world.icon)} ${renderPersonName(resultPerson, 'span')}的进修归来</h3>
       <div class="card"><b>${htmlText(result.world.name)} · ${htmlText(result.venue)}</b>
         <div style="white-space:pre-wrap;line-height:1.75;margin-top:7px">${htmlText(choice.resultText)}</div></div>
-      <div class="card"><b>${htmlText(result.staffName)}</b><div>“${htmlText(choice.reflection)}”</div>
+      <div class="card"><b>${renderPersonName(resultPerson, 'span')}</b><div>“${htmlText(choice.reflection)}”</div>
         <div class="hi" style="margin-top:6px">${htmlText(choice.gainText)} · 总成长 ${choice.total} · 支出 ${result.cost} 界币</div></div>
       <div class="row" style="margin-top:10px"><button data-act="detail" data-v="${result.staffId}">返回员工详情</button><button data-act="closemodal">关闭</button></div>`);
   }
@@ -2715,7 +3041,7 @@ export class UI {
     const training = sim.lastTrainingResult;
     if (!training) { this.openStaffDetail(id); return; }
     if (!aiConfigured()) { this.localTrainingResult(training); return; }
-    this.showModal(`<h3>📚 ${htmlText(staff.name)}外出进修</h3><div class="card"><b>${htmlText(training.world.name)} · ${htmlText(training.course)}</b>
+    this.showModal(`<h3>📚 ${renderPersonName(staff, 'span')}外出进修</h3><div class="card"><b>${htmlText(training.world.name)} · ${htmlText(training.course)}</b>
       <div class="dim">${htmlText(training.choice.gainText)} · 总成长 ${training.choice.total} · 支出 ${training.cost} 界币</div></div>
       <div class="hi" style="margin-top:10px">AI 正在生成本次打烊期间的进修经历……</div>`);
     const startedModal = this.modal;
@@ -2731,7 +3057,7 @@ export class UI {
       if (this.modal !== startedModal) return;
       this.showModal(`<h3>📚 ${htmlText(story.title)}</h3>
         <div style="max-width:620px;white-space:pre-wrap;line-height:1.75">${htmlText(story.narrative)}</div>
-        <div class="card" style="margin-top:10px"><b>${htmlText(staff.name)}</b><div>“${htmlText(story.reflection)}”</div>
+        <div class="card" style="margin-top:10px"><b>${renderPersonName(staff, 'span')}</b><div>“${htmlText(story.reflection)}”</div>
         <div class="dim">${htmlText(training.choice.gainText)} · 总成长 ${training.choice.total} · 支出 ${training.cost} 界币</div></div>
         <div class="row" style="margin-top:10px"><button data-act="detail" data-v="${staff.id}">返回员工详情</button><button data-act="closemodal">关闭</button></div>`);
     } catch (err) {
@@ -2740,6 +3066,21 @@ export class UI {
       const warning = this.modal?.querySelector('.card');
       if (warning) warning.insertAdjacentHTML('beforeend', `<div class="dim" style="margin-top:7px">AI 演绎暂不可用，已显示本地世界剧情：${htmlText(err?.message || '未知错误')}</div>`);
     }
+  }
+
+  openNightProactive(id) {
+    const sim = this.g.sim; const st = sim.staff.find((x) => x.id === id && !x.isOwner);
+    if (!st || !sim.nightState?.active) return false;
+    const used = sim.nightState.proactive?.some((row) => row.id === id);
+    this.showModal(`<h3>${renderPersonName(st, 'span')}想和店主谈谈</h3><div class="dim">这是员工主动交谈额度，每名员工最多一次，全店最多三人。请选择处理方式。</div><div class="row" style="margin-top:12px"><button data-act="nightproactive" data-v="${id}" data-choice="immediate" ${used ? 'disabled' : ''}>立即接待</button><button data-act="nightproactive" data-v="${id}" data-choice="later" ${used ? 'disabled' : ''}>稍后处理</button><button data-act="nightproactive" data-v="${id}" data-choice="decline" ${used ? 'disabled' : ''}>婉拒</button></div>`, false, false);
+    return true;
+  }
+
+  openNightQueue() {
+    const sim = this.g.sim; const q = sim.nightState?.proactiveQueue || [];
+    if (!q.length) { this.g.sim.toast('暂时没有待处理的夜间交谈'); return false; }
+    const rows = q.map((id) => { const st = sim.staff.find((x) => x.id === id); return `<div class="row"><span>${st ? renderPersonName(st, 'span') : htmlText(`员工#${id}`)}</span><button data-act="nightqueue" data-v="${id}">处理</button></div>`; }).join('');
+    this.showModal(`<h3>待处理的夜间交谈</h3>${rows}`, false, false); return true;
   }
 
   openStaffDetail(id        )       {
@@ -2754,7 +3095,9 @@ export class UI {
     const own = sim.staff.find((x) => x.isOwner);
     const playerProfile = st.isOwner ? loadPlayerProfile(this.g.currentSlot) : null;
     const near = !!own && !st.isOwner && Math.hypot(own.x - st.x, own.y - st.y) < 2.2;
-    const tabs = [['info', '资料'], ['skill', '技能'], ['growth', '成长'], ['rel', '关系']]                      ;
+    const tutorialLocked = sim.campaign?.mode === 'tutorial' && sim.econ.day === 1 && !sim.campaign.tutorialFlags?.firstEmployeeHired;
+    if (tutorialLocked && ['growth', 'rel'].includes(this.detailTab)) this.detailTab = 'info';
+    const tabs = tutorialLocked ? [['info', '资料'], ['skill', '技能']] : [['info', '资料'], ['skill', '技能'], ['growth', '成长'], ['rel', '关系']];
     let body = '';
     if (this.detailTab === 'info') {
       body = `<div class="row" style="flex-wrap:wrap">
@@ -2765,7 +3108,7 @@ export class UI {
         ${st.isOwner ? '' : `<div class="row"><span class="dim">出生世界</span><span class="hi">${htmlText(st.originWorldName || '未记录')}</span>${st.homeRegion ? `<span class="dim">故乡</span><span>${htmlText(st.homeRegion)}</span>` : ''}</div>`}
         ${st.isOwner || !st.worldSpecialty ? '' : `<div class="card" style="margin-top:7px;border-left-color:#58A947"><b>世界专长 · ${htmlText(st.worldSpecialty.name)}</b><div class="dim">${htmlText(st.worldSpecialty.note)}</div></div>`}
         <div class="row" style="justify-content:flex-start;flex-wrap:wrap"><span class="dim">性格</span>${st.traits.map((t) => this.traitTag(t, st.id)).join('')}</div>
-        <div class="row"><span class="dim">岗位</span><span>${JOB_LABEL[st.job]}</span><span class="dim">负责</span><span>${room ? ROOM_LABEL[room.kind] : '全店'}</span><span class="dim">薪资</span><span class="${st.isOwner ? 'dim' : 'hi'}">${st.isOwner ? '店主不领取工资' : `日薪 ${st.wage}`}</span></div>
+        ${tutorialLocked ? '<div class="dim">岗位、职责和优先级会在招募员工后解锁。</div>' : `<div class="row"><span class="dim">岗位</span><span>${JOB_LABEL[st.job]}</span><span class="dim">负责</span><span>${room ? ROOM_LABEL[room.kind] : '全店'}</span><span class="dim">薪资</span><span class="${st.isOwner ? 'dim' : 'hi'}">${st.isOwner ? '店主不领取工资' : `日薪 ${st.wage}`}</span></div>`}
         <div class="row"><span class="dim">卧室</span><span>${st.isOwner ? '<span class="dim">店主守店</span>' : (() => { const br = sim.bedroomOf(st.id); return br ? `休息室 #${br.id}` : '<span class="bad">无（打地铺）</span>'; })()}</span></div>
         <div class="row">${this.needTag('stamina', st.id)}${bar(st.needs.stamina, 100, '#8DDB4A')}${this.needTag('morale', st.id)}${bar(st.needs.morale, 100, '#39D7D2')}</div>
         <div class="row">${this.needTag('stress', st.id)}${bar(st.needs.stress, 100, '#FF6B5A')}${this.needTag('hunger', st.id)}${bar(st.needs.hunger, 100, '#F3B84B')}</div>
@@ -2813,12 +3156,12 @@ export class UI {
           const chem = sim.chemistry(st, r.mate);
           const tag = chem >= 3 ? '<span class="hi">·莫逆</span>' : chem >= 1 ? '<span class="dim">·合拍</span>' : chem <= -3 ? '<span class="bad">·犯冲</span>' : chem <= -1 ? '<span class="bad">·不合</span>' : '';
           const capNote = chem < 0 ? '<span class="dim"> ·上限40</span>' : '';
-          return `<div class="row"><span style="flex:1">${r.mate.name}<span class="dim">（${JOB_LABEL[r.mate.job]}）</span>${tag}</span><span class="${r.v >= 25 ? 'hi' : r.v <= -25 ? 'bad' : 'dim'}">${sim.relLabel(r.v)} ${Math.round(r.v)}${capNote}</span></div>`;
+          return `<div class="row"><span style="flex:1">${renderPersonName(r.mate, 'span')}<span class="dim">（${JOB_LABEL[r.mate.job]}）</span>${tag}</span><span class="${r.v >= 25 ? 'hi' : r.v <= -25 ? 'bad' : 'dim'}">${sim.relLabel(r.v)} ${Math.round(r.v)}${capNote}</span></div>`;
         }).join('') : ''}
         ${st.chatLog.length ? `<h3 style="margin:8px 0 2px">互动记录</h3>${st.chatLog.map((l) => `<div class="dim">· ${l}</div>`).join('')}` : ''}`;
     }
     this.showModal(`<div class="row portrait-head">${portraitFrame(st.app, 'detail', st.name)}
-        <div style="flex:1"><h3 style="margin:0">${st.name}${st.isOwner ? '<span class="hi">（店主）</span>' : ''}</h3>
+        <div style="flex:1"><h3 style="margin:0">${renderPersonName(st, 'span')}${st.isOwner ? '<span class="hi">（店主）</span>' : ''}</h3>
           <div class="dim">${st.race}·${JOB_LABEL[st.job]}${st.isOwner ? '' : `｜<span style="color:${lv.color}">${lv.name}</span>`}</div></div></div>
       <div class="tabs">${tabs.map(([k, n]) => `<button data-act="dtab" data-v="${k}" class="${this.detailTab === k ? 'on' : ''}">${n}</button>`).join('')}</div>
       ${body}
@@ -2853,7 +3196,7 @@ export class UI {
       if (st.aff >= 65) acts.push(['secret', '交换秘密']);
       if (sameRoom && nightInteractionAction(sim, 'staff', own, st) === 'romance') acts.push(['romance', '邀请共度春宵']);
       this.showModal(`<div class="row portrait-head">${portraitFrame(st.app, 'detail', st.name)}
-          <div style="flex:1"><h3 style="margin:0">${st.name}</h3>
+          <div style="flex:1"><h3 style="margin:0">${renderPersonName(st, 'span')}</h3>
             <div class="dim">${st.race}·${JOB_LABEL[st.job]}｜<span style="color:${lv.color}">${lv.name} ${Math.round(st.aff)}</span></div>
             <div class="dim">${st.task ? '正在：' + st.task.label : '待命中'}｜压力 ${Math.round(st.needs.stress)}｜体力 ${Math.round(st.needs.stamina)}</div></div></div>
         <div class="dim" style="margin-top:6px">${near ? '就在你身边，说点什么？' : `太远了（${d.toFixed(1)} 格）：走到 2.8 格内才能搭话。`}${st.affCd > 0 ? `｜深入互动冷却 ${Math.ceil(st.affCd)} 秒` : ''}</div>
@@ -2885,7 +3228,7 @@ export class UI {
     if (regular?.offer && !gr.offerAccepted) acts.push(['commission', '接受专属委托']);
     if (sameRoom && nightInteractionAction(sim, 'guest', own, gu, gr) === 'raid') acts.push(['raid', '夜袭']);
     this.showModal(`<div class="row portrait-head">${portraitFrame(gu.app, 'detail', gu.name)}
-        <div style="flex:1"><h3 style="margin:0">${gu.name}</h3>
+        <div style="flex:1"><h3 style="margin:0">${renderPersonName(gu, 'span')}</h3>
           <div class="dim">${gu.race}·${gr.size}人同行｜需求：${w.name}${regular ? `｜常客·第 ${regular.visits} 次来访·好感 ${Math.round(regular.aff)}` : ''}</div>
           <div class="hi">${origin.icon} ${origin.name} · ${htmlText(gu.homeRegion || gr.homeRegion || '')}</div>
           <div class="dim">${htmlText(gu.culturalIdentity || `${gu.homeRegion || gr.homeRegion || ''}的${gu.travelOccupation || gr.travelOccupation || '旅人'}`)}｜${htmlText(gu.culturalStratum || gr.culturalStratum || '跨界旅人')}</div>
@@ -2922,6 +3265,7 @@ export class UI {
     if (kind === 'staff') {
       if (action === 'romance') { window.clearInterval(this.interactTimer); this.openNightPrompt('romance', 'staff', id); return; }
       if (action === 'chat2') {
+        if (sim.nightState?.active) { window.clearInterval(this.interactTimer); if (sim.ownerTalkAtNight(id)) { this.g.save?.(); this.openStaffDetail(id); } return; }
         if (aiConfigured()) { window.clearInterval(this.interactTimer); this.openAIStaffChat(id); return; }
         msg = sim.chatWith(id) || '（他正忙着，没接话）';
       }
@@ -3038,7 +3382,17 @@ export class UI {
       this.g.save();
       this.renderNightStory({ result });
     } catch (err) {
-      if (this.nightStoryContext === ctx && this.modal === waitingModal) this.renderNightStory({ error: err?.message || '未知错误' });
+      if (this.nightStoryContext === ctx && this.modal === waitingModal) {
+        const local = {
+          title: '夜色里的小插曲',
+          narrative: '灯影在桌角轻轻摇晃，大家把没有说完的话留给了明天。',
+          summary: '本地叙事：夜间对话顺利继续。',
+          choices: [{ label: '聊聊今天', intent: '分享今日见闻' }, { label: '先休息吧', intent: '结束这一段夜谈' }],
+        };
+        ctx.result = local; ctx.turns.push({ player: ctx.lastAction, summary: local.summary });
+        this.g.sim.toast('AI 暂不可用，夜间剧情已切换本地内容');
+        this.renderNightStory({ result: local });
+      }
     }
   }
 
@@ -3283,7 +3637,7 @@ export class UI {
   openFireConfirm(id        )       {
     const st = this.g.sim.staff.find((x) => x.id === id);
     if (!st || st.isOwner) return;
-    this.showModal(`<h3 class="bad">确认解雇 ${st.name}？</h3>
+    this.showModal(`<h3 class="bad">确认解雇 ${renderPersonName(st, 'span')}？</h3>
       <div>解雇后需要支付 <span class="bad">${st.wage * 2} 界币</span>补偿，员工会立即离开，卧室也会空出。</div>
       ${this.g.sim.dayActive ? '<div class="hi" style="margin-top:8px">正在营业：该员工当前任务会立即释放，由其他员工重新接手。</div>' : ''}
       <div class="row" style="margin-top:12px">
@@ -3320,7 +3674,7 @@ export class UI {
     if (!owner) return;
     const profile = loadPlayerProfile(this.g.currentSlot);
     this.showModal(`<h3>店主身份与背景</h3>
-      <div class="dim">${htmlText(owner.name)}｜${htmlText(owner.sex)}｜${htmlText(owner.race)}｜${owner.age} 岁｜${owner.traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name).join('、')}</div>
+      <div class="dim">${renderPersonName(owner, 'span')} · ${htmlText(owner.race)} · ${owner.age} 岁 · ${owner.traits.map((id) => (TRAITS.find((item) => item.id === id) || { name: id }).name).join('、')}</div>
       <div class="dim" style="margin-top:5px">这里的设定会作为员工、客人与店主互动时的身份依据，并按档位独立保存。</div>
       <label style="display:block;margin-top:10px"><span class="dim">身份定位</span><input data-player-role maxlength="100" value="${htmlText(profile.role)}" style="width:100%;box-sizing:border-box;margin-top:4px"></label>
       <label style="display:block;margin-top:8px"><span class="dim">背景设定</span><textarea class="prompt-editor" data-player-background maxlength="2400" placeholder="填写店主的出身、经历、经营动机、待人方式或其他希望角色记住的设定。">${htmlText(profile.background)}</textarea></label>
@@ -3649,12 +4003,7 @@ export class UI {
     this.starCele.className = '';
     this.starCele.hidden = true;
     this.starCele.innerHTML = '';
-    if (stat && this.g.sim.econ.contest?.pendingInvite) {
-      this.pendingSettlementStat = stat;
-      this.openContestInvite();
-      return;
-    }
-    if (stat) this.continueSettlement(stat);
+    continueStarCelebration(stat, (reportStat) => this.continueSettlement(reportStat));
   }
 
   tavernBrandHtml(econ = this.g.sim.econ) {
@@ -3686,13 +4035,9 @@ export class UI {
 
   resolveContestInvite(accept) {
     const sim = this.g.sim;
-    if (accept) sim.acceptContestInvite(); else sim.declineContestInvite();
+    if (accept) acceptInvite(sim); else declineInvite(sim);
     this.g.save();
-    const pending = this.pendingSettlementStat;
-    this.pendingSettlementStat = null;
-    if (accept) this.openContestMatch();
-    else if (pending) this.continueSettlement(pending);
-    else this.closeModal();
+    this.drivePostReportEvents();
   }
 
   openContestMatch() {
@@ -3714,7 +4059,7 @@ export class UI {
   }
 
   runContestMatch() {
-    const result = this.g.sim.finishContestMatch(this.contestTactics || {});
+    const result = finishActiveMatch(this.g.sim, this.contestTactics || {});
     if (!result) return;
     this.g.save();
     this.g.audio.play(result.passed ? 'happy' : 'error');
@@ -3722,20 +4067,60 @@ export class UI {
     const next = result.finished
       ? `<div class="card" style="margin-top:8px"><b>${result.passed ? '冠军诞生' : '本轮止步'}</b><div>${result.title ? `永久称号：<span class="tavern-title" style="color:${(TITLE_TIERS[result.title.tier] || TITLE_TIERS.common).color}">${htmlText(result.title.name)}</span>` : '未获得称号。'}</div></div>`
       : `<div class="dim" style="margin-top:8px">下一场：${htmlText(result.nextStage.name)}。明天打烊后继续。</div>`;
-    const pending = this.pendingSettlementStat;
-    this.pendingSettlementStat = null;
     this.showModal(`<h3>${result.passed ? '✅' : '❌'} ${htmlText(result.stage.name)}结算</h3>
       <div class="dim">${htmlText(result.contestName)} · 对阵 ${htmlText(result.opponent?.name || '对手')}</div>
       ${heats}${next}
-      <div class="row" style="margin-top:12px"><button data-act="${pending ? 'contestafter' : 'closemodal'}">${pending ? '继续日结' : '收起比拼'}</button></div>`, true, false, { variant: result.passed ? 'important' : 'plain' });
-    this.contestAfterStat = pending;
+      <div class="row" style="margin-top:12px"><button data-act="contestresultnext">${result.finished ? '继续日结' : '收起比拼'}</button></div>`, true, false, { variant: result.passed ? 'important' : 'plain' });
   }
 
   afterSettlementClose() {
     this.settlementAIStat = null;
-    if (this.g.sim.econ.contest?.pendingInvite) { this.openContestInvite(); return; }
-    const active = this.g.sim.econ.contest?.active;
-    if (active && active.lastMatchDay !== this.g.sim.econ.day) this.openContestMatch();
+    if (this.g.sim.campaign?.mode === 'tutorial' && this.g.sim.econ.day === 1 && this.g.sim.campaign.firstGrantClaimed && !this.g.sim.campaign.tutorialFlags?.firstEmployeeHired && !this.g.tavern.rooms.some((room) => room.kind === 'lounge')) {
+      this.g.sim.campaign.phase = 'first-recruitment';
+    }
+    if (this.g.sim.campaign?.mode === 'tutorial' && this.g.sim.econ.day === 1 && this.g.tavern.rooms.some((room) => room.kind === 'lounge') && !this.g.sim.campaign.tutorialFlags?.meetingChairReady) {
+      this.g.sim.campaign.tutorialFlags.recruitUnlocked = true;
+      this.g.sim.campaign.phase = 'first-recruitment';
+    }
+    const postEvent = this.g.sim.currentPostReportEvent();
+    if (postEvent) { this.drivePostReportEvents(); return; }
+    this.openMeeting(this.g.sim.econ.day === 1);
+  }
+
+  drivePostReportEvents() {
+    return drivePostReportEventsShared(this.g.sim, {
+      meeting: () => this.openMeeting(this.g.sim.econ.day === 1),
+      'contest-invite': () => this.openContestInvite(),
+      'active-contest': () => this.openContestMatch(),
+      'five-star-finale': () => this.openFinale(),
+      generic: (event) => {
+        const label = event.kind === 'certification' ? '认证结果' : event.kind === 'grant' ? '王国赠礼' : '会后消息';
+        this.showModal(`<h3>✦ ${label}</h3><div class="card" style="margin-top:8px">${htmlText(event.text || '新的消息抵达。')}</div><div class="row" style="margin-top:12px"><button data-act="posteventnext" data-v="${htmlText(event.id)}">确认，继续</button></div>`, true, false, { variant: 'important' });
+      },
+    });
+  }
+
+  openMeeting(first = false) {
+    const sim = this.g.sim;
+    if (!sim.meetingState.open) sim.beginMeeting(first);
+    this.g.save?.();
+    const state = sim.meetingState;
+    if (!state.aiRequested) { state.aiRequested = true; this.requestMeetingAI(); }
+    const aiLines = new Map((state.dialogueAI || []).map((row) => [row.id, row.line]));
+    const cards = state.cards.map((card) => `<div class="card"><div class="row"><b>${htmlText(card.category)} · ${htmlText(card.title)}</b><span class="${card.urgent ? 'bad' : 'dim'}">${card.urgent ? '紧急' : '可选'}</span></div><div class="dim">${htmlText(card.text)}${card.context ? ` · ${htmlText(card.context)}` : ''}</div><div class="dim">预期效果：${htmlText(card.attitudes?.[0]?.preview || '记录团队意见')}</div><div class="dim">${(card.attitudes || []).map((row) => `${htmlText(row.name)}：${htmlText(row.attitude)}`).join('　') || '暂无员工发言'}</div><div class="hi">${htmlText(aiLines.get(card.id) || card.line || '等待大家发言……')}</div><button data-act="meetingcard" data-v="${htmlText(card.id)}" ${state.resolved.includes(card.id) || state.points <= 0 ? 'disabled' : ''}>${state.resolved.includes(card.id) ? '已记录' : '讨论（消耗1点）'}</button></div>`).join('');
+    const dialogue = (state.dialogue || []).flatMap((row) => row.lines || []).slice(-4).map((line) => `<div class="dim">${htmlText(line.text)}</div>`).join('');
+    this.showModal(`<h3>会议 · 剩余行动点 ${state.points}/2</h3><div class="dim">经营、团队、世界各有一张议题牌，最多选择两张。每张牌都会留下员工发言和实际效果。</div>${cards}${dialogue ? `<div class="card"><b>刚才的讨论</b>${dialogue}</div>` : ''}<div class="row" style="margin-top:10px"><button data-act="meetingdone">结束会议，进入夜间自由活动</button></div>`, false, false, { variant: 'important' });
+  }
+
+  async requestMeetingAI() {
+    const sim = this.g.sim;
+    try {
+      const result = await requestGameAI('meeting', meetingAIContext(sim));
+      applyMeetingLines(sim, result); this.g.save?.();
+    } catch (error) {
+      applyMeetingLines(sim, null); sim.toast('会议 AI 暂不可用，已使用本地台词'); this.g.save?.();
+    }
+    if (sim.meetingState.open) this.openMeeting();
   }
 
   openTitleCabinet() {
@@ -3849,7 +4234,7 @@ export class UI {
       <h3 style="margin-top:10px">员工工作统计</h3>${workRows || '<div class="dim">没有可统计的员工工作。</div>'}
       ${aiPanel}
       ${stat.fiveStarReached ? '<div class="card" style="margin-top:9px"><b class="good">五星经营认证达成：位面评议会已抵达门厅</b><div class="dim">旅店已经同时通过声望与经营条件审核。</div></div>' : ''}
-      <div class="row" style="margin-top:10px">${stat.fiveStarReached ? '<button data-act="finale">确认，进入五星庆典</button>' : `<button data-act="closemodal">${state.loading ? '跳过 AI，确认进入打烊模式' : '确认，进入打烊模式'}</button>`}</div>`);
+      <div class="row" style="margin-top:10px"><button data-act="closemodal">${state.loading ? '跳过 AI，确认进入打烊模式' : '确认，进入打烊模式'}</button></div>`);
   }
 
   async generateAISettlement()       {
@@ -3885,7 +4270,7 @@ export class UI {
       this.g.save();
       this.renderSettlement(stat, { story });
     } catch (err) {
-      if (this.modal === startedModal) this.renderSettlement(stat, { error: controller.signal.aborted ? '已取消生成' : err?.message || '未知错误' });
+      if (this.modal === startedModal) this.renderSettlement(stat, { story: this.localSettlementStory(stat) });
     } finally {
       window.clearInterval(progressTimer);
       if (this.settlementAIController === controller) this.settlementAIController = null;
@@ -3917,7 +4302,7 @@ export class UI {
         <div class="row"><span>最终声望</span><b>${Math.round(s.econ.rep)} · ★★★★★</b></div>
       </div>
       <div class="dim" style="margin-top:8px">主线经营目标已经完成。五星招牌家具的品质 III 现已开放，之后可以继续无限经营和扩建。</div>
-      <div class="row" style="margin-top:12px"><button data-act="closemodal">继续无限经营</button><button data-act="confirmnew">另开新店</button></div>`, true, false, { variant: 'important' });
+      <div class="row" style="margin-top:12px"><button data-act="finalenext">确认庆典，继续经营</button><button data-act="confirmnew">另开新店</button></div>`, true, false, { variant: 'important' });
   }
 
   // ---------- 捏脸 / 换装 ----------
@@ -4084,11 +4469,13 @@ export class UI {
         <button class="creator-done" data-done="1" ${aiGenerating ? 'disabled' : ''}>${dressOnly ? '换上这套服装' : employeeRecruit ? '确认定向招募' : '就这个店主'}</button>
         ${dressOnly ? '<button data-act="closemodal">取消</button>' : ''}
       </div>`;
+      host.querySelectorAll('button').forEach((button) => { button.type = 'button'; });
       draw();
     };
     host.addEventListener('click', async (e) => {
       const t = (e.target               ).closest('[data-group],[data-cat],[data-lockbtn],[data-undo],[data-redo],[data-opt],[data-pose],[data-sex],[data-rand],[data-theme],[data-preset],[data-skillpreset],[data-bg-preset],[data-aiowner],[data-aicancelowner],[data-done]')                      ;
       if (!t) return;
+      e.preventDefault(); e.stopPropagation();
       let changed = false;
       let captureBeforeRender = true;
       if (t.dataset.group) {
@@ -4105,7 +4492,7 @@ export class UI {
       else if (t.hasAttribute('data-redo') && historyIndex < history.length - 1) app = cloneApp(history[++historyIndex]);
       else if (t.dataset.opt !== undefined) {
         const cat = visible.find((c) => c.key === activeCat)                     ;
-        cat.set(parseInt(t.dataset.opt, 10));
+        dispatchCreatorOption({ currentTarget: t, preventDefault: () => e.preventDefault(), stopPropagation: () => e.stopPropagation() }, cat);
         delete app.specialPortrait;
         changed = true;
       } else if (t.dataset.pose) pose = t.dataset.pose          ;
@@ -4256,6 +4643,7 @@ export class UI {
     let tavernAiBusy = false;
     let tavernAiError = '';
     let startLayout = START_LAYOUTS.some((row) => row.id === seed.startLayout) ? seed.startLayout : 'classic';
+    let quickStart = !!seed.quickStart;
     const ownerName = String(seed.ownerName || '').trim();
     const m = this.showModal('<div id="tavern-setup"></div>', false);
     const host = m.querySelector('#tavern-setup');
@@ -4271,7 +4659,7 @@ export class UI {
       tavernPreset,
       tavernName: String(tavernName || '').trim(),
       tavernBlurb: String(tavernBlurb || '').trim(),
-      startLayout,
+      startLayout, quickStart,
     });
     const rerender = (captureInputs = true) => {
       if (captureInputs) capture();
@@ -4285,13 +4673,9 @@ export class UI {
           ${aiConfigured() ? `<textarea id="crtaverndraft" maxlength="400" placeholder="例如：一间只给散修和夜班工人烤靴子的炉边小店……">${htmlText(tavernDraft)}</textarea>
           <div class="row"><span class="${tavernAiError ? 'bad' : 'dim'}">${tavernAiError ? htmlText(tavernAiError) : '可先写概念，再让 AI 生成店名和简介。'}</span><button data-aitavern ${tavernAiBusy ? 'disabled' : ''}>${tavernAiBusy ? '生成中…' : 'AI 生成店名简介'}</button></div>` : ''}
         </div>
-        <div class="creator-background"><div class="row"><b>开局店面</b><span class="dim">选一套布局，或只要门厅把造价退回账面</span></div>
-          <div class="start-layouts">${START_LAYOUTS.map((row) => `<button data-start-layout="${row.id}" class="start-layout ${startLayout === row.id ? 'on' : ''}">
-            ${startLayoutPreviewSvg(row)}
-            <b>${htmlText(row.name)}</b>
-            <small>${htmlText(row.note)}</small>
-            ${row.refund ? `<span class="hi">退回 ${emptyLayoutRefund()} 界币</span>` : ''}
-          </button>`).join('')}</div>
+          <div class="creator-background"><div class="row"><b>固定开局</b><span class="dim">所有新旅店从玩家休息室开始，布局将在游戏中自由建造。</span></div>
+          <div class="card"><b>玩家休息室 8×7</b><br><span class="dim">内置大床、会议桌和一把椅子；初始资金 3200 界币。</span></div>
+          <button data-quickstart class="${quickStart ? 'on' : ''}">${quickStart ? '✓ 已选择快速开局' : '选择快速开局'}</button>${quickStart ? '<div class="dim">推荐布局价值2880，领取赠礼后从第2天1320界币开始，不伪造首日流水，首名员工仍需亲自招募。</div>' : ''}
         </div>
         <div class="creator-footer tavern-setup-footer">
           <button data-tavern-back>返回改店主</button>
@@ -4300,7 +4684,7 @@ export class UI {
       </div>`;
     };
     host.addEventListener('click', async (e) => {
-      const t = e.target.closest('[data-tavern-preset],[data-start-layout],[data-aitavern],[data-tavern-back],[data-tavern-done]');
+      const t = e.target.closest('[data-tavern-preset],[data-start-layout],[data-aitavern],[data-tavern-back],[data-tavern-done],[data-quickstart]');
       if (!t) return;
       if (t.dataset.tavernPreset) {
         capture();
@@ -4310,6 +4694,7 @@ export class UI {
         rerender(false);
         return;
       }
+      if (t.hasAttribute('data-quickstart')) { quickStart = !quickStart; rerender(); return; }
       if (t.dataset.startLayout) {
         startLayout = t.dataset.startLayout;
         rerender();
