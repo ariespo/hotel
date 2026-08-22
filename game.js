@@ -999,7 +999,7 @@ export class Game                    {
   resumeCampaignPhase() {
     const phase = this.sim.campaign?.phase;
     if (this.sim.nightState?.dawn?.active) {
-      runDawnTransition(this.sim, { onStage: (stage) => this.ui.showDawnTransition?.(stage), animate: (done) => window.requestAnimationFrame(done), onComplete: () => { if (this.sim.finishNight({ force: false })) { this.save(); this.ui.hideDawnTransition?.(); this.ui.render(true); } } });
+      runDawnTransition(this.sim, { onStage: (stage) => this.ui.showDawnTransition?.(stage), animate: (done, stage) => this.playDawnTransition(done, stage), onComplete: () => { if (this.sim.finishNight({ force: false })) { this.save(); this.ui.hideDawnTransition?.(); this.ui.render(true); } } });
       return 'dawn';
     }
     if (phase === 'report' && this.sim.lastStat) this.ui.openSettlement(this.sim.lastStat);
@@ -2067,6 +2067,14 @@ export class Game                    {
     return true;
   }
 
+  playDawnTransition(done, stage) {
+    window.requestAnimationFrame(() => {
+      window.setTimeout(() => stage('middle'), 1050);
+      window.setTimeout(() => stage('end'), 2650);
+      window.setTimeout(done, 4100);
+    });
+  }
+
   finishNight() {
     if (!this.sim.confirmNightBed()) return false;
     if (this.sim.nightState?.dawn?.active) return false;
@@ -2075,7 +2083,7 @@ export class Game                    {
     runDawnTransition(this.sim, {
       onStage: (stage) => this.ui.showDawnTransition?.(stage),
       onText: (text) => this.sim.toast(text),
-      animate: (done) => window.requestAnimationFrame(() => window.setTimeout(done, 360)),
+      animate: (done, stage) => this.playDawnTransition(done, stage),
       onComplete: () => {
         if (!this.sim.finishNight({ force: false })) return;
         this.save(); this.audio.playAmb('amb'); this.ui.hideDawnTransition?.(); this.ui.render(true);

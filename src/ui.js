@@ -374,11 +374,11 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 @media (min-width:1041px) and (max-width:1599px){#top{overflow:hidden}#top .top-group{padding-left:5px;padding-right:5px;flex-shrink:1}#top .top-date{min-width:132px;font-size:13px}#top .top-speed{flex:0 0 auto}.top-speed button{min-width:36px;height:40px;padding:3px 6px}.top-economy{min-width:188px!important;font-size:13px;gap:6px}.top-actions{min-width:0;flex:1 1 auto;gap:4px;padding-left:5px;padding-right:3px}.top-actions>button{min-width:0!important;padding:4px 7px;font-size:12px}.top-actions>button[data-act="savemenu"]{min-width:68px!important}.top-overflow>button{min-width:32px;padding:4px 6px}}
 @media (max-width:1040px) and (orientation:landscape){#ui.compact.manual-owner #owner-pad{left:max(12px,env(safe-area-inset-left));bottom:calc(16px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)))}#ui.compact.manual-owner #owner-act{right:max(14px,env(safe-area-inset-right));bottom:calc(28px + max(env(safe-area-inset-bottom,0px),var(--vv-bottom,0px)))}#ui.compact.manual-owner.left-open #owner-pad{left:auto;right:max(86px,calc(env(safe-area-inset-right) + 72px))}}
 #star-cele{position:fixed;inset:0;z-index:40;display:none;pointer-events:auto;align-items:center;justify-content:center;background:radial-gradient(circle at 50% 42%,#3a2414cc 0%,#120904e6 72%);overflow:hidden;cursor:pointer}
-#dawn-transition{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:linear-gradient(#10172ee8,#f2b86be8);color:#fff8dc;pointer-events:auto;transition:background 360ms ease;}
+#dawn-transition{position:fixed;inset:0;z-index:60;display:grid;place-items:center;background:linear-gradient(#071124f5,#281d3df2);color:#fff8dc;pointer-events:auto;transition:background 1100ms ease,color 700ms ease;}
 #dawn-transition[hidden]{display:none}
-#dawn-transition[data-stage="middle"]{background:linear-gradient(#303f73ee,#eaa76bee)}
-#dawn-transition[data-stage="end"]{background:linear-gradient(#f7cf83ee,#fff0b8ee);color:#5a3b24}
-.dawn-transition-title{font-size:clamp(24px,4vw,48px);font-weight:800;letter-spacing:.18em;text-shadow:0 3px 0 #5a3b2488;animation:dawnTitle .8s ease-in-out infinite alternate}
+#dawn-transition[data-stage="middle"]{background:linear-gradient(#344977f2,#d58d67f2)}
+#dawn-transition[data-stage="end"]{background:linear-gradient(#f7cf83f2,#fff0b8f2);color:#5a3b24}
+.dawn-transition-title{font-size:clamp(24px,4vw,48px);font-weight:800;letter-spacing:.18em;text-shadow:0 3px 0 #5a3b2488;animation:dawnTitle 1.05s ease-in-out infinite alternate}
 @keyframes dawnTitle{to{transform:translateY(-5px);opacity:.86}}
 #star-cele.on{display:flex}
 #star-cele .cele-bits{position:absolute;inset:0;pointer-events:none;overflow:hidden}
@@ -735,6 +735,8 @@ export class UI {
     if (!this.dawnLayer) return;
     this.dawnLayer.hidden = false;
     this.dawnLayer.dataset.stage = stage;
+    const title = this.dawnLayer.querySelector('.dawn-transition-title');
+    if (title) title.textContent = stage === 'start' ? '夜晚即将结束' : stage === 'middle' ? '休息结束' : '经营时段';
     this.dawnLayer.style.pointerEvents = 'auto';
     this.root.classList.add('dawn-locked');
   }
