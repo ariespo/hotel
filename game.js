@@ -40,6 +40,7 @@ const MORNING_KEY = 'wjbdy.morning.v1';
 const ACTIVE_SLOT_KEY = 'wjbdy.save.active.v1';
 const SAVE_SLOT_COUNT = 3;
 const MATERIAL_PACK_KEY = 'wjbdy.material-pack.v1';
+const TUTORIAL_COMPLETED_KEY = 'wjbdy.tutorial.completed.v1';
 const normalizeMaterialPack = (pack) => pack === 'classic' ? 'classic' : 'hd';
 const WORLD_ART_SCALE = 4;
 const WORLD_MATERIALS = {
@@ -523,6 +524,8 @@ export class Game                    {
   worldBackgroundMidScale = 1;
   worldBackgroundParticles = [];
   worldTravelActive = false;
+  tutorialCinematicActive = false;
+  tutorialCompletionT = 0;
   pendingNightBed = false;
   tutorialTravelAnimator = null;
   worldTravelSprite = null;
@@ -575,7 +578,7 @@ export class Game                    {
           lastW = 0;
           lastH = 0;
 
-  get blocked()          { return this.titleActive || this.creatorPending || this.worldTravelActive || !!(this.ui && this.ui.modal) || !!this.sim?.nightState?.dawn?.active; }
+  get blocked()          { return this.titleActive || this.creatorPending || this.worldTravelActive || this.tutorialCinematicActive || !!(this.ui && this.ui.modal) || !!this.sim?.nightState?.dawn?.active; }
 
   async boot()                {
     document.documentElement.dataset.materialPack = this.materialPack;
@@ -741,12 +744,16 @@ export class Game                    {
     const t = this.tavern;
     // 新档固定从玩家休息室开始；旧入口参数仅保留给兼容调用方。
     const quickStart = !!ownerOptions.quickStart;
+    let tutorialExperienced = false;
+    try { tutorialExperienced = localStorage.getItem(TUTORIAL_COMPLETED_KEY) === '1'; } catch (_) { /* ignore */ }
     const layout = applyStartLayout(t, quickStart ? 'quick-start' : 'playerroom');
     this.sim.econ.coins = quickStart ? 1320 : 3200;
     this.sim.econ.day = quickStart ? 2 : 1;
-    this.sim.campaign = quickStart
-      ? { mode: 'tutorial', phase: 'prepare', chapter: 2, firstDayComplete: true, quickStartUnlocked: true, tutorialFlags: { quickStart: true }, postReportEvents: [], firstGrantClaimed: true }
-      : { mode: 'tutorial', phase: 'tutorial-build', chapter: 1, firstDayComplete: false, quickStartUnlocked: false, tutorialFlags: {}, postReportEvents: [], firstGrantClaimed: false };
+    this.sim.campaign = tutorialExperienced
+      ? { mode: 'free', phase: 'prepare', chapter: 0, firstDayComplete: false, quickStartUnlocked: true, tutorialFlags: { tutorialComplete: true }, postReportEvents: [], firstGrantClaimed: false }
+      : quickStart
+        ? { mode: 'tutorial', phase: 'prepare', chapter: 2, firstDayComplete: true, quickStartUnlocked: true, tutorialFlags: { quickStart: true }, postReportEvents: [], firstGrantClaimed: true }
+        : { mode: 'tutorial', phase: 'tutorial-build', chapter: 1, firstDayComplete: false, quickStartUnlocked: false, tutorialFlags: {}, postReportEvents: [], firstGrantClaimed: false };
     if (layout.refund) {
       const refund = emptyLayoutRefund();
       this.sim.econ.coins += refund;
@@ -773,7 +780,8 @@ export class Game                    {
     this.saveMorning();
     this.save();
     this.playStageMusic('close');
-    this.ui.startTutorial(true);
+    if (this.sim.campaign.mode === 'tutorial') this.ui.startTutorial(true);
+    else { this.ui.tutorialActive = false; this.ui.render(true); }
     } catch (error) {
       this.tavern = previous.tavern; this.sim = previous.sim; this.ownerName = previous.ownerName; this.cam = previous.cam; this.selection = previous.selection; this.buildHistory = previous.history; this.buildHistoryIndex = previous.historyIndex;
       throw error;
@@ -973,8 +981,9 @@ export class Game                    {
                                                                                           
                                                                        
      ;
-    const trustedMode = parsed.trustedMode || parsed.mode || (data.sim?.campaign?.mode === 'legacy' && verifyLegacyLayoutSeal(data) ? 'legacy' : 'tutorial');
-    this.tavern = parsed.strictLoadedTavern || Tavern.load(data.tavern, { mode: trustedMode, strict: true });
+    const requestedMode = data.sim?.campaign?.mode;
+    const trustedMode = parsed.trustedMode || parsed.mode || (requestedMode === 'legacy' && verifyLegacyLayoutSeal(data) ? 'legacy' : requestedMode === 'free' ? 'free' : 'tutorial');
+    this.tavern = parsed.strictLoadedTavern || Tavern.load(data.tavern, { mode: trustedMode === 'legacy' ? 'legacy' : 'tutorial', strict: true });
     this.sim = new Sim(this.tavern, data.sim.econ);
     data.sim.campaign = { ...(data.sim.campaign || {}), mode: trustedMode };
     this.tavern.legacy = trustedMode === 'legacy';
@@ -1001,13 +1010,14 @@ export class Game                    {
   resumeCampaignPhase() {
     const phase = this.sim.campaign?.phase;
     if (this.sim.nightState?.dawn?.active) {
-      runDawnTransition(this.sim, { onStage: (stage) => this.ui.showDawnTransition?.(stage), animate: (done, stage) => this.playDawnTransition(done, stage), onComplete: () => { if (this.sim.finishNight({ force: false })) { this.save(); this.ui.hideDawnTransition?.(); this.ui.render(true); } } });
+      runDawnTransition(this.sim, { onStage: (stage) => this.ui.showDawnTransition?.(stage), animate: (done, stage) => this.playDawnTransition(done, stage), onComplete: () => { if (this.sim.finishNight({ force: false })) { this.save(); this.ui.hideDawnTransition?.(); if (!this.startDayThreeWorldIntro()) this.ui.render(true); } } });
       return 'dawn';
     }
     if (phase === 'report' && this.sim.lastStat) this.ui.openSettlement(this.sim.lastStat);
     else if (phase === 'post-report-events') this.ui.afterSettlementClose();
     else if (phase === 'meeting') this.ui.openMeeting(this.sim.econ.day === 1);
     else if (phase === 'closing-title' || phase === 'closing-assemble') { this.closingState = { t: 0 }; resumeClosingPhase(this.sim); this.ui.render(true); }
+    else if (phase === 'world-intro') this.startDayThreeWorldIntro();
     return phase;
   }
 
@@ -1107,7 +1117,7 @@ export class Game                    {
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
       this.keys.add(e.key.toLowerCase());
       const k = e.key.toLowerCase();
-      if (this.sim.nightState?.dawn?.active) { e.preventDefault(); this.keys.clear(); this.sim.manualVec.x = 0; this.sim.manualVec.y = 0; return; }
+      if (this.sim.nightState?.dawn?.active || this.tutorialCinematicActive) { e.preventDefault(); this.keys.clear(); this.sim.manualVec.x = 0; this.sim.manualVec.y = 0; return; }
       if (k === ' ') { this.setPaused(!this.paused); e.preventDefault(); }
       else if (k === '1') this.setSpeed(1);
       else if (k === '2') this.setSpeed(2);
@@ -1798,6 +1808,12 @@ export class Game                    {
     if (this.sim.sealed) { this.sim.toast('酒馆已被封印'); return; }
     if (this.sim.dayActive) return;
     syncTutorialFurniturePhase(this.sim);
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 3 && !this.sim.campaign.tutorialFlags?.worldTravelComplete) {
+      if (this.sim.campaign.phase !== 'world-select') this.startDayThreeWorldIntro();
+      else this.sim.toast('先点击左上角旅店名称，完成首次免费迁界');
+      return;
+    }
+    if (this.sim.campaign?.phase === 'world-arrived') this.sim.campaign.phase = 'prepare';
     if (!this.sim.canOpenBusinessNow() && !(['tutorial-build', 'tutorial-furnish'].includes(this.sim.campaign?.phase) && this.sim.econ.day === 1)) { this.sim.toast('当前阶段不能开门营业'); return; }
     if (['settlement', 'meeting', 'night'].includes(this.sim.campaign?.phase)) { this.sim.toast('请先完成日报、会议与夜间休息'); return; }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) {
@@ -1858,6 +1874,34 @@ export class Game                    {
     // 玩家不需要再次点击“开门营业”：转场完成后自动接续第3日营业。
     if (arrived && !this.sim.dayActive) this.openDay();
     return !!arrived;
+  }
+
+  startDayThreeWorldIntro() {
+    if (this.tutorialCinematicActive || this.sim.campaign?.mode !== 'tutorial' || this.sim.econ.day !== 3 || this.sim.campaign.tutorialFlags?.worldTravelComplete) return false;
+    this.tutorialCinematicActive = true;
+    this.speed = 1;
+    this.paused = false;
+    this.sim.campaign.phase = 'world-intro';
+    this.ui.tutorialActive = true;
+    this.ui.closeModal();
+    const scenes = [
+      ['旅店之外，不止一个世界', 'start'],
+      ['多元便携旅店能穿越时空，在不同世界开门营业', 'middle'],
+      ['今天，由你亲手选择第一条航路', 'end'],
+    ];
+    this.ui.showWorldTutorialTransition(scenes[0][0], scenes[0][1]);
+    window.setTimeout(() => this.tutorialCinematicActive && this.ui.showWorldTutorialTransition(scenes[1][0], scenes[1][1]), 1800);
+    window.setTimeout(() => this.tutorialCinematicActive && this.ui.showWorldTutorialTransition(scenes[2][0], scenes[2][1]), 3900);
+    window.setTimeout(() => {
+      if (!this.tutorialCinematicActive) return;
+      this.tutorialCinematicActive = false;
+      this.ui.hideDawnTransition();
+      this.sim.campaign.phase = 'world-select';
+      this.sim.campaign.tutorialFlags.worldIntroComplete = true;
+      this.save();
+      this.ui.render(true);
+    }, 5900);
+    return true;
   }
 
   worldBackgroundUrls(id        )            {
@@ -1941,6 +1985,11 @@ export class Game                    {
       await targetLoad;
       const arrived = this.sim.activatePendingWorldSwitch();
       if (arrived) {
+        if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 3 && arrived.id === 'magma_ridge') {
+          this.sim.campaign.tutorialFlags.worldTravelComplete = true;
+          this.sim.campaign.phase = 'world-arrived';
+          this.ui.tutorialActive = true;
+        }
         this.worldBackgroundId = '';
         this.ensureWorldBackground();
         await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
@@ -1950,6 +1999,11 @@ export class Game                    {
       return !!arrived;
     } catch (err) {
       const arrived = this.sim.activatePendingWorldSwitch();
+      if (arrived && this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 3 && arrived.id === 'magma_ridge') {
+        this.sim.campaign.tutorialFlags.worldTravelComplete = true;
+        this.sim.campaign.phase = 'world-arrived';
+        this.ui.tutorialActive = true;
+      }
       this.worldBackgroundId = ''; this.ensureWorldBackground();
       this.ui.render(true); this.save();
       this.sim.toast(`${arrived ? '已抵达目标世界，但穿越动画未能完整播放' : '穿越失败'}：${err?.message || '未知错误'}`);
@@ -2089,7 +2143,7 @@ export class Game                    {
       animate: (done, stage) => this.playDawnTransition(done, stage),
       onComplete: () => {
         if (!this.sim.finishNight({ force: false })) return;
-        this.save(); this.audio.playAmb('amb'); this.ui.hideDawnTransition?.(); this.ui.render(true);
+        this.save(); this.audio.playAmb('amb'); this.ui.hideDawnTransition?.(); if (!this.startDayThreeWorldIntro()) this.ui.render(true);
       },
     });
     this.ui.render(true);
@@ -2526,6 +2580,28 @@ export class Game                    {
     if (this.sim.dayActive && this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.tutorialFlags?.day1ForcedLossComplete) {
       this.sim.campaign.tutorialFlags.day1ForcedLossComplete = false;
       this.finishDay();
+    }
+    if (this.sim.dayActive && this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 3 && this.sim.tutorialWaveIndex >= 3 && !this.sim.groups.some((group) => group.tutorialScriptId?.startsWith('d3-'))) {
+      if (!this.sim.campaign.tutorialFlags?.tutorialCompleteAnnounced) {
+        this.sim.campaign.tutorialFlags.tutorialCompleteAnnounced = true;
+        this.sim.campaign.phase = 'tutorial-complete';
+        this.tutorialCompletionT = 0;
+        const owner = this.sim.staff.find((staff) => staff.isOwner);
+        if (owner) owner.bubble = { text: '三个世界身份都认识了。接下来，就按自己的方式经营吧！', t: 5 };
+        this.sim.toast('三日教学完成：从现在开始进入自由经营');
+        this.ui.tutorialActive = true;
+        this.save();
+      }
+      this.tutorialCompletionT += dt;
+      if (this.tutorialCompletionT >= 4.5) {
+        try { localStorage.setItem(TUTORIAL_COMPLETED_KEY, '1'); } catch (_) { /* ignore */ }
+        this.sim.campaign.tutorialFlags.tutorialComplete = true;
+        this.sim.campaign.mode = 'free';
+        this.sim.campaign.phase = 'business';
+        this.ui.tutorialActive = false;
+        this.tutorialCompletionT = 0;
+        this.finishDay();
+      }
     }
     if (this.sim.dayActive && this.sim.dayT >= DAY_LEN && (!this.sim.groups.some((g) => !g.overnight) || this.sim.dayT > DAY_LEN + 90)) this.finishDay();
 

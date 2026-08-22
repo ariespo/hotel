@@ -742,6 +742,16 @@ export class UI {
     this.root.classList.add('dawn-locked');
   }
 
+  showWorldTutorialTransition(text, stage = 'start') {
+    if (!this.dawnLayer) return;
+    this.dawnLayer.hidden = false;
+    this.dawnLayer.dataset.stage = stage;
+    const title = this.dawnLayer.querySelector('.dawn-transition-title');
+    if (title) title.textContent = text;
+    this.dawnLayer.style.pointerEvents = 'auto';
+    this.root.classList.add('dawn-locked');
+  }
+
   hideDawnTransition() {
     if (!this.dawnLayer) return;
     this.dawnLayer.hidden = true;
@@ -930,7 +940,7 @@ export class UI {
     const act = t.dataset.act          ;
     const v = t.dataset.v || '';
     const g = this.g;
-    if (g.sim.campaign?.mode === 'tutorial' && this.tutorialActive && !this.campaignActionAllowed(act, v)) {
+    if (g.sim.campaign?.mode === 'tutorial' && this.tutorialActive && this.campaignLocksActions() && !this.campaignActionAllowed(act, v)) {
       g.sim.toast('先完成当前高亮的教学步骤'); return;
     }
     const fromOverflow = !!t.closest('.top-overflow-menu');
@@ -1509,6 +1519,15 @@ export class UI {
     const roomSelector = roomPanelOpen && nextRoom ? `[data-act="ltab"][data-v="room"],[data-tutorial-type="room-blueprint"][data-tutorial-key="${nextRoom}"]` : '[data-act="rail"][data-v="room"]';
     const furnSelector = furnPanelOpen && nextFurniture ? `[data-act="ltab"][data-v="furn"],[data-tutorial-type="furniture"][data-tutorial-key="${nextFurnitureKind}"]` : '[data-act="rail"][data-v="furn"],[data-act="ltab"][data-v="furn"]';
     const nextFurnitureName = nextFurniture ? (nextFurniture === 'chair1' ? '第一把餐椅' : nextFurniture === 'chair2' ? '第二把餐椅' : (furnDef(nextFurnitureKind)?.name || '下一件家具')) : '所有家具';
+    const worldPickerOpen = !!this.modal?.querySelector('.world-picker');
+    const worldConfirmOpen = !!this.modal?.querySelector('[data-act="worldswitchgo"][data-v="magma_ridge"]');
+    const magmaSelected = !!this.modal?.querySelector('[data-act="worldcard"][data-v="magma_ridge"].on');
+    const day3IdentityStage = Number(sim.campaign.tutorialFlags?.day3IdentityStage) || 0;
+    const day3BusinessStep = sim.econ.day === 3 && sim.dayActive ? [
+      '玄黄当地客正在进店。旅店当前驻留玄黄界，所以这位散修属于“当前世界客人”；客人详情中的“客源世界”会告诉你其真正来处。',
+      '这一批是两名同门修士：同一批客人会一起等待、入座和结账，身份与同行关系也会影响他们的对白。',
+      '这一位来自艾泽普利斯，是玄黄界营业日里的“异界客”。当前世界决定主要客流，但已连接世界的旅人仍可能跨界来访。',
+    ][Math.max(0, Math.min(2, day3IdentityStage - 1))] : '';
     const steps = {
       'tutorial-build': ['准备', `先建${ROOM_LABEL[nextRoom] || '下一间房'}`, nextRoom === 'foyer' ? '从你的休息室出发，先建一座位面门厅。客人要从那里找到你。' : `很好，接下来把${ROOM_LABEL[nextRoom]}建起来。每一间房都会让旅店学会一件新本事。`, roomSelector],
       'tutorial-furnish': ['准备', `摆好${nextFurnitureName}`, nextFurniture ? ({ table: '餐桌先摆好；同桌同批的客人需要一把对应的餐椅。', chair1: '第一把餐椅：椅子不足会让客人流失。', chair2: '第二把餐椅：第三批教学客人有两位，缺一把就无法同桌入座。', prep: '备餐台负责把食材交给厨房，建议靠近炉灶。', stove: '灶台负责烹饪，和备餐台、出餐口相邻会更顺手。', pass: '出餐台把热菜交给前厅，尽量靠近餐厅。', sink: '水槽负责清洗餐具。', shelf: '储藏架保管旅店初始食材。', bed: '客房床决定房型与住宿容量。', desk: '前台柜台负责迎接刚到店的客人。' }[nextFurniture] || '按顺序摆好真正工作的家具。') : '家具都已准备好，确认后就可以开门营业。', furnSelector],
@@ -1521,6 +1540,10 @@ export class UI {
       'meeting': ['会议', '大家都到齐了', '从经营、团队和世界三个方向挑选最重要的议题，听听每个人的想法。', '#modal'],
       'night': ['夜间', '打烊后的时间属于你们', '员工会自然地活动和交谈；你也可以主动找人聊天。想结束今天时，可以切换直控模式走到自己床边按 E；自动模式下双击床，触屏则连续点床两次。这个结束日交互只在打烊时开放。', '#app canvas'],
       'employee-intro': ['新同伴', '第一位员工到店了', '看着他们自然地打过招呼，再一起走到会议桌旁入座；坐好以后，第一次会议才会开始。', '#app canvas'],
+      'world-select': ['世界', worldConfirmOpen ? '确认首次免费穿越' : worldPickerOpen ? (magmaSelected ? '启程前往玄黄大世界' : '选择玄黄大世界') : '打开世界航路', worldConfirmOpen ? '这一次由旅店的首次航行许可承担费用，确认后将播放完整的位面穿越动画。' : worldPickerOpen ? (magmaSelected ? '玄黄大世界已经选中。本次穿越费用为 0，点击“穿越至此”继续。' : '世界航路记录着所有已连接位面。请选择“玄黄大世界”，查看当地规则与客源信息。') : '旅店不只属于一个世界。点击左上角的旅店名称，进入世界航路界面，亲手完成第一次迁界。', worldConfirmOpen ? '[data-act="worldswitchgo"][data-v="magma_ridge"]' : worldPickerOpen ? (magmaSelected ? '[data-act="worldswitch"][data-v="magma_ridge"]' : '[data-act="worldcard"][data-v="magma_ridge"]') : '[data-act="worldcard"].brand-title'],
+      'world-arrived': ['世界', '玄黄界已成为当前世界', '“当前世界”决定今天主要出现的当地客、采购价格与环境规则；“客源世界”记录每位客人的真正来处，来自其它已连接世界的客人就是异界客。连续驻留同一世界时，第4/5/6/7天起当地客耐心依次降至85%/70%/55%/40%，适时迁界能让客流保持新鲜。点击开门营业，认识三批不同身份的客人。', '[data-act="open"]'],
+      'tutorial-complete': ['完成', '三日教学到这里结束', '你已经认识了当前世界、异界客与客源世界，也亲手完成了第一次迁界。今天会自动进入收尾；从下一天开始，不再有强制教学，请按自己的方式经营这家旅店。', '#app canvas'],
+      'business': sim.econ.day === 3 && day3IdentityStage ? ['世界', day3IdentityStage === 1 ? '第一批：玄黄散修' : day3IdentityStage === 2 ? '第二批：同门同行' : '第三批：艾泽异界客', day3BusinessStep, '#app canvas'] : (tutorialBedPrompt ? ['营业', '该回床上补一会儿体力了', '一个人同时照看旅店和客人会很累。点亮的床就是你的休息处：管理模式点床会自动走过去，直控模式走到床边按 E。客人的耐心会在这段时间耗尽，这是今天要学会面对的第一课。', '#app canvas'] : null),
     }[phase];
     if (!steps) { this.tutorialLayer.style.display = 'none'; return; }
     const [chapter, title, body, selector] = steps;
@@ -1544,7 +1567,7 @@ export class UI {
       const focusRoom = this.g.selection?.kind === 'room' ? sim.tavern.roomById(this.g.selection.id) : null;
       if (focusRoom && ['tutorial-furnish', 'first-recruitment'].includes(phase)) this.g.frameRooms?.([focusRoom], 1.25, 80, 96);
     }
-    const key = `${phase}|${sim.econ.day}|${nextRoom || ''}|${nextFurniture || ''}|${recruitmentNeedsCorridor ? 1 : 0}|${recruitmentNeedsLounge ? 1 : 0}|${recruitmentNeedsChair ? 1 : 0}|${this.collapsed.right ? 1 : 0}|${this.rightTab}|${this.staffView}|${this.allRecruitmentCandidates().length}|${sim.campaign.tutorialFlags?.day1Opened ? 1 : 0}|${tutorialBedPrompt ? 1 : 0}`;
+    const key = `${phase}|${sim.econ.day}|${nextRoom || ''}|${nextFurniture || ''}|${recruitmentNeedsCorridor ? 1 : 0}|${recruitmentNeedsLounge ? 1 : 0}|${recruitmentNeedsChair ? 1 : 0}|${this.collapsed.right ? 1 : 0}|${this.rightTab}|${this.staffView}|${this.allRecruitmentCandidates().length}|${sim.campaign.tutorialFlags?.day1Opened ? 1 : 0}|${tutorialBedPrompt ? 1 : 0}|${worldPickerOpen ? 1 : 0}|${worldConfirmOpen ? 1 : 0}|${magmaSelected ? 1 : 0}|${day3IdentityStage}`;
     if (this.tutorialRenderKey !== key) {
       this.tutorialLayer.innerHTML = `<section class="tutorial-card" role="dialog" aria-label="剧情引导"><div class="tutorial-head"><span class="tutorial-step">${chapter} · 第${sim.econ.day}天</span><h2>${title}</h2></div><p>${body}</p><div class="tutorial-hint">高亮区域之外暂时不能操作；完成当前真实目标后，引导会自动进入下一段。</div><div class="tutorial-actions"><button data-act="tutorialmin">暂时收起</button><button data-act="tutorialskip" class="warn">跳过引导</button></div></section>`;
       this.tutorialRenderKey = key;
@@ -1577,7 +1600,16 @@ export class UI {
     }
     if (phase === 'employee-intro') return ['employeeintroconfirm', 'tutorialmin', 'tutorialskip'].includes(act);
     if (phase === 'recruit') return ['rtab', 'rail', 'staffrecruit', 'staffback', 'detail', 'selstaff', 'hire', 'directrecruit', 'adopen', 'adpost', 'adcancelai', 'adclear', 'adseen', 'adbias', 'adrace', 'adsex', 'adtier', 'adworld', 'adworldname', 'candcompare', 'candcomparefocus', 'candcompareopen', 'candgaphighlight', 'candjobfilter', 'candsort', 'candworldfilter', 'tutorialmin', 'tutorialskip'].includes(act);
+    if (phase === 'world-select') {
+      if (act === 'worldcard') return !value || ['hearth_coast', 'magma_ridge'].includes(value);
+      if (act === 'worldswitch' || act === 'worldswitchgo') return value === 'magma_ridge';
+      return ['closemodal', 'tutorialmin', 'tutorialskip'].includes(act);
+    }
     return ['tutorialmin', 'tutorialskip', 'meetingcard', 'meetingdone', 'meetingconfirm', 'meetingreturn', 'nightbed', 'nightproactive', 'nightqueue', 'closemodal', 'posteventnext', 'rtab', 'rail', 'detail', 'selstaff'].includes(act);
+  }
+
+  campaignLocksActions() {
+    return ['tutorial-build', 'tutorial-furnish', 'tutorial-bed-complete', 'ready-open', 'first-recruitment', 'recruit', 'employee-intro', 'world-select'].includes(this.g.sim.campaign?.phase);
   }
 
   render(force         )       {
@@ -2289,8 +2321,12 @@ export class UI {
     else if (tab === 'economy') content = `<div class="card"><b>货币</b><div>${htmlText(world.economy?.currency || '')}</div><b>劳动制度</b><div>${htmlText(world.economy?.labor || '')}</div></div>${[['主要产业', world.economy?.industries], ['出口', world.economy?.exports], ['进口', world.economy?.imports]].map(([label, rows]) => `<div class="card"><b>${label}</b><div class="dim">${(rows || []).map(htmlText).join(' · ')}</div></div>`).join('')}<h3>当地采购价</h3>${priceRows}`;
     else if (tab === 'people') content = namedRows(world.notableCharacters?.map((character) => ({ name: `${character.visitor ? '✦ ' : ''}${character.name}`, detail: `${character.canonical ? '原作著名角色 · ' : ''}${character.detail || ''}${character.visitor ? ' · 可能作为稀有访客到店' : ' · 出现在传闻与图鉴中'}` })));
     else content = `<div class="card"><b>客流构成</b><div>约 60% 当前世界当地客、30% 其他已连接世界、10% 潮汐或使团。</div></div><div class="card"><b>环境规则</b><div>${htmlText(world.environmentRule?.detail || '')}</div></div><div class="card"><b>推荐设施</b><div>${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join(' · ') || '无特定设施'}</div></div><div class="card"><b>招聘</b><div>约 60% 候选人取自当地人口与职业结构。</div></div><h3>采购影响</h3>${priceRows}`;
-    const worldButtons = worlds.map((row) => `<button data-act="worldcard" data-v="${htmlText(row.id)}" class="${row.id === world.id ? 'on' : ''}" title="${row.unlockStars > sim.stars() && !row.custom ? `${row.unlockStars} 星解锁` : row.genre || ''}">${htmlText(row.icon)} ${htmlText(row.name)}${row.unlockStars > sim.stars() && !row.custom ? ' 🔒' : ''}</button>`).join('');
-    const action = unlocked && !current ? pending ? '<span class="hi">位面穿越准备中</span>' : econ.pendingWorldSwitch ? '<span class="dim">正在穿越其他世界</span>' : `<button data-act="worldswitch" data-v="${htmlText(world.id)}" ${sim.dayActive ? 'disabled title="请在打烊规划期切换"' : ''}>穿越至此 · ${worldSwitchCost(world)} 币</button>` : current ? '<span class="good">● 当前驻留世界</span>' : '';
+    const worldButtons = worlds.map((row) => {
+      const rowUnlocked = row.custom || (sim.campaign?.mode === 'legacy' ? row.unlockStars <= sim.stars() : worldUnlockDay(row.id) <= sim.econ.day);
+      return `<button data-act="worldcard" data-v="${htmlText(row.id)}" class="${row.id === world.id ? 'on' : ''}" title="${!rowUnlocked ? (sim.campaign?.mode === 'legacy' ? `${row.unlockStars} 星解锁` : `第 ${worldUnlockDay(row.id)} 天解锁`) : row.genre || ''}">${htmlText(row.icon)} ${htmlText(row.name)}${!rowUnlocked ? ' 🔒' : ''}</button>`;
+    }).join('');
+    const tutorialFreeTravel = sim.campaign?.mode === 'tutorial' && sim.econ.day === 3 && sim.campaign.phase === 'world-select' && world.id === 'magma_ridge' && !sim.campaign.tutorialFlags?.worldTravelComplete;
+    const action = unlocked && !current ? pending ? '<span class="hi">位面穿越准备中</span>' : econ.pendingWorldSwitch ? '<span class="dim">正在穿越其他世界</span>' : `<button data-act="worldswitch" data-v="${htmlText(world.id)}" ${sim.dayActive ? 'disabled title="请在打烊规划期切换"' : ''}>穿越至此 · ${tutorialFreeTravel ? 0 : worldSwitchCost(world)} 币</button>` : current ? '<span class="good">● 当前驻留世界</span>' : '';
     const management = world.custom && !current && !pending ? `<button data-act="worldarchive" data-v="${htmlText(world.id)}" class="warn" ${sim.dayActive ? 'disabled title="请在打烊规划期归档"' : ''}>归档世界</button>` : '';
     this.showModal(`<h3>🌐 世界航路</h3><div class="world-picker">${worldButtons}</div><div class="tabs world-card-tabs">${tabs.map(([key, label]) => `<button data-act="worldcardtab" data-id="${htmlText(world.id)}" data-v="${key}" class="${tab === key ? 'on' : ''}">${label}</button>`).join('')}</div><div class="world-card-body">${content}</div><div class="row" style="margin-top:10px">${action}${management}<span style="flex:1"></span>${sim.stars() >= 3 ? `<button data-act="customworld">AI 自定义世界 ${econ.customWorlds.length}/${CUSTOM_WORLD_LIMIT}</button>` : '<span class="dim">三星开放 AI 自定义世界</span>'}<button data-act="closemodal">关闭</button></div>`);
   }
@@ -2299,7 +2335,8 @@ export class UI {
     const sim = this.g.sim; const world = sim.unlockedWorlds().find((row) => row.id === id);
     if (!world) return;
     const prices = ING_KEYS.map((key) => `${ING_LABEL[key]} ${Math.round((world.economy?.prices?.[key] || 1) * 100)}%`).join(' · ');
-    this.showModal(`<h3>确认穿越至 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card"><div>${htmlText(world.tagline || world.identity?.summary || '')}</div><div class="dim" style="margin-top:6px">抵达后客流以当地客为主；采购：${prices}</div><div class="dim">推荐设施：${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join('、') || '无特别限制'}</div></div><div class="card bad">将立即支付 ${worldSwitchCost(world)} 界币并开始穿越。动画结束后立即抵达目标世界，不再等待次日开门。</div><div class="row"><button data-act="worldswitchgo" data-v="${htmlText(world.id)}">确认穿越</button><button data-act="worldcard" data-v="${htmlText(world.id)}">返回世界卡</button></div>`, true, false, { variant: 'important' });
+    const tutorialFreeTravel = sim.campaign?.mode === 'tutorial' && sim.econ.day === 3 && sim.campaign.phase === 'world-select' && world.id === 'magma_ridge' && !sim.campaign.tutorialFlags?.worldTravelComplete;
+    this.showModal(`<h3>确认穿越至 ${htmlText(world.icon)} ${htmlText(world.name)}？</h3><div class="card"><div>${htmlText(world.tagline || world.identity?.summary || '')}</div><div class="dim" style="margin-top:6px">抵达后客流以当地客为主；采购：${prices}</div><div class="dim">推荐设施：${(world.recommendedFacilities || []).map((kind) => ROOM_LABEL[kind] || kind).join('、') || '无特别限制'}</div></div><div class="card ${tutorialFreeTravel ? 'good' : 'bad'}">${tutorialFreeTravel ? '首次迁界许可已生效：本次费用为 0。' : `将立即支付 ${worldSwitchCost(world)} 界币。`}动画结束后立即抵达目标世界，不再等待次日开门。</div><div class="row"><button data-act="worldswitchgo" data-v="${htmlText(world.id)}">确认穿越</button><button data-act="worldcard" data-v="${htmlText(world.id)}">返回世界卡</button></div>`, true, false, { variant: 'important' });
   }
 
   customWorldFormData() {

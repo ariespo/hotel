@@ -1264,7 +1264,7 @@ export class Sim {
       ? { worldId: this.econ.currentWorldId, days: Math.max(1, Number(this.econ.worldStayState.days) || 1) + 1 }
       : { worldId: this.econ.currentWorldId, days: 1 };
     this.econ.day++;
-    this.campaign.phase = 'prepare';
+    this.campaign.phase = this.campaign.mode === 'tutorial' && this.econ.day === 3 && !this.campaign.tutorialFlags?.tutorialComplete ? 'world-intro' : 'prepare';
     this.campaign.firstDayComplete = this.econ.day > 1 || this.campaign.firstDayComplete;
     this.campaign.tutorialFlags = { ...(this.campaign.tutorialFlags || {}), [`day${this.econ.day - 1}Complete`]: true };
     this.refreshPool();
@@ -1362,11 +1362,12 @@ export class Sim {
     const world = this.unlockedWorlds().find((row) => row.id === id);
     if (!world) { this.toast('这个世界尚未与旅店建立稳定航路'); return false; }
     if (world.id === this.econ.currentWorldId) { this.toast('旅店已经位于这个世界'); return false; }
-    const cost = worldSwitchCost(world);
+    const tutorialFreeTravel = this.campaign.mode === 'tutorial' && this.econ.day === 3 && this.campaign.phase === 'world-select' && world.id === 'magma_ridge' && !this.campaign.tutorialFlags?.worldTravelComplete;
+    const cost = tutorialFreeTravel ? 0 : worldSwitchCost(world);
     if (this.econ.coins < cost) { this.toast(`界币不足：迁移至${world.name}需要 ${cost} 界币`); return false; }
     this.econ.coins -= cost;
     this.econ.pendingWorldSwitch = { worldId: world.id, cost, confirmedDay: this.econ.day };
-    this.toast(`已支付航行费用：${world.icon} ${world.name}（-${cost} 界币）`);
+    this.toast(tutorialFreeTravel ? `首次迁界许可：免费前往${world.icon} ${world.name}` : `已支付航行费用：${world.icon} ${world.name}（-${cost} 界币）`);
     return true;
   }
 
@@ -2095,15 +2096,8 @@ export class Sim {
     }
     this.lastStat = null;
     if (this.campaign.mode === 'tutorial' && this.econ.day === 3 && !this.campaign.tutorialFlags?.worldTravelComplete) {
-      this.econ.pendingWorldSwitch = { worldId: 'magma_ridge', cost: 0, confirmedDay: this.econ.day, tutorial: true };
-      this.campaign.phase = 'world-transition';
-      this.toast('晨间准备：今天第一次免费迁往玄黄大世界');
+      this.toast('先按世界航路教学，亲手完成首次免费迁界');
       return false;
-    }
-    if (this.campaign.mode === 'tutorial' && this.econ.day === 3 && this.econ.currentWorldId !== 'magma_ridge') {
-      this.econ.currentWorldId = 'magma_ridge';
-      this.econ.worldStayState = { worldId: 'magma_ridge', days: 1 };
-      this.toast('教学航行：首次前往玄黄大世界，本次航行费用由旅店承担');
     }
     this.econ.worldForecast = worldForecastForDay(this.econ.seed, this.econ.day, this.stars());
     this.dayT = 0;
@@ -2815,6 +2809,12 @@ export class Sim {
         g.worldIds = [foreign.id];
         g.homeRegion = foreign.name;
         g.travelOccupation = '艾泽异界客';
+      }
+      if (this.econ.day === 3 && tutorialScript?.scriptId?.startsWith('d3-')) {
+        this.campaign.tutorialFlags.day3IdentityStage = this.tutorialWaveIndex + 1;
+        const owner = this.staff.find((staff) => staff.isOwner);
+        const lines = ['这位是玄黄界的当地散修。', '这两位是结伴而来的同门。', '这位来自艾泽，是今天的异界客。'];
+        if (owner) owner.bubble = { text: lines[this.tutorialWaveIndex] || lines[2], t: 5.5 };
       }
       g.budget = tutorialScript?.scriptId === 'd1-loss' ? 24 : tutorialScript?.scriptId === 'd2-eze-meal' ? 120 : this.econ.day === 1 ? 72 : this.econ.day === 2 ? 96 : 110;
       g.maxPatience = this.econ.day === 1 && this.tutorialWaveIndex >= 3 ? 6 : tutorialScript?.scriptId === 'd2-local-lodging' ? 88 : 90;
