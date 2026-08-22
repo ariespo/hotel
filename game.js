@@ -762,7 +762,8 @@ export class Game                    {
     owner.job = 'free';
     this.sim.staff.push(owner);
     this.sim.refreshPool();
-    this.sim.manualOwner = this.manualPref();
+    // 固定教学首日必须让店主自动接活；旧的直控偏好不能让新档开门后原地不动。
+    this.sim.manualOwner = quickStart ? this.manualPref() : false;
     this.sim.toast(`${name}接过了钥匙：${this.sim.econ.tavernName}，开张了。`);
     this.staticVersion = -1;
     this.cam = { x: 2, y: layout.id === 'empty' ? 2 : 3 };
@@ -938,6 +939,7 @@ export class Game                    {
     try { localStorage.setItem(Game.MANUAL_KEY, v ? '1' : '0'); } catch (e) { /* 隐私模式下忽略 */ }
     const own = this.sim.staff.find((x) => x.isOwner);
     if (own) { own.task = null; own.path = []; own.bubble = { text: v ? '听你指挥！' : '我自己忙去', t: 1.6 }; }
+    this.sim.invalidateTasks?.(v ? 'owner-manual' : 'owner-auto');
     this.sim.toast(v ? (this.ui.compact || this.ui.touchUi ? '已开启直控：点按屏下方向键移动，右侧交互相当于 E' : '已开启直控：WASD / 方向键移动店主') : '已关闭直控：店主恢复自动干活，WASD 平移镜头');
   }
 
@@ -1799,6 +1801,7 @@ export class Game                    {
     if (!this.sim.canOpenBusinessNow() && !(['tutorial-build', 'tutorial-furnish'].includes(this.sim.campaign?.phase) && this.sim.econ.day === 1)) { this.sim.toast('当前阶段不能开门营业'); return; }
     if (['settlement', 'meeting', 'night'].includes(this.sim.campaign?.phase)) { this.sim.toast('请先完成日报、会议与夜间休息'); return; }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1) {
+      if (this.sim.manualOwner) this.setManualOwner(false);
       const flags = this.sim.campaign.tutorialFlags || {};
       const presentRooms = new Set(this.tavern.rooms.map((room) => room.kind));
       const missingRooms = ['foyer', 'dining', 'kitchen', 'storage', 'guestroom'].filter((kind) => !presentRooms.has(kind));
