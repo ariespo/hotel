@@ -1089,14 +1089,14 @@ export class Game                    {
       const now = performance.now();
       if (this.lastTap && now - this.lastTap.t < 420 && Math.abs(this.lastTap.x - t.x) <= 1 && Math.abs(this.lastTap.y - t.y) <= 1) {
         this.lastTap = null;
-        this.openDetailAt(t.x, t.y);
+        if (!this.requestNightBedAt(t.x, t.y)) this.openDetailAt(t.x, t.y);
       } else this.lastTap = { t: now, x: t.x, y: t.y };
     });
     cv.addEventListener('pointercancel', (e) => { this.pointers.delete(e.pointerId); this.drag = null; });
     cv.addEventListener('dblclick', (e) => {
       if (this.buildBp || this.buildFurn || this.moveRoomId !== null || this.moveFurnId !== null) return;
       const t = this.screenToTile(e.clientX, e.clientY);
-      this.openDetailAt(t.x, t.y);
+      if (!this.requestNightBedAt(t.x, t.y)) this.openDetailAt(t.x, t.y);
     });
     cv.addEventListener('contextmenu', (e) => { e.preventDefault(); this.cancelBuild(); });
     cv.addEventListener('wheel', (e) => { e.preventDefault(); this.setZoom(this.zoom * (e.deltaY < 0 ? 1.15 : 0.87)); }, { passive: false });
@@ -1266,6 +1266,25 @@ export class Game                    {
   }
 
   /** 双击：命中员工就开详情（点空地不打扰） */
+  requestNightBedAt(x, y) {
+    if (!this.sim.nightState?.active || this.sim.dayActive || this.sim.manualOwner) return false;
+    const bed = this.tavern.furnAt(x, y);
+    const room = bed && this.tavern.roomOfFurn(bed);
+    if (!bed || bed.kind !== 'bunk' || !room || (this.sim.campaign?.mode !== 'legacy' && room.kind !== 'playerroom')) return false;
+    const owner = this.sim.staff.find((staff) => staff.isOwner);
+    const stand = this.tavern.standTileNear(this.tavern.useTiles(bed));
+    if (!owner || !stand) return true;
+    if (Math.hypot(owner.x - stand.x, owner.y - stand.y) < 1.8) {
+      this.sim.nightState.ownerAtBed = true;
+      this.ui.showModal('<h3>结束今天？</h3><div class="dim">确认后店主入睡，所有员工恢复状态并进入次日经营准备。</div><div class="row" style="margin-top:10px"><button data-act="nightbed">躺下，结束今天</button><button data-act="closemodal">再忙一会儿</button></div>');
+    } else {
+      owner.path = this.tavern.path(Math.round(owner.x), Math.round(owner.y), stand.x, stand.y) || [];
+      this.pendingNightBed = true;
+      this.sim.toast('店主正回到自己的床边');
+    }
+    return true;
+  }
+
   openDetailAt(x        , y        )       {
     if (this.creatorPending) return;
     const st = this.staffAt(x, y);
@@ -1633,11 +1652,11 @@ export class Game                    {
     if (this.sim.dayActive) { this.sim.toast('营业中不能建造，先完成今天'); this.audio.play('error'); return; }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'first-recruitment') {
       const needsRecruitCorridor = !this.tavern.rooms.some((room) => room.kind === 'corridor');
-      const allowed = needsRecruitCorridor ? id === 'corridor2' : bpById(id)?.kind === 'lounge';
+      const allowed = needsRecruitCorridor ? bpById(id)?.kind === 'corridor' : bpById(id)?.kind === 'lounge';
       if (!allowed) { this.sim.toast(needsRecruitCorridor ? '先建一段连接员工房的走廊' : '现在只需要先建员工休息室'); return; }
     }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['tutorial-build', 'first-recruitment'].includes(this.sim.campaign.phase)) { this.sim.toast('当前教学步骤不需要建新房间'); return; }
-    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['foyer4', 'dining6', 'kitchen6', 'storage4', 'guestroom5'].includes(id) && !(this.sim.campaign.phase === 'first-recruitment' && ['corridor2', 'lounge5'].includes(id))) { this.sim.toast('第一天先按引导准备基础房间'); return; }
+    if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['foyer4', 'dining6', 'kitchen6', 'storage4', 'guestroom5'].includes(id) && !(this.sim.campaign.phase === 'first-recruitment' && (bpById(id)?.kind === 'corridor' || id === 'lounge5'))) { this.sim.toast('第一天先按引导准备基础房间'); return; }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'tutorial-build') {
       const order = ['foyer', 'dining', 'kitchen', 'storage', 'guestroom'];
       const next = order.find((kind) => !this.tavern.rooms.some((room) => room.kind === kind));
@@ -1689,7 +1708,7 @@ export class Game                    {
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['tutorial-build', 'first-recruitment'].includes(this.sim.campaign.phase)) { this.sim.toast('当前教学步骤不需要建新房间'); return; }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'first-recruitment') {
       const needsRecruitCorridor = !this.tavern.rooms.some((room) => room.kind === 'corridor');
-      const allowed = needsRecruitCorridor ? bp.id === 'corridor2' : bp.kind === 'lounge';
+      const allowed = needsRecruitCorridor ? bp.kind === 'corridor' : bp.kind === 'lounge';
       if (!allowed) { this.sim.toast(needsRecruitCorridor ? '当前阶段先建连接员工房的走廊' : '当前阶段只能建员工休息室'); return; }
     }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'tutorial-build') {
@@ -1998,6 +2017,54 @@ export class Game                    {
     this.audio.play('coin');
     this.save();
     this.ui.render(true);
+  }
+
+  advanceEmployeeIntro(dt) {
+    const seq = this.sim.campaign?.employeeIntroSequence;
+    if (this.sim.campaign?.phase !== 'employee-intro' || !seq) return false;
+    const newcomer = this.sim.staff.find((staff) => staff.id === seq.staffId);
+    const owner = this.sim.staff.find((staff) => staff.isOwner);
+    if (!newcomer || !owner) return false;
+    seq.t = (seq.t || 0) + dt;
+    if (seq.stage === 'arrival') {
+      if (newcomer.arrivalFx > 0) return true;
+      newcomer.bubble = { text: ['我本来只是试着投递简历，没想到传说是真的！', '哇，这就是多元便携旅店吗？', '简历才投出去，我居然真的来到异世界旅店了！'][newcomer.id % 3], t: 3.2 };
+      seq.stage = 'arrival-line'; seq.t = 0;
+    } else if (seq.stage === 'arrival-line' && seq.t >= 3.1) {
+      const target = this.sim.nearestWalkableTile(Math.round(owner.x) + 1, Math.round(owner.y), { x: 1, y: 0 });
+      newcomer.path = target ? (this.tavern.path(Math.round(newcomer.x), Math.round(newcomer.y), target.x, target.y) || []) : [];
+      seq.stage = 'approach'; seq.t = 0;
+    } else if (seq.stage === 'approach') {
+      if (newcomer.path.length) this.sim.moveActor(newcomer, dt, 1.7);
+      if (!newcomer.path.length) {
+        owner.bubble = { text: `你好，我是${this.sim.econ.tavernName}的新一任主人${owner.name}，你是我的第一名员工！`, t: 4.2 };
+        seq.stage = 'owner-hello'; seq.t = 0;
+      }
+    } else if (seq.stage === 'owner-hello' && seq.t >= 4.1) {
+      newcomer.bubble = { text: `${owner.name}老板，您好！我是${newcomer.name}，今后多多指教！`, t: 4 };
+      seq.stage = 'staff-hello'; seq.t = 0;
+    } else if (seq.stage === 'staff-hello' && seq.t >= 3.9) {
+      owner.bubble = { text: '那事不宜迟，我们来进行一次小小的会议吧！', t: 3.2 };
+      seq.stage = 'invite'; seq.t = 0;
+    } else if (seq.stage === 'invite' && seq.t >= 3.1) {
+      this.sim.assembleMeetingSeats();
+      seq.stage = 'seating'; seq.t = 0;
+    } else if (seq.stage === 'seating') {
+      let seated = 0;
+      for (const staff of this.sim.staff.filter((person) => !person.dismissPending)) {
+        if (staff.path?.length) this.sim.moveActor(staff, dt, 1.7);
+        const seat = staff.meetingSeat;
+        if (seat && !staff.path.length) { staff.x = seat.x; staff.y = seat.y; staff.pose = 'sit'; staff.dir = seat.dir; seated++; }
+      }
+      if (seated >= this.sim.staff.filter((person) => !person.dismissPending).length) {
+        this.sim.campaign.tutorialFlags.employeeIntroConfirmed = true;
+        delete this.sim.campaign.employeeIntroSequence;
+        this.sim.beginMeeting(true);
+        this.save();
+        this.ui.openMeeting(true);
+      }
+    }
+    return true;
   }
 
   finishNight() {
@@ -2398,6 +2465,7 @@ export class Game                    {
 
     const active = !this.paused && !this.blocked;
     this.sim.uiTick(dt);
+    this.advanceEmployeeIntro(dt);
     const closingFrame = advanceClosingPhase(this.sim, this.closingState ||= { t: 0 }, dt * this.speed, (stat) => { this.sim.toast('打烊时间 · 集合完成'); this.ui.openSettlement(stat); });
     if (!closingFrame && (active || this.sim.campaign?.phase === 'closing-assemble')) this.sim.update(dt * this.speed);
     else {
@@ -2444,6 +2512,10 @@ export class Game                    {
     this.sim.sounds.length = 0;
 
     if (this.sim.pendingEvent && !this.ui.modal) this.ui.openEvent();
+    if (this.sim.dayActive && this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.tutorialFlags?.day1ForcedLossComplete) {
+      this.sim.campaign.tutorialFlags.day1ForcedLossComplete = false;
+      this.finishDay();
+    }
     if (this.sim.dayActive && this.sim.dayT >= DAY_LEN && (!this.sim.groups.some((g) => !g.overnight) || this.sim.dayT > DAY_LEN + 90)) this.finishDay();
 
     this.render();
@@ -3097,7 +3169,7 @@ export class Game                    {
         if (i === 0 && f.kind === 'billiardtable') shooter.add(m.id);
       });
     }
-    const put = (id        , app            , x        , y        , dir        , pose      , animT        , carry               , restOn             )       => {
+    const put = (id        , app            , x        , y        , dir        , pose      , animT        , carry               , restOn             , actorFx = null)       => {
       seen.add(id);
       if (!this.worldPointVisible(x, y)) {
         this.perfStats.culledActors++;
@@ -3179,6 +3251,18 @@ export class Game                    {
         }
       }
       sp.zIndex = Math.max(Math.round((c.y + 1) * 100), facZ.get(id) || -1e9, restOn ? Math.round((restOn.y + 1) * 100) + 2 : -1e9);
+      sp.alpha = 1;
+      if (actorFx?.arrivalFx > 0) {
+        const p = 1 - Math.min(1, actorFx.arrivalFx / 1.35);
+        sp.alpha = Math.max(.08, p);
+        sp.rotation += (1 - p) * Math.PI * 3;
+        sp.y -= (1 - p) * 88;
+      } else if (actorFx?.dismissFx > 0) {
+        const p = Math.min(1, actorFx.dismissFx / 1.2);
+        sp.alpha = p;
+        sp.rotation += (1 - p) * Math.PI * 3;
+        sp.scale.x *= p; sp.scale.y *= p;
+      }
       sp.visible = true;
       // 脚下接触阴影：站在地面上才有（躺床/泡汤/围桌/坐沙发不要）
       sh.scale.set(1.55, 0.48);
@@ -3202,7 +3286,7 @@ export class Game                    {
       }
       // 任务姿态：休息=躺床/坐沙发，前台=迎宾致意
       const spose       = restOn && restOn.kind === 'bunk' ? 'idle' : s.task && s.task.kind === 'rest' ? 'sit' : s.task && s.task.kind === 'greet' ? 'greet' : s.pose;
-      put(s.id, s.app, s.x, s.y, s.dir, spose, s.animT, s.carry, restOn);
+      put(s.id, s.app, s.x, s.y, s.dir, spose, s.animT, s.carry, restOn, s);
     }
     const groupById = new Map(this.sim.groups.map((group) => [group.id, group]));
     for (const g of this.sim.guests) {

@@ -1153,10 +1153,15 @@ export class Sim {
   }
 
   beginNight() {
-    const proactiveCandidates = this.staff.filter((s) => !s.isOwner).slice(0, 3).map((s) => s.id);
+    const firstNightTutorial = this.campaign?.mode === 'tutorial' && this.econ.day === 1 && this.campaign.tutorialFlags?.firstEmployeeHired && !this.campaign.tutorialFlags?.nightInteractionIntroduced;
+    const proactiveCandidates = firstNightTutorial ? [] : this.staff.filter((s) => !s.isOwner).slice(0, 3).map((s) => s.id);
     this.nightState = { active: true, employeeUses: Object.fromEntries(this.staff.filter((s) => !s.isOwner).map((s) => [s.id, 2])), playerTalks: {}, proactive: [], proactiveQueue: [], proactiveCandidates, proactiveReadyQueue: [], proactiveReadyStaff: null, proactiveInFlight: null, ownerAtBed: false, ownerAtBedConfirmed: false, dawn: null };
     this.campaign.phase = 'night';
     for (const id of proactiveCandidates) { const staff = this.staff.find((s) => s.id === id); const owner = this.staff.find((s) => s.isOwner); if (staff && owner) staff.nightProactiveApproach = true; }
+    if (firstNightTutorial) {
+      const first = this.staff.find((s) => !s.isOwner);
+      if (first) first.nightTutorialApproach = true;
+    }
     return this.nightState;
   }
 
@@ -1550,13 +1555,18 @@ export class Sim {
     this.pool = this.pool.filter((p) => p.id !== poolId);
     for (const a of this.ads) a.cands = a.cands.filter((p) => p.id !== poolId);
     const e = this.tavern.entrance();
-    s.x = e.x; s.y = e.y;
+    const owner = this.staff.find((staff) => staff.isOwner);
+    const arrival = owner ? this.nearestWalkableTile(Math.round(owner.x) + 1, Math.round(owner.y), { x: 1, y: 0 }) : null;
+    s.x = arrival?.x ?? e.x; s.y = arrival?.y ?? e.y;
+    s.arrivalFx = 1.35;
+    this.fx.push({ x: s.x, y: s.y, t: 1.2, kind: 'portal' });
     s.hireDay = this.econ.day;
     s.prio = plannedStaffPriority(s.skills, s.traits);
     this.staff.push(s);
     if (this.campaign.mode === 'tutorial') {
       this.campaign.tutorialFlags.firstEmployeeHired = true;
       this.campaign.phase = 'employee-intro';
+      this.campaign.employeeIntroSequence = { staffId: s.id, stage: 'arrival', t: 0 };
     }
     this.toast(`${s.name}（${s.race}）入职，入职费 ${fee}`);
     const br = this.freeBedroom();
@@ -1685,7 +1695,10 @@ export class Sim {
     this.nightState.proactiveReadyQueue = (this.nightState.proactiveReadyQueue || []).filter((row) => row !== id);
     if (this.nightState.proactiveReadyStaff === id || this.nightState.proactiveInFlight?.id === id) this.nightState.proactiveReadyStaff = null, this.nightState.proactiveInFlight = null;
     delete this.nightState.playerTalks?.[id];
-    this.staff = this.staff.filter((x) => x.id !== id);
+    s.dismissFx = 1.2;
+    s.dismissPending = true;
+    s.bubble = { text: ['老板，有缘再见！', '我会想念这里的。', '谢谢这些日子的照顾！'][Math.abs(s.id) % 3], t: 1.2 };
+    this.fx.push({ x: s.x, y: s.y, t: 1.2, kind: 'portal' });
     for (const r of this.tavern.rooms) if (r.occupant === id) r.occupant = undefined;   // 腾出卧室
     this.econ.coins -= s.wage * 2;
     this.toast(`${s.name}离职，补偿 ${s.wage * 2}`);
@@ -1810,6 +1823,18 @@ export class Sim {
   tickFreeTime(dt        )       {
     for (const s of this.staff) {
       if (s.isOwner) continue;
+      if (this.nightState.active && s.nightTutorialApproach) {
+        const owner = this.staff.find((x) => x.isOwner);
+        if (owner && Math.hypot(owner.x - s.x, owner.y - s.y) > 1.8) {
+          s.path = this.tavern.path(Math.round(s.x), Math.round(s.y), Math.round(owner.x), Math.round(owner.y)) || [];
+          if (s.path.length) { this.moveActor(s, dt, 1.7); continue; }
+        }
+        s.nightTutorialApproach = false;
+        s.bubble = { text: '今天辛苦了，老板。打烊以后原来还可以自由聊聊天！', t: 4.5 };
+        if (owner) owner.bubble = { text: '嗯，今晚可以自由活动。想休息时回我的房间就好。', t: 4.5 };
+        if (owner) this.addRel(owner.id, s.id, 2);
+        this.campaign.tutorialFlags.nightInteractionIntroduced = true;
+      }
       if (this.nightState.active && s.nightProactiveFrozen) { s.free = null; s.path = []; s.pose = 'idle'; continue; }
       if (this.nightState.active && s.nightProactiveApproach && !this.nightState.proactive.some((row) => row.id === s.id)) {
         const owner = this.staff.find((x) => x.isOwner);
@@ -2548,7 +2573,12 @@ export class Sim {
     this.toasts = this.toasts.filter((t) => t.t > 0);
     for (const f of this.fx) f.t -= dt;
     this.fx = this.fx.filter((f) => f.t > 0);
-    for (const s of this.staff) if (s.bubble) { s.bubble.t -= dt; if (s.bubble.t <= 0) s.bubble = null; }
+    for (const s of this.staff) {
+      if (s.arrivalFx > 0) s.arrivalFx = Math.max(0, s.arrivalFx - dt);
+      if (s.dismissFx > 0) s.dismissFx = Math.max(0, s.dismissFx - dt);
+      if (s.bubble) { s.bubble.t -= dt; if (s.bubble.t <= 0) s.bubble = null; }
+    }
+    this.staff = this.staff.filter((s) => !s.dismissPending || s.dismissFx > 0);
     for (const g of this.guests) if (g.bubble) { g.bubble.t -= dt; if (g.bubble.t <= 0) g.bubble = null; }
     for (const g of this.groups) if (g.intCd > 0) g.intCd = Math.max(0, g.intCd - dt);
     for (const c of this.chatter) c.t -= dt;
@@ -3348,6 +3378,7 @@ export class Sim {
     for (const m of g.members) this.moveActor(m, dt, 2.1);
     // 路径不可达时 leave() 会给空路径；超时兜底防止旧存档中的坏坐标永久残留。
     if (g.members.every((m) => m.path.length === 0) || g.leaveT > 20) {
+      if (g.tutorialScriptId === 'd1-loss' && this.campaign?.mode === 'tutorial' && this.econ.day === 1) this.campaign.tutorialFlags.day1ForcedLossComplete = true;
       this.guests = this.guests.filter((x) => x.groupId !== g.id);
       this.groups = this.groups.filter((x) => x.id !== g.id);
     }
@@ -3884,7 +3915,7 @@ export class Sim {
   tickStaff(dt        )       {
     this.stationOwner.clear();
     for (const worker of this.staff) for (const id of worker.task?.stationIds || []) if (!this.stationOwner.has(id)) this.stationOwner.set(id, worker.task.key);
-    const staffOrder = [...this.staff].sort((a, b) => (b.prio || 0) - (a.prio || 0) || a.id - b.id);
+    const staffOrder = this.staff.filter((s) => !s.dismissPending).sort((a, b) => (b.prio || 0) - (a.prio || 0) || a.id - b.id);
     const claimed = new Set        ();
     const taskProgress = (s       )         => !s.task ? -1 : (s.task.i || 0) * 10
       + (s.actTotal > 0 && s.actT > 0 ? 1 - s.actT / s.actTotal : 0) + (s.carry ? 0.2 : 0);

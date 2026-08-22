@@ -70,7 +70,7 @@ export function handlePriorityUiAction(gameOrUi, action, payload = {}) {
 /** 教程房间卡的生产判定：建造阶段按房间 kind，首员阶段按具体蓝图 id。 */
 export function tutorialBlueprintTarget(phase, blueprint, target) {
   if (!blueprint || !target) return false;
-  return phase === 'tutorial-build' ? blueprint.kind === target : phase === 'first-recruitment' ? blueprint.id === target : false;
+  return phase === 'tutorial-build' ? blueprint.kind === target : phase === 'first-recruitment' ? (target === 'corridor' ? blueprint.kind === 'corridor' : blueprint.id === target) : false;
 }
 
 export function specialEmployeeRecruit(name) {
@@ -280,7 +280,7 @@ canvas.prev{image-rendering:pixelated;background:#2A2A44;border:2px solid #C9A17
 .prompt-tabs{display:flex;gap:6px;position:sticky;top:-12px;z-index:2;padding:8px 0;background:#F5E6C8;flex-wrap:wrap}.prompt-tabs button{min-width:100px}.prompt-tabs button.on{background:#7A4BE0;color:#fff;border-color:#5E3EA0}.prompt-pane{display:none}.prompt-pane.on{display:block}.world-prompt-tabs,.world-builder-tabs{position:static;top:auto}.world-prompt-stage-pane{display:none}.world-prompt-stage-pane.on{display:block}.prompt-module-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px}.prompt-module{padding:8px 9px;border:2px solid #E3C9A4;border-radius:9px;background:#FFF8E9}.prompt-module textarea{width:100%;min-height:112px;box-sizing:border-box;margin-top:5px;resize:vertical;line-height:1.5}
 .world-title{font-weight:900;border-color:var(--world-tint,#C9922F);box-shadow:0 0 0 1px color-mix(in srgb,var(--world-tint,#C9922F) 35%,transparent);white-space:nowrap}.world-picker{display:flex;gap:5px;overflow-x:auto;padding:4px 0 8px}.world-picker button{flex:0 0 auto}.world-card-tabs{position:static;background:transparent}.world-card-tabs button{min-width:70px}.world-card-body{min-height:280px;max-height:55vh;overflow:auto;padding-right:4px}.world-hero{display:flex;align-items:center;gap:14px;padding:14px;border:2px solid var(--world-card-tint);border-radius:12px;background:linear-gradient(135deg,#FFF8E9,color-mix(in srgb,var(--world-card-tint) 16%,#FFF8E9))}.world-hero h2{margin:0 0 4px}.world-glyph{font-size:46px;min-width:56px;text-align:center;color:var(--world-card-tint);text-shadow:0 2px 0 #fff}.world-timeline .card{border-left-color:var(--world-tint,#7A4BE0)}
 .decision-toolbar{display:flex;gap:5px;flex-wrap:wrap;align-items:center;margin:6px 0}.decision-toolbar label{display:flex;align-items:center;gap:4px}.decision-toolbar select{max-width:116px}.candidate-card.recommended{border-left-color:#58A947;background:linear-gradient(135deg,#FFF8E9,#EAF8DE)}.candidate-summary{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.candidate-details{margin:4px 0}.candidate-details summary{cursor:pointer;color:#7A4BE0}.compare-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}.compare-grid .card{min-width:0}.world-decision-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:7px 0}.world-decision-grid .card{margin:0}.relation-meter{height:6px;border-radius:4px;background:#E1D0B5;overflow:hidden;margin-top:4px}.relation-meter i{display:block;height:100%;background:#7A4BE0}.filter-empty{padding:12px;text-align:center;border:1px dashed #C9A176;border-radius:8px;color:#87684e}
-#tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper-target-v2.webp');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target-host{z-index:31!important}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}
+#tutorial-layer{position:fixed;inset:0;z-index:30;pointer-events:none;display:none}.tutorial-card{pointer-events:auto;position:absolute;left:50%;bottom:82px;transform:translateX(-50%);width:min(520px,calc(100vw - 24px));box-sizing:border-box;padding:12px 14px;border:3px solid #A77943;border-radius:14px;background:#FFF7E6 url('assets/ui-paper-target-v2.webp');background-size:240px;color:#5A4033;box-shadow:0 12px 35px #24170b77,inset 0 1px 0 #fff}.tutorial-head{display:flex;align-items:center;gap:8px}.tutorial-step{font-size:11px;color:#fff;background:#8A74B8;border-radius:999px;padding:2px 7px;white-space:nowrap}.tutorial-card h2{font-size:17px;margin:0;color:#9A5E22;flex:1}.tutorial-card p{margin:8px 0 6px;line-height:1.55}.tutorial-card ul{margin:5px 0 8px;padding-left:20px;line-height:1.5}.tutorial-card li+li{margin-top:3px}.tutorial-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.tutorial-actions .spacer{flex:1}.tutorial-hint{font-size:12px;color:#8A5B32}.tutorial-target-host{z-index:40!important}.tutorial-target{outline:4px solid #F3B84B!important;outline-offset:3px!important;filter:drop-shadow(0 0 7px #F3B84BCC);animation:tutorialPulse 1.15s ease-in-out infinite}.tutorial-big-target{z-index:41!important;border:4px solid #FFE083!important;background-color:#8A4E16!important;box-shadow:0 0 0 5px #ffcf55aa,0 0 28px 14px #ffd35faa!important;animation:tutorialBigFlash .72s steps(2,end) infinite!important}.tutorial-satisfied{outline-color:#8DDB4A!important;filter:drop-shadow(0 0 7px #8DDB4ACC)}@keyframes tutorialPulse{50%{outline-offset:7px;filter:drop-shadow(0 0 12px #F3B84B)}}@keyframes tutorialBigFlash{50%{filter:brightness(1.9) saturate(1.5);transform:scale(1.12)}}
 .creator-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px}.creator-head h3{flex:1;margin:0}.creator-presets,.creator-groups,.creator-cats,.creator-actions{display:flex;gap:5px;flex-wrap:wrap}.creator-presets{margin-bottom:9px}.creator-layout{display:grid;grid-template-columns:minmax(270px,310px) minmax(330px,1fr);gap:12px;align-items:start;min-width:min(820px,88vw)}
 .creator-preview{position:sticky;top:-10px;padding:9px;border:2px solid #D5B78B;border-radius:12px;background:#FFF8EAEF;box-shadow:0 4px 12px #684a3022}.creator-preview-art{display:grid;grid-template-columns:minmax(0,1fr) 108px;gap:7px;align-items:start}.creator-preview canvas{width:100%;height:auto;aspect-ratio:16/9}.creator-preview img.big{width:108px;height:144px}html.portrait-v2 .creator-preview-art{grid-template-columns:minmax(0,1fr) 120px}html.portrait-v2 .creator-preview img.big{width:120px;height:160px}.creator-pose{margin:5px 0 7px}.creator-identity{display:grid;grid-template-columns:1fr auto;gap:6px}.creator-identity label{display:flex;align-items:center;gap:5px}.creator-identity label span{white-space:nowrap;flex:0 0 auto}.creator-identity input{min-width:0;width:100%;box-sizing:border-box}.creator-personality{display:grid;grid-template-columns:90px 1fr 1fr;gap:5px;margin-top:6px;align-items:center}.creator-personality label{display:flex;flex-direction:column;gap:2px}.creator-personality label span{white-space:nowrap}.creator-personality input,.creator-personality select{width:100%;min-width:0;box-sizing:border-box}.creator-summary{margin:7px 0;padding:6px 8px;border-radius:8px;background:#E8D7B788}.creator-editor{min-width:0}.creator-groups{padding-bottom:7px;border-bottom:2px solid #E8CFA6}.creator-cats{margin:7px 0}.creator-cat-lock{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 0}.creator-lock.on{background:#8A74B8!important;color:#fff!important;border-color:#66508F!important}.creator-options{max-height:390px;overflow:auto;padding:3px}.creator-options .sw{width:28px;height:28px}.creator-history button{min-width:34px}.creator-done{width:100%;margin-top:8px;border-color:#8DDB4A!important}
 .owner-skill-presets{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;margin:7px 0}.owner-skill-presets button{text-align:left;white-space:normal}.owner-skill-presets small{display:block;color:#87684e;margin-top:2px}.owner-growth{position:relative;overflow:hidden;border-left-color:#7A4BE0!important;background:linear-gradient(115deg,#fff7db,#efe3ff,#fff7db);animation:ownerGrowthGlow 1.6s ease-in-out infinite alternate}.owner-growth:after{content:'✦';position:absolute;right:12px;top:7px;color:#7A4BE0;font-size:24px;animation:ownerGrowthSpark 1.2s ease-in-out infinite}@keyframes ownerGrowthGlow{to{box-shadow:0 0 18px #9e72e866,inset 0 0 12px #fff}}@keyframes ownerGrowthSpark{50%{transform:scale(1.3) rotate(15deg);opacity:.45}}
@@ -999,12 +999,9 @@ export class UI {
         if (this.candidateCompareFocusId === id) this.candidateCompareFocusId = 0;
         if (comparing) this.closeModal();
         if (g.sim.campaign?.phase === 'employee-intro') {
-          // 招募成功是剧情节点：即使玩家此前把教程卡最小化，也要立即
-          // 打开入场介绍，不能让“继续引导 1/18”成为唯一入口。
           this.tutorialActive = true;
+          this.collapsed.right = true;
           this.render(true);
-          const newcomer = g.sim.staff.find((staff) => staff.id === id);
-          this.showModal(`<h3>新同伴入场</h3><p>${newcomer ? renderPersonName(newcomer, 'span') : '新员工'}从烟雾中显现出来，惊讶地看着这座传说中的旅店。</p><p class="dim">“我本来只是试着投递简历，没想到多元便携旅店的传说是真的！”</p><div class="row"><button data-act="employeeintroconfirm" class="intro-confirm-action">确认，和新同伴开会</button></div>`, false, false, { variant: 'important' });
         }
       }
     }
@@ -1151,6 +1148,9 @@ export class UI {
         const accepted = completeCurrentAndAdvance(this.g.sim, 'grant');
         if (accepted) this.g.sim.campaign.phase = 'first-recruitment';
         this.tutorialActive = true;
+        this.collapsed.left = true;
+        this.collapsed.right = true;
+        this.leftTab = 'room';
         this.g.save();
         this.closeModal();
         this.render(true);
@@ -1432,7 +1432,7 @@ export class UI {
     for (const host of document.querySelectorAll('.tutorial-target-host')) host.classList.remove('tutorial-target-host');
     for (const node of document.querySelectorAll('.tutorial-target')) {
       if (node.classList.contains('tutorial-next-card')) continue;
-      node.classList.remove('tutorial-target', 'tutorial-satisfied'); node.style.zIndex = ''; node.style.pointerEvents = '';
+      node.classList.remove('tutorial-target', 'tutorial-satisfied', 'tutorial-big-target'); node.style.zIndex = ''; node.style.pointerEvents = '';
     }
     const state = this.currentTutorialState();
     if (this.g.sim.campaign?.mode === 'tutorial' && !this.g.sim.campaign?.tutorialFlags?.quickStart) {
@@ -1488,7 +1488,8 @@ export class UI {
     const roomPanelOpen = this.leftTab === 'room' && !!document.querySelector('[data-tutorial-type="room-blueprint"]');
     const furnPanelOpen = this.leftTab === 'furn' && !!document.querySelector('[data-tutorial-type="furniture"]');
     const recruitmentNeedsCorridor = phase === 'first-recruitment' && !sim.tavern.rooms.some((room) => room.kind === 'corridor');
-    const recruitmentNeedsChair = phase === 'first-recruitment' && !recruitmentNeedsCorridor && sim.tavern.rooms.some((room) => room.kind === 'lounge') && !sim.campaign.tutorialFlags?.meetingChairReady;
+    const recruitmentNeedsLounge = phase === 'first-recruitment' && !recruitmentNeedsCorridor && !sim.tavern.rooms.some((room) => room.kind === 'lounge');
+    const recruitmentNeedsChair = phase === 'first-recruitment' && !recruitmentNeedsCorridor && !recruitmentNeedsLounge && !sim.campaign.tutorialFlags?.meetingChairReady;
     const nextFurnitureKind = tutorialFurnitureKind(nextFurniture);
     const roomSelector = roomPanelOpen && nextRoom ? `[data-act="ltab"][data-v="room"],[data-tutorial-type="room-blueprint"][data-tutorial-key="${nextRoom}"]` : '[data-act="rail"][data-v="room"]';
     const furnSelector = furnPanelOpen && nextFurniture ? `[data-act="ltab"][data-v="furn"],[data-tutorial-type="furniture"][data-tutorial-key="${nextFurnitureKind}"]` : '[data-act="rail"][data-v="furn"],[data-act="ltab"][data-v="furn"]';
@@ -1499,11 +1500,12 @@ export class UI {
       'ready-open': ['营业', '门外已经有人等着了', '最后检查一下动线，点击“开门营业”，我们一起迎接第一批客人。', '[data-act="open"]'],
       'business': tutorialBedPrompt ? ['营业', '该回床上补一会儿体力了', '一个人同时照看旅店和客人会很累。点亮的床就是你的休息处：管理模式点床会自动走过去，直控模式走到床边按 E。客人的耐心会在这段时间耗尽，这是今天要学会面对的第一课。', '#app canvas'] : null,
       'day1-open': tutorialBedPrompt ? ['营业', '该回床上补一会儿体力了', '一个人同时照看旅店和客人会很累。点亮的床就是你的休息处：管理模式点床会自动走过去，直控模式走到床边按 E。客人的耐心会在这段时间耗尽，这是今天要学会面对的第一课。', '#app canvas'] : null,
-      'first-recruitment': ['打烊', recruitmentNeedsCorridor ? '先铺一段连接走廊' : recruitmentNeedsChair ? '先给会议桌添一把椅子' : '一个人太辛苦了', recruitmentNeedsCorridor ? '员工休息室不能悬在旅店外面。先铺一段短走廊，给未来的新同伴留一条回房的路。' : recruitmentNeedsChair ? '员工房已经准备好了。会议桌旁再添一把椅子，第一位新同伴才有位置参加每日会议。' : '王国的赠礼已经到账。先建一间员工休息室，招募按钮就会像变魔术一样出现。', recruitmentNeedsCorridor ? (roomPanelOpen ? '[data-tutorial-type="room-blueprint"][data-tutorial-key="corridor"]' : '[data-act="rail"][data-v="room"]') : recruitmentNeedsChair ? (furnPanelOpen ? '[data-tutorial-type="furniture"][data-tutorial-key="chair"]' : '[data-act="rail"][data-v="furn"],[data-act="ltab"][data-v="furn"]') : '[data-act="rail"][data-v="room"]'],
+      'first-recruitment': ['打烊', recruitmentNeedsCorridor ? '先打开房间，铺一段连接走廊' : recruitmentNeedsLounge ? '为新员工建一间休息室' : recruitmentNeedsChair ? '先给会议桌添一把椅子' : '准备招募第一位员工', recruitmentNeedsCorridor ? '点击左侧闪烁的“房间”大按钮，再从三种走廊中任选一种，为未来的新同伴留出通往卧室的路。' : recruitmentNeedsLounge ? '走廊已经准备好了。接下来建造员工休息室，它会自带一张员工床。' : recruitmentNeedsChair ? '员工房已经准备好了。打开家具页，在会议桌旁再添一把椅子。' : '房间和座位都准备好了。点击右侧闪烁的“员工”大按钮，看看新出现的“新增员工”。', recruitmentNeedsCorridor ? (roomPanelOpen ? '[data-act="ltab"][data-v="room"],[data-tutorial-type="room-blueprint"][data-tutorial-key="corridor"]' : '[data-act="rail"][data-v="room"]') : recruitmentNeedsLounge ? (roomPanelOpen ? '[data-act="ltab"][data-v="room"],[data-tutorial-type="room-blueprint"][data-tutorial-key="lounge"]' : '[data-act="rail"][data-v="room"]') : recruitmentNeedsChair ? (furnPanelOpen ? '[data-act="ltab"][data-v="furn"],[data-tutorial-type="furniture"][data-tutorial-key="chair"]' : '[data-act="rail"][data-v="furn"],[data-act="ltab"][data-v="furn"]') : '[data-act="rail"][data-v="staff"]'],
+      'recruit': ['招募', this.collapsed.right || this.rightTab !== 'staff' ? '点击员工按钮' : this.staffView === 'list' ? '这里多出了“新增员工”' : this.allRecruitmentCandidates().length ? '选择心仪的员工' : '发布一份招募广告', this.collapsed.right || this.rightTab !== 'staff' ? '点击右侧闪烁的“员工”大按钮。' : this.staffView === 'list' ? '咦，这里多出来一个“新增员工”按钮！点击它进入员工招募。' : this.allRecruitmentCandidates().length ? '浏览候选人，在心仪的员工处点击“雇佣”即可；其它细节以后可以慢慢探索。' : '招聘中心很简单：先发布一份广告，出现候选人后选择喜欢的员工并点击“雇佣”。', this.collapsed.right || this.rightTab !== 'staff' ? '[data-act="rail"][data-v="staff"]' : this.staffView === 'list' ? '[data-act="staffrecruit"]' : this.allRecruitmentCandidates().length ? '[data-act="hire"]' : '[data-act="adopen"]'],
       'settlement': ['打烊', '今天辛苦了', '先看看经营小报，再和大家坐到会议桌旁聊聊今天发生的事。', '#top'],
       'meeting': ['会议', '大家都到齐了', '从经营、团队和世界三个方向挑选最重要的议题，听听每个人的想法。', '#modal'],
-      'night': ['夜间', '轮到旅店安静下来', '和员工聊两句，或者回到自己的床边躺下，结束这一天。', '#app canvas'],
-      'employee-intro': ['新同伴', '简历真的变成了一个人', '先和新员工打个招呼。确认这段入场介绍后，才会一起坐到会议桌旁。', '[data-act="employeeintroconfirm"]'],
+      'night': ['夜间', '打烊后的时间属于你们', '员工会自然地活动和交谈；你也可以主动找人聊天。想结束今天时，可以切换直控模式走到自己床边按 E；自动模式下双击床，触屏则连续点床两次。这个结束日交互只在打烊时开放。', '#app canvas'],
+      'employee-intro': ['新同伴', '第一位员工到店了', '看着他们自然地打过招呼，再一起走到会议桌旁入座；坐好以后，第一次会议才会开始。', '#app canvas'],
     }[phase];
     if (!steps) { this.tutorialLayer.style.display = 'none'; return; }
     const [chapter, title, body, selector] = steps;
@@ -1513,11 +1515,13 @@ export class UI {
       // exact card remains visibly actionable even while the campaign overlay
       // refreshes. Other targets are recalculated below as usual.
       if (node.classList.contains('tutorial-next-card')) continue;
-      node.classList.remove('tutorial-target'); node.style.zIndex = ''; node.style.pointerEvents = '';
+      node.classList.remove('tutorial-target', 'tutorial-big-target'); node.style.zIndex = ''; node.style.pointerEvents = '';
     }
     const targets = [...document.querySelectorAll(selector)].filter((node) => node.getBoundingClientRect().width > 0);
     for (const target of targets) {
-      target.classList.add('tutorial-target'); target.style.position = 'relative'; target.style.zIndex = '31'; target.style.pointerEvents = 'auto';
+      target.classList.add('tutorial-target');
+      if (target.matches('.rail button')) target.classList.add('tutorial-big-target');
+      target.style.position = 'relative'; target.style.zIndex = '41'; target.style.pointerEvents = 'auto';
       target.closest('.rail,#left,#right,#top,#bottom')?.classList.add('tutorial-target-host');
       if (target.matches('[data-tutorial-type]')) target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
     }
@@ -1525,10 +1529,9 @@ export class UI {
       const focusRoom = this.g.selection?.kind === 'room' ? sim.tavern.roomById(this.g.selection.id) : null;
       if (focusRoom && ['tutorial-furnish', 'first-recruitment'].includes(phase)) this.g.frameRooms?.([focusRoom], 1.25, 80, 96);
     }
-    const key = `${phase}|${sim.econ.day}|${nextRoom || ''}|${nextFurniture || ''}|${recruitmentNeedsCorridor ? 1 : 0}|${recruitmentNeedsChair ? 1 : 0}|${sim.campaign.tutorialFlags?.day1Opened ? 1 : 0}|${tutorialBedPrompt ? 1 : 0}`;
+    const key = `${phase}|${sim.econ.day}|${nextRoom || ''}|${nextFurniture || ''}|${recruitmentNeedsCorridor ? 1 : 0}|${recruitmentNeedsLounge ? 1 : 0}|${recruitmentNeedsChair ? 1 : 0}|${this.collapsed.right ? 1 : 0}|${this.rightTab}|${this.staffView}|${this.allRecruitmentCandidates().length}|${sim.campaign.tutorialFlags?.day1Opened ? 1 : 0}|${tutorialBedPrompt ? 1 : 0}`;
     if (this.tutorialRenderKey !== key) {
-      const introAction = phase === 'employee-intro' ? '<button data-act="employeeintroconfirm" class="tutorial-primary-action">确认，和新同伴开会</button>' : '';
-      this.tutorialLayer.innerHTML = `<section class="tutorial-card" role="dialog" aria-label="剧情引导"><div class="tutorial-head"><span class="tutorial-step">${chapter} · 第${sim.econ.day}天</span><h2>${title}</h2></div><p>${body}</p><div class="tutorial-hint">高亮区域之外暂时不能操作；完成当前真实目标后，引导会自动进入下一段。</div><div class="tutorial-actions">${introAction}<button data-act="tutorialmin">暂时收起</button><button data-act="tutorialskip" class="warn">跳过引导</button></div></section>`;
+      this.tutorialLayer.innerHTML = `<section class="tutorial-card" role="dialog" aria-label="剧情引导"><div class="tutorial-head"><span class="tutorial-step">${chapter} · 第${sim.econ.day}天</span><h2>${title}</h2></div><p>${body}</p><div class="tutorial-hint">高亮区域之外暂时不能操作；完成当前真实目标后，引导会自动进入下一段。</div><div class="tutorial-actions"><button data-act="tutorialmin">暂时收起</button><button data-act="tutorialskip" class="warn">跳过引导</button></div></section>`;
       this.tutorialRenderKey = key;
     }
     this.tutorialLayer.style.display = 'block'; this.tutorialLayer.style.pointerEvents = 'none'; this.tutorialLayer.style.background = 'rgba(22,12,8,.48)';
@@ -1552,11 +1555,10 @@ export class UI {
     if (phase === 'ready-open') return ['open', 'readiness', 'tutorialmin', 'tutorialskip'].includes(act);
     if (phase === 'first-recruitment') {
       const loungeId = BLUEPRINTS.find((item) => item.kind === 'lounge')?.id || '';
-      const corridorId = 'corridor2';
       const needsCorridor = !this.g.sim.tavern.rooms.some((room) => room.kind === 'corridor');
       return ['rail', 'ltab', 'bp', 'furn', 'cancelbuild', 'rotate', 'buildundo', 'buildredo'].includes(act)
         && (act !== 'rail' && act !== 'ltab' || ['room', 'furn'].includes(value))
-        && (act !== 'bp' || value === (needsCorridor ? corridorId : loungeId)) && (act !== 'furn' || value === 'chair');
+        && (act !== 'bp' || (needsCorridor ? ['corridor2', 'corridor3', 'corridor6'].includes(value) : value === loungeId)) && (act !== 'furn' || value === 'chair');
     }
     if (phase === 'employee-intro') return ['employeeintroconfirm', 'tutorialmin', 'tutorialskip'].includes(act);
     if (phase === 'recruit') return ['rtab', 'rail', 'staffrecruit', 'staffback', 'detail', 'selstaff', 'hire', 'directrecruit', 'adopen', 'adpost', 'adcancelai', 'adclear', 'adseen', 'adbias', 'adrace', 'adsex', 'adtier', 'adworld', 'adworldname', 'candcompare', 'candcomparefocus', 'candcompareopen', 'candgaphighlight', 'candjobfilter', 'candsort', 'candworldfilter', 'tutorialmin', 'tutorialskip'].includes(act);
@@ -1571,6 +1573,13 @@ export class UI {
     this.renderRails();
     this.renderTop();
     const s = this.g.sim;
+    if (s.campaign?.mode === 'tutorial' && s.campaign.phase === 'recruit' && !s.campaign.tutorialFlags?.recruitRailShown) {
+      s.campaign.tutorialFlags.recruitRailShown = true;
+      this.collapsed.left = true;
+      this.collapsed.right = true;
+      this.rightTab = 'staff';
+      this.staffView = 'list';
+    }
     if (s.campaign?.mode === 'tutorial' && s.campaign.phase === 'tutorial-furnish' && this.leftTab === 'furn') {
       const nextStep = tutorialMissingFurniture(s)[0];
       const targetRoomKind = { desk: 'foyer', table: 'dining', chair: 'dining', prep: 'kitchen', stove: 'kitchen', pass: 'kitchen', sink: 'kitchen', shelf: 'storage', bed: 'guestroom' }[tutorialFurnitureKind(nextStep)];
@@ -1637,7 +1646,7 @@ export class UI {
         const tutorialPhase = g.sim.campaign?.phase;
         const roomsLeft = ['foyer', 'dining', 'kitchen', 'storage', 'guestroom'].filter((kind) => !g.tavern.rooms.some((room) => room.kind === kind));
         const target = tutorialPhase === 'tutorial-build' ? roomsLeft[0] : tutorialPhase === 'first-recruitment'
-          ? (g.tavern.rooms.some((room) => room.kind === 'corridor') ? (BLUEPRINTS.find((item) => item.kind === 'lounge')?.id || '') : 'corridor2') : '';
+          ? (g.tavern.rooms.some((room) => room.kind === 'corridor') ? (BLUEPRINTS.find((item) => item.kind === 'lounge')?.id || '') : 'corridor') : '';
         // tutorial-build tracks the required room by kind; first-recruitment tracks
         // the concrete lounge blueprint id. Keep the card's action live only for
         // the exact target while the Game method remains the final gate.
