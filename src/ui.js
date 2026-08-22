@@ -16,7 +16,7 @@ import {
   NEED_HELP, ROOM_LABEL, SKILL_HELP, SKILL_KEYS, SKILL_LABEL, STAR_CERTIFICATIONS, STAR_THRESHOLDS, TRAIT_CHEM, TRAIT_SAME, TRAITS, wantById,
   WORLD_PROFILES, worldById, worldUnlockDay,
 } from './data.js';
-import { AGE_MAX, effectiveSkill, fairWageRange, jobFocusSkill, PERK_MAX_LEVEL, perkCostAt, perkLevel, perkNeedAt, perkNoteAt, perkTierOf, relatedPerkSkill, restockPlan, skillBonusOf, SKILL_EFFECT_CAP, SKILL_POINT_CAP, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
+import { AGE_MAX, effectiveSkill, fairWageRange, guestroomBedProfile, jobFocusSkill, PERK_MAX_LEVEL, perkCostAt, perkLevel, perkNeedAt, perkNoteAt, perkTierOf, relatedPerkSkill, restockPlan, skillBonusOf, SKILL_EFFECT_CAP, SKILL_POINT_CAP, STAFF_EQUIPMENT, STAFF_PERKS, staffAnalysis, TRAINING_PROGRAMS, worldIngredientPrice } from './sim.js';
 import { CONTEST_HEATS, contestHostOf, contestNameOf, equippedTitleOf, stageById, TAVERN_PRESETS, TITLE_TIERS } from './contest.js';
 import { emptyLayoutRefund, START_LAYOUTS, startLayoutPreviewSvg } from './start-layouts.js';
 import { worldRaceIds } from './world-identities.js';
@@ -25,7 +25,7 @@ import { portraitURL as illustratedPortraitURL } from './portrait-v2.js';
 import {                        } from './world.js';
 import { acceptInvite, ackCertification, ackFinale, completeCurrentAndAdvance, continueStarCelebration, currentPostReport, declineInvite, drivePostReportEvents as drivePostReportEventsShared, finishActiveMatch } from './post-report-controller.js';
 import { applyMeetingLines, closeMeetingWithConfirmation, meetingAction, meetingAIContext } from './meeting-controller.js';
-import { syncTutorialFurniturePhase, tutorialMissingFurniture } from './tutorial-actions.js';
+import { syncTutorialFurniturePhase, tutorialFurnitureKind, tutorialMissingFurniture } from './tutorial-actions.js';
 
 // V2 在分层美术资产完成前仅供验收，不降低正式游戏的默认立绘质量。
 if (typeof document !== 'undefined') document.documentElement.classList.add('portrait-v2');
@@ -1143,6 +1143,8 @@ export class UI {
         // 弹窗、亲自修员工房；不能被旧的“消息队列→自动开会”流程带走。
         this.g.sim.campaign.tutorialFlags.giftAccepted = true;
         this.g.sim.campaign.phase = 'first-recruitment';
+        const owner = this.g.sim.staff.find((staff) => staff.isOwner);
+        if (owner) owner.bubble = { text: '太好了！有了这笔钱，我得赶紧发个广告，雇佣一个店员，否则也太累啦！', t: 6 };
         // The generic controller's empty-queue exit is `meeting`; the first
         // tutorial grant is the explicit exception and must open recruitment
         // preparation before a lounge/chair/employee exists.
@@ -1487,11 +1489,12 @@ export class UI {
     const recruitmentNeedsCorridor = phase === 'first-recruitment' && !sim.tavern.rooms.some((room) => room.kind === 'corridor');
     const recruitmentNeedsChair = phase === 'first-recruitment' && !recruitmentNeedsCorridor && sim.tavern.rooms.some((room) => room.kind === 'lounge') && !sim.campaign.tutorialFlags?.meetingChairReady;
     const roomSelector = roomPanelOpen && nextRoom ? `[data-tutorial-type="room-blueprint"][data-tutorial-key="${nextRoom}"]` : '[data-act="rail"][data-v="room"]';
-    const furnSelector = furnPanelOpen && nextFurniture ? `[data-tutorial-type="furniture"][data-tutorial-key="${nextFurniture}"]` : '[data-act="rail"][data-v="furn"],[data-act="ltab"][data-v="furn"]';
-    const nextFurnitureName = nextFurniture ? (furnDef(nextFurniture)?.name || '下一件家具') : '所有家具';
+    const furnSelector = furnPanelOpen && nextFurniture ? `[data-tutorial-type="furniture"][data-tutorial-key="${nextFurnitureKind}"]` : '[data-act="rail"][data-v="furn"],[data-act="ltab"][data-v="furn"]';
+    const nextFurnitureKind = tutorialFurnitureKind(nextFurniture);
+    const nextFurnitureName = nextFurniture ? (nextFurniture === 'chair1' ? '第一把餐椅' : nextFurniture === 'chair2' ? '第二把餐椅' : (furnDef(nextFurnitureKind)?.name || '下一件家具')) : '所有家具';
     const steps = {
       'tutorial-build': ['准备', `先建${ROOM_LABEL[nextRoom] || '下一间房'}`, nextRoom === 'foyer' ? '从你的休息室出发，先建一座位面门厅。客人要从那里找到你。' : `很好，接下来把${ROOM_LABEL[nextRoom]}建起来。每一间房都会让旅店学会一件新本事。`, roomSelector],
-      'tutorial-furnish': ['准备', `摆好${nextFurnitureName}`, nextFurniture ? '房间已经连起来了。现在按顺序摆好真正工作的家具，系统会检查每一件设备的使用面。' : '家具都已准备好，确认后就可以开门营业。', furnSelector],
+      'tutorial-furnish': ['准备', `摆好${nextFurnitureName}`, nextFurniture ? ({ table: '餐桌先摆好；同桌同批的客人需要一把对应的餐椅。', chair1: '第一把餐椅：椅子不足会让客人流失。', chair2: '第二把餐椅：第三批教学客人有两位，缺一把就无法同桌入座。', prep: '备餐台负责把食材交给厨房，建议靠近炉灶。', stove: '灶台负责烹饪，和备餐台、出餐口相邻会更顺手。', pass: '出餐台把热菜交给前厅，尽量靠近餐厅。', sink: '水槽负责清洗餐具。', shelf: '储藏架保管旅店初始食材。', bed: '客房床决定房型与住宿容量。', desk: '前台柜台负责迎接刚到店的客人。' }[nextFurniture] || '按顺序摆好真正工作的家具。') : '家具都已准备好，确认后就可以开门营业。', furnSelector],
       'ready-open': ['营业', '门外已经有人等着了', '最后检查一下动线，点击“开门营业”，我们一起迎接第一批客人。', '[data-act="open"]'],
       'business': tutorialBedPrompt ? ['营业', '该回床上补一会儿体力了', '一个人同时照看旅店和客人会很累。点亮的床就是你的休息处：管理模式点床会自动走过去，直控模式走到床边按 E。客人的耐心会在这段时间耗尽，这是今天要学会面对的第一课。', '#app canvas'] : null,
       'day1-open': tutorialBedPrompt ? ['营业', '该回床上补一会儿体力了', '一个人同时照看旅店和客人会很累。点亮的床就是你的休息处：管理模式点床会自动走过去，直控模式走到床边按 E。客人的耐心会在这段时间耗尽，这是今天要学会面对的第一课。', '#app canvas'] : null,
@@ -1511,7 +1514,11 @@ export class UI {
       node.classList.remove('tutorial-target'); node.style.zIndex = ''; node.style.pointerEvents = '';
     }
     const target = [...document.querySelectorAll(selector)].find((node) => node.getBoundingClientRect().width > 0);
-    if (target) { target.classList.add('tutorial-target'); target.style.position = 'relative'; target.style.zIndex = '31'; target.style.pointerEvents = 'auto'; }
+    if (target) {
+      target.classList.add('tutorial-target'); target.style.position = 'relative'; target.style.zIndex = '31'; target.style.pointerEvents = 'auto'; target.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+      const focusRoom = this.selection?.kind === 'room' ? sim.tavern.roomById(this.selection.id) : null;
+      if (focusRoom && ['tutorial-furnish', 'first-recruitment'].includes(phase)) this.g.frameRooms?.([focusRoom], 1.25, 80, 96);
+    }
     const key = `${phase}|${sim.econ.day}|${sim.campaign.tutorialFlags?.day1Opened ? 1 : 0}|${tutorialBedPrompt ? 1 : 0}`;
     if (this.tutorialRenderKey !== key) {
       const introAction = phase === 'employee-intro' ? '<button data-act="employeeintroconfirm" class="tutorial-primary-action">确认，和新同伴开会</button>' : '';
@@ -1644,10 +1651,11 @@ export class UI {
         body += available.map((f) => {
           const q = g.buildFurn === f.kind ? g.buildQuality : 1;
           const furnitureLeft = tutorialMissingFurniture(g.sim);
-          const tutorialTarget = g.sim.campaign?.phase === 'tutorial-furnish' && furnitureLeft[0] === f.kind;
+          const tutorialTarget = g.sim.campaign?.phase === 'tutorial-furnish' && tutorialFurnitureKind(furnitureLeft[0]) === f.kind;
+          const tutorialStep = furnitureLeft[0];
           const tutorialDisabled = g.sim.campaign?.phase === 'tutorial-furnish' && !tutorialTarget;
           return `<div class="card ${g.buildFurn === f.kind ? 'sel' : ''} ${tutorialTarget ? 'tutorial-next-card' : ''}" data-tutorial-key="${f.kind}" data-tutorial-type="furniture" aria-disabled="${tutorialDisabled ? 'true' : 'false'}">
-            <div class="row" ${tutorialDisabled ? 'aria-disabled="true"' : `data-act="furn" data-v="${f.kind}" data-q="${q}"`}><b>${f.name}</b><span class="hi">${f.cost[q - 1]}</span></div>
+            <div class="row" ${tutorialDisabled ? 'aria-disabled="true"' : `data-act="furn" data-v="${f.kind}" data-q="${q}"`}><b>${tutorialTarget && tutorialStep === 'chair1' ? '第一把餐椅：' : tutorialTarget && tutorialStep === 'chair2' ? '第二把餐椅：' : ''}${f.name}</b><span class="hi">${f.cost[q - 1]}</span></div>
             <div class="dim">${f.note}</div>
             <div class="row">品质 ${[1, 2, 3].map((k) => {
               const needStar = furnQualityUnlock(f.kind, k);
@@ -2136,8 +2144,9 @@ export class UI {
     const upCost = Math.round((r.w * r.h) * 26 * r.quality);
     const slots = Math.floor(r.w * r.h * (0.40 + 0.10 * r.quality));
     const used = furns.reduce((s, f) => s + this.g.tavern.furnTiles(f).length, 0);
+    const bedProfile = r.kind === 'guestroom' ? guestroomBedProfile(this.g.tavern, r) : null;
     return `<div class="row" style="align-items:flex-start"><div style="flex:1">
-      <b>${this.roomName(r)} #${r.id}</b> <span class="dim">${r.w}×${r.h}｜房间品质 ${'I'.repeat(r.quality)}</span>
+      <b>${this.roomName(r)} #${r.id}</b> <span class="dim">${r.w}×${r.h}｜房间品质 ${'I'.repeat(r.quality)}</span>${bedProfile ? `<div class="hi">客房类型：${bedProfile.type} · ${bedProfile.beds}张床 · 住宿价格×${bedProfile.priceMultiplier.toFixed(2)}</div>` : ''}
       ${r.kind === 'lounge' ? `<div class="row"><span class="dim">住户（1 室 1 人）</span>
         <select data-act="occupant" data-v="${r.id}">
           <option value="0" ${!r.occupant ? 'selected' : ''}>空闲</option>

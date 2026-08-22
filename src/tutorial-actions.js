@@ -46,9 +46,10 @@ export function syncTutorialFurniturePhase(sim) {
 }
 
 export function tutorialFurnitureRoomSelection(sim, tavern, x, y, nextKind, setSelection) {
+  const actualKind = String(nextKind || '').replace(/[12]$/, '');
   const room = tavern.roomAt(x, y);
-  if (!room || !nextKind || !furnDefRooms(nextKind).includes(room.kind)) return false;
-  if (sim?.campaign?.phase === 'tutorial-furnish' && nextKind === 'chair' && room.kind !== 'dining') return false;
+  if (!room || !nextKind || !furnDefRooms(actualKind).includes(room.kind)) return false;
+  if (sim?.campaign?.phase === 'tutorial-furnish' && actualKind === 'chair' && room.kind !== 'dining') return false;
   setSelection({ kind: 'room', id: room.id });
   return true;
 }
@@ -61,18 +62,22 @@ function furnDefRooms(kind) { return ROOM_FURNITURE[kind] || []; }
 
 export const TUTORIAL_FURNITURE = ['desk', 'table', 'chair', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'];
 
+export const TUTORIAL_FURNITURE_STEPS = ['desk', 'table', 'chair1', 'chair2', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'];
+export function tutorialFurnitureKind(step) { return String(step || '').replace(/[12]$/, ''); }
+
 /** A tutorial chair is a dining seat, never a meeting-table seat in playerroom. */
 export function tutorialFurnitureSatisfied(sim, kind) {
   const furns = sim?.tavern?.furns || [];
-  if (kind !== 'chair') return furns.some((furn) => furn.kind === kind);
-  return (sim.tavern.allTables?.() || []).some((table) => {
-    if (sim.tavern.roomOfFurn(table)?.kind !== 'dining') return false;
+  if (kind !== 'chair1' && kind !== 'chair2' && kind !== 'chair') return furns.some((furn) => furn.kind === kind);
+  const seats = (sim.tavern.allTables?.() || []).reduce((total, table) => {
+    if (sim.tavern.roomOfFurn(table)?.kind !== 'dining') return total;
     // 首日第三批是两位客人；教学必须准备两把真实餐厅椅，
     // 会议桌椅和单把餐椅不能让开门检查提前通过。
-    return (sim.tavern.tableSeats?.(table) || []).filter((chair) => sim.tavern.roomOfFurn(chair)?.kind === 'dining').length >= 2;
-  });
+    return total + (sim.tavern.tableSeats?.(table) || []).filter((chair) => sim.tavern.roomOfFurn(chair)?.kind === 'dining').length;
+  }, 0);
+  return kind === 'chair1' ? seats >= 1 : seats >= 2;
 }
 
 export function tutorialMissingFurniture(sim) {
-  return TUTORIAL_FURNITURE.filter((kind) => !tutorialFurnitureSatisfied(sim, kind));
+  return TUTORIAL_FURNITURE_STEPS.filter((kind) => !tutorialFurnitureSatisfied(sim, kind));
 }

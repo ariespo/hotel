@@ -28,7 +28,7 @@ import { clampZoom, usableViewport } from './src/camera.js';
 import { applyStartLayout, emptyLayoutRefund } from './src/start-layouts.js';
 import { parseAndMigrateGameSave, SAVE_SCHEMA_VERSION, stringifyGameSave, legacyLayoutSeal, verifyLegacyLayoutSeal } from './src/save-schema.js';
 import { allBgmTracks, bgmManifest, bgmSettingsGroups, bgmTrackById, resolveWorldBgm } from './src/world-bgm.js';
-import { applyTutorialFurniturePlaced, applyTutorialRoomPlaced, syncTutorialFurniturePhase, tutorialFurnitureRoomSelection, tutorialMissingFurniture } from './src/tutorial-actions.js';
+import { applyTutorialFurniturePlaced, applyTutorialRoomPlaced, syncTutorialFurniturePhase, tutorialFurnitureKind, tutorialFurnitureRoomSelection, tutorialMissingFurniture } from './src/tutorial-actions.js';
 import { advanceClosingPhase, resumeClosingPhase } from './src/closing-controller.js';
 import { runDawnTransition } from './src/dawn-controller.js';
 import { advancePendingNightBed } from './src/night-bed-controller.js';
@@ -85,6 +85,7 @@ const WORLD_MATERIALS = {
   'floor-garden2': 'assets/world-materials/floor-garden-q2.webp',
   'floor-garden3': 'assets/world-materials/floor-garden-q3.webp',
   furniture: 'assets/world-materials/furniture-target-v3.webp',
+  meetingtable: 'assets/meetingtable.png',
 };
 const hdQualityName = (base, quality, materials) => {
   if (quality >= 3 && materials.has(base + '3')) return base + '3';
@@ -1652,9 +1653,9 @@ export class Game                    {
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'first-recruitment' && kind !== 'chair') { this.sim.toast('先为会议桌增加一把椅子'); return; }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['desk', 'table', 'chair', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'].includes(kind)) { this.sim.toast('第一天先按引导准备基础家具'); return; }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'tutorial-furnish') {
-      const order = ['desk', 'table', 'chair', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'];
+      const order = ['desk', 'table', 'chair1', 'chair2', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'];
       const next = tutorialMissingFurniture(this.sim)[0];
-      if (kind !== next) { this.sim.toast(`教学下一步必须先摆${furnDef(next).name}`); return; }
+      if (kind !== tutorialFurnitureKind(next)) { this.sim.toast(`教学下一步必须先摆${next === 'chair1' ? '第一把餐椅' : next === 'chair2' ? '第二把餐椅' : furnDef(tutorialFurnitureKind(next)).name}`); return; }
     }
     const sel = this.selection;
     const room = sel && sel.kind === 'room' ? this.tavern.roomById(sel.id)
@@ -1744,12 +1745,17 @@ export class Game                    {
     const kind = this.buildFurn          ;
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && !['tutorial-furnish', 'first-recruitment'].includes(this.sim.campaign.phase)) { this.sim.toast('先完成当前教学步骤，再按引导摆家具'); return; }
     if (this.sim.campaign?.mode === 'tutorial' && this.sim.econ.day === 1 && this.sim.campaign.phase === 'tutorial-furnish') {
-      const order = ['desk', 'table', 'chair', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'];
+      const order = ['desk', 'table', 'chair1', 'chair2', 'prep', 'stove', 'pass', 'sink', 'shelf', 'bed'];
       const next = tutorialMissingFurniture(this.sim)[0];
-      if (kind !== next) { this.sim.toast(`教学下一步必须摆${furnDef(next).name}`); return; }
+      if (kind !== tutorialFurnitureKind(next)) { this.sim.toast(`教学下一步必须摆${next === 'chair1' ? '第一把餐椅' : next === 'chair2' ? '第二把餐椅' : furnDef(tutorialFurnitureKind(next)).name}`); return; }
     }
     const def = furnDef(kind);
     const cost = def.cost[this.buildQuality - 1];
+    const room = this.tavern.roomAt(x, y);
+    if (['doublebed', 'kingbed'].includes(kind) && room) {
+      const roomBeds = this.tavern.furnsIn(room.id).filter((item) => BED_KINDS.includes(item.kind));
+      if (roomBeds.some((item) => ['doublebed', 'kingbed'].includes(item.kind))) { this.sim.toast('双人大床和豪华大床每间客房最多一张，且不能与其他床混放'); return; }
+    }
     const check = this.tavern.canPlaceFurn(kind, x, y, this.buildRot);
     if (!check.ok) { this.sim.toast(check.reason); this.audio.play('error'); return; }
     const candidate = this.tavern.serialize(); candidate.furns = [...candidate.furns, { id: candidate.nf, kind, x, y, dir: this.buildRot, quality: this.buildQuality, purchasePrice: cost, builtIn: false }]; candidate.nf++;
@@ -1980,6 +1986,8 @@ export class Game                    {
 
   finishDay()       {
     const stat = this.sim.closeBusiness();
+    const owner = this.sim.staff.find((staff) => staff.isOwner);
+    if (owner) owner.bubble = { text: '好累啊，不过今天总算结束了……先回到“我的房间”复盘一下吧~', t: 6 };
     this.sim.toast('本日经营结束 · 打烊时间');
     this.sim.campaign.phase = 'closing-title';
     this.closingState = { t: 0 };
@@ -2939,8 +2947,9 @@ export class Game                    {
     for (const f of this.tavern.furns) {
       const fstyle = styleById(this.tavern.roomStyle(this.tavern.roomOfFurn(f)));
       const furnitureAtlas = this.materialPack === 'hd' ? this.worldMaterials.get('furniture') : null;
+      const meetingTexture = f.kind === 'meetingtable' ? this.worldMaterials.get('meetingtable') : null;
       const hdFurniture = !!(furnitureAtlas && FURNITURE_ATLAS_FRAMES[f.kind]);
-      const sp = new PIXI.Sprite(furnTexture(f.kind, f.quality, fstyle.accent, furnitureAtlas));
+      const sp = new PIXI.Sprite(meetingTexture || furnTexture(f.kind, f.quality, fstyle.accent, furnitureAtlas));
       // 实例级微色差：同种家具不再千件一面（色相暖冷 4 档抖动）
       const jit = [0xFFFFFF, 0xF7EEE0, 0xFFF6E4, 0xEFF2F4][((f.id * 2654435761) >>> 0) % 4];
       const base = hexToNum(fstyle.furnTint);
@@ -2957,6 +2966,7 @@ export class Game                    {
       const [fw, fh] = furnFootprint(f.kind, f.dir);
       const [sourceW, sourceH] = furnFootprint(f.kind, 0);
       sp.width = sourceW * T; sp.height = sourceH * T;
+      if (meetingTexture) { sp.width = 5 * T; sp.height = 1 * T; if (f.quality >= 2) sp.tint = f.quality >= 3 ? 0xEAD9FF : 0xFFF0C2; }
       if (hdFurniture && f.kind === 'chair') { sp.width *= 0.6; sp.height *= 0.6; }
       sp.anchor.set(0.5);
       sp.x = (f.x + fw / 2) * T;

@@ -14,6 +14,16 @@ import {            Tavern, dirDelta, furnFootprint, validateLayout } from './wo
 import { normalizeCustomWorld, worldFestivalForDay, worldRuleForDay, worldSwitchCost } from './world-system.js';
 import { worldContentFor, worldSpecialtyFor } from './world-content.js';
 import { tutorialMissingFurniture } from './tutorial-actions.js';
+
+/** 客房床位规则：普通床决定人数房型，特殊床决定商务/豪华客房。 */
+export function guestroomBedProfile(tavern, room) {
+  const beds = (tavern?.furnsIn?.(room?.id) || []).filter((f) => BED_KINDS.includes(f.kind));
+  const special = beds.find((f) => f.kind === 'kingbed') || beds.find((f) => f.kind === 'doublebed');
+  const ordinary = beds.filter((f) => f.kind === 'bed').length;
+  const type = special?.kind === 'kingbed' ? '豪华客房' : special?.kind === 'doublebed' ? '商务客房' : ordinary >= 3 ? '多人间' : ordinary === 2 ? '双床房' : '大床房';
+  const extraOrdinaryPenalty = special ? 1 : Math.pow(0.85, Math.max(0, ordinary - 1));
+  return { type, beds: beds.length, ordinaryBeds: ordinary, priceMultiplier: extraOrdinaryPenalty, comfortMultiplier: special ? 1 : Math.pow(0.9, Math.max(0, ordinary - 1)) };
+}
 import {
   blankContestState, CONTEST_STAGES, contestKey, contestNameOf, equippedTitleOf, makeOpponent,
   nextContestInvite, normalizeContestState, resolveContestMatch, stageById, titleNameFor, titleTierForPlace,
@@ -3544,8 +3554,9 @@ export class Sim {
     const f = this.tavern.furnById(g.facId);
     const room = f ? this.tavern.roomOfFurn(f) : null;
     const q = f ? f.quality : 1;
+    const bedProfile = room?.kind === 'guestroom' ? guestroomBedProfile(this.tavern, room) : null;
     const bedMult = f ? (BED_PRICE_MULT[f.kind] || 1) : 1;
-    const revenue = Math.round((w.price || 30) * bedMult * this.econ.markup * g.size * (1 + (q - 1) * 0.3));
+    const revenue = Math.round((w.price || 30) * bedMult * (bedProfile?.priceMultiplier || 1) * this.econ.markup * g.size * (1 + (q - 1) * 0.3));
     this.econ.coins += revenue;
     this.econ.revenue += revenue;
     const servedMembers = (g.members || []).filter((member) => member.servedDay !== this.econ.day);
@@ -3561,7 +3572,7 @@ export class Sim {
     const charm = room ? this.charmIn(room.id) : 0;
     const worldFit = this.worldServiceMultipliers(g, room, null);
     const quiet = room?.kind === 'guestroom' ? roomQuietness(this.tavern, room) / 100 : 0;
-    const comfort = clamp((1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm + quiet * 0.8) * worldFit.comfort, 1, 5);
+    const comfort = clamp((1.7 + q * 0.75 + (room ? room.quality * 0.4 : 0) + charm + quiet * 0.8) * (bedProfile?.comfortMultiplier || 1) * worldFit.comfort, 1, 5);
     const facilityService = SPECIAL_FACILITY_WANTS.has(g.want);
     const serviceSkill = facilityService ? (g.facilityAttendantSkill || 0) : this.bestSkill('serve').value;
     const serveScore = clamp((2 + serviceSkill / 34 + (g.greeted ? 0.5 : 0)
@@ -3575,7 +3586,8 @@ export class Sim {
     const waitPen = clamp(3 + (g.patience / g.maxPatience) * 2.4, 1, 5);
     const score = (comfort * 1.5 + hygiene * 1.2 + waitPen + serveScore * 0.8 + spectacle * 0.5) / 5.0;
     this.scores.push(score);
-    this.recordScoreParts({ quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, ...(room?.kind === 'guestroom' ? { quiet: quiet * 5 } : {}), spectacle });
+    this.recordScoreParts({ quality: comfort, wait: waitPen, service: serveScore, hygiene, comfort, ...(room?.kind === 'guestroom' ? { quiet: quiet * 5, roomType: bedProfile?.type || '未配床' } : {}), spectacle });
+    if (room?.kind === 'guestroom') room.guestroomProfile = bedProfile;
     if (f) {
       f.dirty = (f.dirty || 0) + 1;                 // 用完要整理，整理前不再接客
       if (facilityService) this.pendingFacilityReset.set(f.id, { wantId: g.want, groupId: g.id });
@@ -5182,6 +5194,18 @@ export class Sim {
       this.campaign.tutorialFlags.tasteChallengeConsumed = true;
       // 只有第三批固定口味挑战完成后，才把“回床休息”作为下一段教学目标。
       this.campaign.tutorialFlags.bedPrompt = true;
+      if (this.econ.day === 1) {
+        const owner = this.staff.find((staff) => staff.isOwner);
+        const bed = owner && this.bedFor(owner.id);
+        if (owner && bed) {
+          owner.needs.stamina = 0;
+          owner.bubble = { text: '好累啊……该回我的房间躺一会儿了。', t: 6 };
+          const stand = this.tavern.standTileNear(this.tavern.useTiles(bed));
+          owner.pendingBedRest = bed.id;
+          owner.path = stand ? (this.tavern.path(Math.round(owner.x), Math.round(owner.y), stand.x, stand.y) || []) : [];
+          this.toast('体力、压力、士气和饥饿会影响工作；现在请回床边休息。');
+        }
+      }
     }
     let text = '';
     let success = true;
